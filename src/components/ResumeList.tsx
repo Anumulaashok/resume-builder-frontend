@@ -1,0 +1,95 @@
+import React, { useState, useEffect } from 'react';
+import { PencilIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
+import { Resume, resumeService } from '../services/resume.service';
+import toast from 'react-hot-toast';
+
+interface ResumeListProps {
+  onEditResume: (resume: Resume) => void;
+}
+
+const ResumeList: React.FC<ResumeListProps> = ({ onEditResume }) => {
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadResumes();
+  }, []);
+
+  const loadResumes = async () => {
+    try {
+      const data = await resumeService.getResumes();
+      setResumes(data);
+    } catch (error) {
+      toast.error('Failed to load resumes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this resume?')) {
+      return;
+    }
+
+    try {
+      await resumeService.deleteResume(id);
+      toast.success('Resume deleted successfully');
+      setResumes(resumes.filter(resume => resume.id !== id));
+    } catch (error) {
+      toast.error('Failed to delete resume');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      {resumes.map(resume => (
+        <div
+          key={resume.id}
+          className="bg-white overflow-hidden shadow-lg rounded-lg hover:shadow-xl transition-shadow duration-300"
+        >
+          <div className="p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 line-clamp-1">{resume.title}</h3>
+            <p className="text-xs sm:text-sm text-gray-500 mb-4">
+              Last updated: {new Date(resume.updatedAt).toLocaleDateString()}
+            </p>
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              <button
+                onClick={() => onEditResume(resume)}
+                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <PencilIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                Edit
+              </button>
+              <button 
+                onClick={() => handleDelete(resume.id)}
+                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                Delete
+              </button>
+              <button className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <DocumentDuplicateIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                Clone
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {resumes.length === 0 && (
+        <div className="col-span-full text-center py-12">
+          <p className="text-gray-500 text-sm sm:text-base">No resumes found. Create your first resume!</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ResumeList;
