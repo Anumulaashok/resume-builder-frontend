@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  /* Custom utility for panel resize handle */
+  .panel-resize-handle {
+    touch-action: none;
+    user-select: none;
+  }
+
+  /* Smooth transitions during resize and zoom */
+  .resume-panel {
+    transition: width 100ms ease;
+  }
+
+  .resume-preview {
+    transition: transform 200ms ease;
+  }
+
+  /* Print styles for the resume preview */
+  @media print {
+    .resume-preview {
+      width: 21cm !important;
+      min-height: 29.7cm !important;
+      padding: 2cm !important;
+      margin: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: white !important;
+      box-shadow: none !important;
+      page-break-after: always;
+      transform: scale(1) !important;
+    }
+  }
+}

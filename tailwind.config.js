@@ -4,7 +4,23 @@ module.exports = {
     "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      width: {
+        'a4': '21cm',
+      },
+      minHeight: {
+        'a4': '29.7cm',
+      },
+      spacing: {
+        'a4-p': '0.5cm', // A4 page margin
+      },
+      screens: {
+        'print': {'raw': 'print'},
+      },
+    },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),
+    require('@headlessui/tailwindcss')
+  ],
 }
