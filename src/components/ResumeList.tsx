@@ -3,12 +3,17 @@ import { PencilIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/2
 import { Resume, resumeService } from '../services/resume.service';
 import toast from 'react-hot-toast';
 
+interface ResumeWithMeta extends Resume {
+  id: string;
+  updatedAt: string;
+}
+
 interface ResumeListProps {
   onEditResume: (resume: Resume) => void;
 }
 
-const ResumeList: React.FC<ResumeListProps> = ({ onEditResume }) => {
-  const [resumes, setResumes] = useState<Resume[]>([]);
+export default function ResumeList({ onEditResume }: ResumeListProps) {
+  const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,8 +31,8 @@ const ResumeList: React.FC<ResumeListProps> = ({ onEditResume }) => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this resume?')) {
+  const handleDelete = async (id: string | undefined) => {
+    if (!id || !window.confirm('Are you sure you want to delete this resume?')) {
       return;
     }
 
@@ -37,6 +42,20 @@ const ResumeList: React.FC<ResumeListProps> = ({ onEditResume }) => {
       setResumes(resumes.filter(resume => resume.id !== id));
     } catch (error) {
       toast.error('Failed to delete resume');
+    }
+  };
+
+  const handleClone = async (resume: ResumeWithMeta) => {
+    try {
+      const { id: _, updatedAt: __, ...cloneData } = resume;
+      const clonedResume = await resumeService.createResume({
+        ...cloneData,
+        title: `${cloneData.title} (Copy)`
+      });
+      toast.success('Resume cloned successfully');
+      setResumes(prev => [...prev, clonedResume]);
+    } catch (error) {
+      toast.error('Failed to clone resume');
     }
   };
 
@@ -75,7 +94,10 @@ const ResumeList: React.FC<ResumeListProps> = ({ onEditResume }) => {
                 <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                 Delete
               </button>
-              <button className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+              <button 
+                onClick={() => handleClone(resume)}
+                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
                 <DocumentDuplicateIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                 Clone
               </button>
@@ -90,6 +112,4 @@ const ResumeList: React.FC<ResumeListProps> = ({ onEditResume }) => {
       )}
     </div>
   );
-};
-
-export default ResumeList;
+}

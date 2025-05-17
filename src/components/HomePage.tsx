@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlusIcon, DocumentTextIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
 import Header from './common/Header';
@@ -11,7 +11,7 @@ interface HomePageProps {
   onLogout?: () => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onLogout }) => {
+export default function HomePage({ onLogout }: HomePageProps) {
   const [activeView, setActiveView] = useState<'list' | 'editor' | 'ai'>('list');
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [loading, setLoading] = useState(false);
@@ -156,6 +156,4 @@ const HomePage: React.FC<HomePageProps> = ({ onLogout }) => {
       )}
     </div>
   );
-};
-
-export default HomePage;
+}

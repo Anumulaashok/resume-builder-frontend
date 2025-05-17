@@ -18,8 +18,10 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { resumeService } from '../services/resume.service';
 import { Resume, ResumeSection } from '../types/resume';
+import ResumePreview from './ResumePreview';
 
 interface SectionOption {
   id: string;
@@ -96,7 +98,7 @@ const SortableItem: React.FC<SortableItemProps> = ({ id, section, onRemove }) =>
   );
 };
 
-const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBack }) => {
+export default function ResumeEditor({ initialResume, onSave, onBack }: ResumeEditorProps) {
   const defaultResume: Resume = {
     title: 'Untitled Resume',
     content: {
@@ -119,12 +121,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
   };
 
   const [resume, setResume] = useState<Resume>(initialResume || defaultResume);
-  
   const [loading, setLoading] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
   const [customSectionTitle, setCustomSectionTitle] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const handleChange = (section: string, value: any) => {
     setResume(prev => ({
@@ -136,21 +144,22 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
     }));
   };
 
-  const handleSave = async () => {
-    setLoading(true);
-    try {
-      let savedResume;
-      if (initialResume?.id) {
-        savedResume = await resumeService.updateResume(initialResume.id, resume);
-      } else {
-        savedResume = await resumeService.createResume(resume);
-      }
-      toast.success('Resume saved successfully!');
-      onSave?.(savedResume);
-    } catch (error) {
-      toast.error('Failed to save resume');
-    } finally {
-      setLoading(false);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setResume((prev) => {
+        const oldIndex = prev.content.sectionOrder.indexOf(active.id.toString());
+        const newIndex = prev.content.sectionOrder.indexOf(over?.id.toString() || '');
+
+        return {
+          ...prev,
+          content: {
+            ...prev.content,
+            sectionOrder: arrayMove(prev.content.sectionOrder, oldIndex, newIndex)
+          }
+        };
+      });
     }
   };
 
@@ -203,29 +212,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
     toast.success('Custom section added');
   };
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (active.id !== over?.id) {
-      setResume((prev) => {
-        const oldIndex = prev.content.sectionOrder.indexOf(active.id.toString());
-        const newIndex = prev.content.sectionOrder.indexOf(over?.id.toString() || '');
-
-        return {
-          ...prev,
-          content: {
-            ...prev.content,
-            sectionOrder: arrayMove(prev.content.sectionOrder, oldIndex, newIndex)
-          }
-        };
-      });
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      let savedResume;
+      if (initialResume?.id) {
+        savedResume = await resumeService.updateResume(initialResume.id, resume);
+      } else {
+        savedResume = await resumeService.createResume(resume);
+      }
+      toast.success('Resume saved successfully!');
+      onSave?.(savedResume);
+    } catch (error) {
+      toast.error('Failed to save resume');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,158 +243,174 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
 
   return (
     <div className="min-h-screen bg-gray-50 pt-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white shadow-xl rounded-lg overflow-hidden">
-          {/* Header */}
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={onBack}
-                  className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <ArrowLeftIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1" />
-                  Back
-                </button>
-                <input
-                  type="text"
-                  value={resume.title}
-                  onChange={(e) => setResume(prev => ({ ...prev, title: e.target.value }))}
-                  className="text-xl sm:text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 w-full sm:w-auto"
-                  placeholder="Resume Title"
-                />
-              </div>
-              <div className="flex items-center space-x-2 sm:space-x-4">
-                <button
-                  onClick={handleSave}
-                  disabled={loading}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  <PencilIcon className="h-4 w-4 mr-1.5" />
-                  Save
-                </button>
-                <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
-                  Clone
-                </button>
-                <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
-                  Export
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="p-4 sm:p-6 space-y-6">
-            {/* Basic Information */}
-            <section>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={resume.content?.basics?.name || ''}
-                    onChange={(e) => handleChange('basics', { ...resume.content?.basics, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Professional Title
-                  </label>
-                  <input
-                    type="text"
-                    value={resume.content?.basics?.label || ''}
-                    onChange={(e) => handleChange('basics', { ...resume.content?.basics, label: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={resume.content?.basics?.email || ''}
-                    onChange={(e) => handleChange('basics', { ...resume.content?.basics, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={resume.content?.basics?.phone || ''}
-                    onChange={(e) => handleChange('basics', { ...resume.content?.basics, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Professional Summary
-                </label>
-                <textarea
-                  rows={4}
-                  value={resume.content?.basics?.summary || ''}
-                  onChange={(e) => handleChange('basics', { ...resume.content?.basics, summary: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
-              </div>
-            </section>
-
-            {/* Resume Sections */}
-            <div className="p-4 sm:p-6 space-y-6">            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={resume.content?.sectionOrder || []}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-6">
-                  {orderedSections?.map((section) => (
-                    <SortableItem
-                      key={section.id}
-                      id={section.id}
-                      section={section}
-                      onRemove={(id) => {
-                          setResume(prev => ({
-                            ...prev,
-                            content: {
-                              ...prev.content,
-                              sections: prev.content.sections.filter(s => s.id !== id),
-                              sectionOrder: prev.content.sectionOrder.filter(sId => sId !== id)
-                            }
-                          }));
-                          toast.success(`${section.title} section removed`);
-                        }}
+      <div className="h-[calc(100vh-4rem)] bg-gray-50">
+        <PanelGroup direction="horizontal" className="h-full">
+          <Panel defaultSize={55} minSize={40}>
+            <div className="h-full overflow-auto px-4 sm:px-6 lg:px-8 py-6 bg-gray-50">
+              <div className="bg-white shadow-xl rounded-lg overflow-hidden">
+                {/* Header */}
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                    <div className="flex items-center space-x-4">
+                      <button
+                        onClick={onBack}
+                        className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <ArrowLeftIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1" />
+                        Back
+                      </button>
+                      <input
+                        type="text"
+                        value={resume.title}
+                        onChange={(e) => setResume(prev => ({ ...prev, title: e.target.value }))}
+                        className="text-xl sm:text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 w-full sm:w-auto"
+                        placeholder="Resume Title"
                       />
-                    ))}
+                    </div>
+                    <div className="flex items-center space-x-2 sm:space-x-4">
+                      <button
+                        onClick={handleSave}
+                        disabled={loading}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                      >
+                        <PencilIcon className="h-4 w-4 mr-1.5" />
+                        Save
+                      </button>
+                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
+                        Clone
+                      </button>
+                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
+                        Export
+                      </button>
+                    </div>
                   </div>
-                </SortableContext>
-              </DndContext>
+                </div>
 
-              {/* Add Content Button */}
-              <div className="flex justify-center py-6">
-                <button
-                  onClick={() => setShowSectionModal(true)}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <PlusIcon className="h-5 w-5 mr-2 text-gray-400" />
-                  Add Content
-                </button>
+                {/* Content */}
+                <div className="p-4 sm:p-6 space-y-6">
+                  {/* Basic Information */}
+                  <section>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          value={resume.content.basics.name}
+                          onChange={(e) => handleChange('basics', { ...resume.content.basics, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Professional Title
+                        </label>
+                        <input
+                          type="text"
+                          value={resume.content.basics.label}
+                          onChange={(e) => handleChange('basics', { ...resume.content.basics, label: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={resume.content.basics.email}
+                          onChange={(e) => handleChange('basics', { ...resume.content.basics, email: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={resume.content.basics.phone}
+                          onChange={(e) => handleChange('basics', { ...resume.content.basics, phone: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Professional Summary
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={resume.content.basics.summary}
+                        onChange={(e) => handleChange('basics', { ...resume.content.basics, summary: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                    </div>
+                  </section>
+
+                  {/* Resume Sections */}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={resume.content.sectionOrder}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-6">
+                        {orderedSections.map((section) => (
+                          <SortableItem
+                            key={section.id}
+                            id={section.id}
+                            section={section}
+                            onRemove={(id) => {
+                              setResume(prev => ({
+                                ...prev,
+                                content: {
+                                  ...prev.content,
+                                  sections: prev.content.sections.filter(s => s.id !== id),
+                                  sectionOrder: prev.content.sectionOrder.filter(sId => sId !== id)
+                                }
+                              }));
+                              toast.success(`${section.title} section removed`);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+
+                  {/* Add Content Button */}
+                  <div className="flex justify-center py-6">
+                    <button
+                      onClick={() => setShowSectionModal(true)}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <PlusIcon className="h-5 w-5 mr-2 text-gray-400" />
+                      Add Content
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </Panel>
+
+          <PanelResizeHandle className="w-2 hover:w-3 bg-gray-200 transition-all duration-150 hover:bg-blue-100 flex items-center justify-center relative group">
+            <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-blue-300 transition-colors absolute" />
+            <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-blue-300 transition-colors absolute translate-x-0.5" />
+          </PanelResizeHandle>
+
+          <Panel defaultSize={45} minSize={30} >
+            <div className="h-full bg-gray-100">
+              <ResumePreview resume={resume} />
+            </div>
+          </Panel>
+        </PanelGroup>
       </div>
 
       {/* Add Section Modal */}
@@ -506,5 +523,3 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
     </div>
   );
 };
-
-export default ResumeEditor;
