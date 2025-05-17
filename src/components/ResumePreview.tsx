@@ -26,9 +26,9 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
   };
 
   return (
-    <div className="bg-gray-100 h-full overflow-auto p-8">
+    <div className="bg-gray-100 h-full overflow-auto p-4 sm:p-8">
       <div 
-        className="w-[21cm] mx-auto bg-white shadow-xl min-h-[29.7cm] relative print:shadow-none"
+        className="w-full lg:w-[21cm] mx-auto bg-white shadow-xl min-h-[29.7cm] relative print:shadow-none"
         style={{ 
           transform: `scale(${scale})`,
           transformOrigin: 'top center',
@@ -86,24 +86,29 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
           )}
 
           {/* Sections */}
-          {resume.content.sections.map((section) => (
-            <div key={section.id} className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-1 mb-2">
-                {section.title}
-              </h2>
-              <div className="text-sm text-gray-700">
-                {Array.isArray(section.content) ? (
-                  <ul className="list-disc list-inside space-y-2">
-                    {section.content.map((item, index) => (
-                      <li key={index}>{item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>{JSON.stringify(section.content)}</p>
-                )}
+          {resume.content.sectionOrder.map((sectionId) => {
+            const section = resume.content.sections.find(s => s.id === sectionId);
+            if (!section) return null;
+            
+            return (
+              <div key={section.id} className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-1 mb-2">
+                  {section.title}
+                </h2>
+                <div className="text-sm text-gray-700">
+                  {Array.isArray(section.content) ? (
+                    <ul className="list-disc list-inside space-y-2">
+                      {section.content.map((item, index) => (
+                        <li key={index}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>{JSON.stringify(section.content)}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
