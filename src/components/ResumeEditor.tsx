@@ -6,6 +6,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent
@@ -60,45 +61,7 @@ interface SortableItemProps {
   onRemove: (id: string) => void;
 }
 
-const SortableItem: React.FC<SortableItemProps> = ({ id, section, onRemove }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition
-  } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="bg-white rounded-lg shadow border border-gray-200 p-4"
-      {...attributes}
-      {...listeners}
-    >
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-gray-900">{section.title}</h3>
-        <button
-          onClick={() => onRemove(id)}
-          className="text-gray-400 hover:text-gray-500"
-        >
-          <XMarkIcon className="h-5 w-5" />
-        </button>
-      </div>
-      <div className="prose prose-sm max-w-none">
-        <p className="text-gray-500 italic">Content editor coming soon...</p>
-      </div>
-    </div>
-  );
-};
-
-export default function ResumeEditor({ initialResume, onSave, onBack }: ResumeEditorProps) {
+const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBack }) => {
   const defaultResume: Resume = {
     title: 'Untitled Resume',
     content: {
@@ -128,7 +91,19 @@ export default function ResumeEditor({ initialResume, onSave, onBack }: ResumeEd
   const [customSectionTitle, setCustomSectionTitle] = useState('');
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(TouchSensor, {
+      // Add custom touch sensor options for better mobile experience
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5,
+      },
+    }),
+    useSensor(PointerSensor, {
+      // Customize pointer sensor for better touch handling
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -242,6 +217,51 @@ export default function ResumeEditor({ initialResume, onSave, onBack }: ResumeEd
     : [];
 
   const [activeView, setActiveView] = useState<'editor' | 'preview'>('editor');
+
+  // Update SortableItem component to be more touch-friendly
+  const SortableItem: React.FC<SortableItemProps> = ({ id, section, onRemove }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging
+    } = useSortable({ id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      zIndex: isDragging ? 999 : undefined,
+      position: isDragging ? 'relative' : undefined,
+      touchAction: 'none' // Important for mobile drag
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style as any}
+        className={`bg-white rounded-lg shadow border border-gray-200 p-4 ${
+          isDragging ? 'opacity-75 shadow-lg' : ''
+        }`}
+        {...attributes}
+        {...listeners}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">{section.title}</h3>
+          <button
+            onClick={() => onRemove(id)}
+            className="text-gray-400 hover:text-gray-500"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="prose prose-sm max-w-none">
+          <p className="text-gray-500 italic">Content editor coming soon...</p>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pt-16">
@@ -714,3 +734,5 @@ export default function ResumeEditor({ initialResume, onSave, onBack }: ResumeEd
     </div>
   );
 };
+
+export default ResumeEditor;

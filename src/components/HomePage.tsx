@@ -17,6 +17,7 @@ export default function HomePage({ onLogout }: HomePageProps) {
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [showPromptModal, setShowPromptModal] = useState(false);
+  const [hasResumes, setHasResumes] = useState(false);
 
   const handleLogout = () => {
     removeToken();
@@ -58,29 +59,36 @@ export default function HomePage({ onLogout }: HomePageProps) {
       
       {activeView === 'list' && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-6">
-          <div className="mb-6 sm:mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Resumes</h1>
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                <button
-                  onClick={handleNewResume}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <PlusIcon className="h-5 w-5 mr-2" />
-                  New Resume
-                </button>
-                <button
-                  onClick={() => setShowPromptModal(true)}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <SparklesIcon className="h-5 w-5 mr-2" />
-                  AI Generate
-                </button>
+          {hasResumes && (
+            <div className="mb-6 sm:mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Resumes</h1>
+                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                  <button
+                    onClick={handleNewResume}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <PlusIcon className="h-5 w-5 mr-2" />
+                    New Resume
+                  </button>
+                  <button
+                    onClick={() => setShowPromptModal(true)}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <SparklesIcon className="h-5 w-5 mr-2" />
+                    AI Generate
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
           
-          <ResumeList onEditResume={handleEditResume} />
+          <ResumeList 
+            onEditResume={handleEditResume}
+            onNewResume={handleNewResume}
+            onAIGenerate={() => setShowPromptModal(true)}
+            onResumesLoad={(resumes) => setHasResumes(resumes.length > 0)}
+          />
         </div>
       )}
 

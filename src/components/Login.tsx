@@ -38,7 +38,6 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
 
       toast.success(response.message);
       onLoginSuccess();
-      // localStorage.setItem('token', response.token);
       // Redirect to dashboard or home page
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Login failed. Please try again.');
