@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   PencilIcon,
   TrashIcon,
@@ -30,11 +30,7 @@ export default function ResumeList({
   const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadResumes();
-  }, []);
-
-  const loadResumes = async () => {
+  const loadResumes = useCallback(async () => {
     try {
       const data = await resumeService.getResumes();
       setResumes(data || []);
@@ -46,7 +42,11 @@ export default function ResumeList({
     } finally {
       setLoading(false);
     }
-  };
+  }, [onResumesLoad]);
+
+  useEffect(() => {
+    loadResumes();
+  }, [loadResumes]);
 
   const handleDelete = async (id: string | undefined) => {
     if (
