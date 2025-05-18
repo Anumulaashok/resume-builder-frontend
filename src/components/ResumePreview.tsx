@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { Resume } from '../types/resume';
-import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from '@heroicons/react/24/outline';
+import React, { useState } from "react";
+import { Resume } from "../types/resume";
+import {
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
+} from "@heroicons/react/24/outline";
 
 interface ResumePreviewProps {
   resume: Resume;
@@ -14,11 +17,11 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
   };
 
   const handleZoomIn = () => {
-    setScale(prevScale => Math.min(prevScale + 0.1, 2));
+    setScale((prevScale) => Math.min(prevScale + 0.1, 2));
   };
 
   const handleZoomOut = () => {
-    setScale(prevScale => Math.max(prevScale - 0.1, 0.5));
+    setScale((prevScale) => Math.max(prevScale - 0.1, 0.5));
   };
 
   const handleResetZoom = () => {
@@ -27,12 +30,12 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
 
   return (
     <div className="bg-gray-100 h-full overflow-auto p-4 sm:p-8">
-      <div 
+      <div
         className="w-full lg:w-[21cm] mx-auto bg-white shadow-xl min-h-[29.7cm] relative print:shadow-none"
-        style={{ 
+        style={{
           transform: `scale(${scale})`,
-          transformOrigin: 'top center',
-          marginBottom: `${(scale - 1) * 100}%`
+          transformOrigin: "top center",
+          marginBottom: `${(scale - 1) * 100}%`,
         }}
       >
         {/* Preview Controls */}
@@ -67,11 +70,19 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
         <div className="p-[2cm] h-full print:p-8 mt-5 ">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">{resume.content.basics.name}</h1>
-            <p className="text-lg text-gray-600 mt-1">{resume.content.basics.label}</p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {resume.content.basics.name}
+            </h1>
+            <p className="text-lg text-gray-600 mt-1">
+              {resume.content.basics.label}
+            </p>
             <div className="text-sm text-gray-500 mt-2 space-x-3">
-              {resume.content.basics.email && <span>{resume.content.basics.email}</span>}
-              {resume.content.basics.phone && <span>• {resume.content.basics.phone}</span>}
+              {resume.content.basics.email && (
+                <span>{resume.content.basics.email}</span>
+              )}
+              {resume.content.basics.phone && (
+                <span>• {resume.content.basics.phone}</span>
+              )}
             </div>
           </div>
 
@@ -81,15 +92,19 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
               <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-1 mb-2">
                 Professional Summary
               </h2>
-              <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap break-words">{resume.content.basics.summary}</p>
+              <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap break-words">
+                {resume.content.basics.summary}
+              </p>
             </div>
           )}
 
           {/* Sections */}
           {resume.content.sectionOrder.map((sectionId) => {
-            const section = resume.content.sections.find(s => s.id === sectionId);
+            const section = resume.content.sections.find(
+              (s) => s.id === sectionId
+            );
             if (!section) return null;
-            
+
             return (
               <div key={section.id} className="mb-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-1 mb-2">
@@ -99,7 +114,12 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
                   {Array.isArray(section.content) ? (
                     <ul className="list-disc list-inside space-y-2">
                       {section.content.map((item, index) => (
-                        <li key={index}>{item}</li>
+                        <li key={index}>
+                          {item.name ||
+                            item.title ||
+                            item.description ||
+                            JSON.stringify(item)}
+                        </li>
                       ))}
                     </ul>
                   ) : (

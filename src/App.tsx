@@ -1,40 +1,124 @@
-import React, { useState, useEffect } from 'react';
-import Login from './components/Login';
-import Signup from './components/Signup';
-import HomePage from './components/HomePage';
-import { Toaster } from 'react-hot-toast';
-import { isAuthenticated } from './utils/token';
+import React, { useState, useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+import HomePage from "./components/HomePage";
+import ResumeEditor from "./components/ResumeEditor";
+import ResumeList from "./components/ResumeList";
+import LoginPage from "./components/Login";
+import SignupPage from "./components/Signup";
+import { getToken } from "./utils/token";
 
-function App() {
-  const [isLogin, setIsLogin] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+// Authentication wrapper component that handles redirection
+function AuthenticationWrapper() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoginView, setIsLoginView] = useState<boolean>(true);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    setAuthenticated(isAuthenticated());
+    const token = getToken();
+    setIsAuthenticated(!!token);
   }, []);
 
-  const toggleAuth = () => {
-    setIsLogin(!isLogin);
+  // Protected route component
+  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    return <>{children}</>;
   };
 
-  if (authenticated) {
-    return (
-      <div className="App w-full min-h-screen">
-        <HomePage onLogout={() => setAuthenticated(false)} />
-        <Toaster position="top-right" />
-      </div>
-    );
-  }
+  const handleAuthChange = (status: boolean) => {
+    setIsAuthenticated(status);
+    if (status) {
+      // If successfully authenticated, redirect to home
+      const from = location.state?.from?.pathname || "/";
+      navigate(from);
+    }
+  };
+
+  const handleToggleAuth = () => {
+    setIsLoginView(!isLoginView);
+  };
 
   return (
-    <div className="App w-full min-h-screen">
-      {isLogin ? (
-        <Login onToggleAuth={toggleAuth} onLoginSuccess={() => setAuthenticated(true)} />
-      ) : (
-        <Signup onToggleAuth={toggleAuth} />
-      )}
-      <Toaster position="top-right" />
-    </div>
+    <>
+      <Toaster position="top-center" />
+      <Routes>
+        {/* Public routes */}
+        <Route
+          path="/login"
+          element={
+            <LoginPage
+              onLoginSuccess={() => handleAuthChange(true)}
+              onToggleAuth={handleToggleAuth}
+            />
+          }
+        />
+        <Route
+          path="/signup"
+          element={<SignupPage onToggleAuth={handleToggleAuth} />}
+        />
+
+        {/* Protected routes */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <HomePage onLogout={() => handleAuthChange(false)} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/resumes"
+          element={
+            <ProtectedRoute>
+              <ResumeList
+                onEditResume={() => {}}
+                onNewResume={() => {}}
+                onAIGenerate={() => {}}
+                onResumesLoad={() => {}}
+              />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ResumeEditor Routes */}
+        <Route
+          path="/resume/create"
+          element={
+            <ProtectedRoute>
+              <ResumeEditor onSave={() => {}} onBack={() => {}} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/resume/edit/:id"
+          element={
+            <ProtectedRoute>
+              <ResumeEditor onSave={() => {}} onBack={() => {}} />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthenticationWrapper />
+    </Router>
   );
 }
 

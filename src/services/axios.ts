@@ -1,7 +1,7 @@
 import axios, { isAxiosError } from 'axios';
 import { getToken, removeToken } from '../utils/token';
 
-const baseURL = 'https://resume-builder-backend-wzkk.onrender.com';
+const baseURL = 'http://localhost:3000' //?? 'https://resume-builder-backend-wzkk.onrender.com';
 
 const axiosInstance = axios.create({
   baseURL,
@@ -24,20 +24,19 @@ axiosInstance.interceptors.request.use(
   }
 );
 axiosInstance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-          removeToken();
-          // Don't redirect, let the component handle it
-            throw new Error('Authentication failed');
-        }
-        if(isAxiosError(error)) {
-            return new Error(error.response?.data?.message || 'An error occurred');
-
-        }
-        throw new Error(error.response?.data?.message || 'Request failed');
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      removeToken();
+      // Don't redirect, let the component handle it
+      throw new Error('Authentication failed');
     }
-    
+    if (isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'An error occurred');
+    }
+    throw new Error(error.response?.data?.message || 'Request failed');
+  }
+
 );
 
 
