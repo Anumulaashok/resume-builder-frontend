@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { EnvelopeIcon, LockClosedIcon, UserIcon } from '@heroicons/react/24/outline';
+import { EnvelopeIcon, LockClosedIcon, UserIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { authService } from '../services/auth.service';
 import { validatePassword } from '../utils/validation';
 import Header from './common/Header';
@@ -24,6 +24,8 @@ const Signup: React.FC<SignupProps> = ({ onToggleAuth }) => {
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,13 +142,24 @@ const Signup: React.FC<SignupProps> = ({ onToggleAuth }) => {
                     <input
                       id="password"
                       name="password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       required
-                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm"
+                      className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm"
                       placeholder="••••••••"
                       value={formData.password}
                       onChange={handleChange}
                     />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -161,13 +174,24 @@ const Signup: React.FC<SignupProps> = ({ onToggleAuth }) => {
                     <input
                       id="confirmPassword"
                       name="confirmPassword"
-                      type="password"
+                      type={showConfirmPassword ? "text" : "password"}
                       required
-                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm"
+                      className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm"
                       placeholder="••••••••"
                       value={formData.confirmPassword}
                       onChange={handleChange}
                     />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
