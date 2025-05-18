@@ -26,25 +26,27 @@ interface AuthResponse {
 
 class AuthService {
   async login(payload: LoginPayload): Promise<AuthResponse> {
-    const response: AuthResponse = await axiosInstance.post(
+    const response = await axiosInstance.post(
       "/api/auth/login",
       payload
     );
-    if (response.token) {
-      setToken(response.token);
+    const { data } = response;
+    if (data.token) {
+      setToken(data.token);
     }
-    return response;
+    return data;
   }
 
   async signup(payload: SignupPayload): Promise<AuthResponse> {
-    const response: AuthResponse = await axiosInstance.post(
+    const response = await axiosInstance.post(
       "/api/auth/register",
       payload
     );
-    if (response.token) {
-      setToken(response.token);
+    const { data } = response;
+    if (data.token) {
+      setToken(data.token);
     }
-    return response;
+    return data;
   }
 }
 

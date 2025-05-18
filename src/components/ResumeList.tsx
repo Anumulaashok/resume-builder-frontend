@@ -34,6 +34,7 @@ export default function ResumeList({
     try {
       const data = await resumeService.getResumes();
       setResumes(data || []);
+      debugger
       onResumesLoad?.(data || []);
     } catch (error) {
       toast.error("Failed to load resumes");

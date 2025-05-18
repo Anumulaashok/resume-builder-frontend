@@ -191,6 +191,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
     setLoading(true);
     try {
       let savedResume;
+      debugger
       if (initialResume?.id) {
         savedResume = await resumeService.updateResume(initialResume.id, resume);
       } else {

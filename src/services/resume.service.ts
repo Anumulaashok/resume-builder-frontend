@@ -19,23 +19,31 @@ interface AIGenerateResponse {
 
 class ResumeService {
   async generateFromPrompt(prompt: string): Promise<AIGenerateResponse> {
-    return await axiosInstance.post("/api/resumes/generate", { prompt });
+    const response = await axiosInstance.post("/api/resumes/generate", {
+      prompt,
+    });
+    return response.data;
   }
 
   async createResume(resumeData: Partial<Resume>): Promise<ResumeWithMeta> {
-    return await axiosInstance.post("/api/resumes", resumeData);
+    const response = await axiosInstance.post("/api/resumes", resumeData);
+    return response.data;
   }
 
-async getResumes(): Promise<ResumeWithMeta[]> {
-    const response = await axiosInstance.get<{ success: boolean; data: ResumeWithMeta[] }>("/api/resumes");
-    return response.data.data;
-}
+  async getResumes(): Promise<ResumeWithMeta[]> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: ResumeWithMeta[];
+    }>("/api/resumes");
+    return response.data?.data || [];
+  }
 
   async updateResume(
     id: string,
     resumeData: Partial<Resume>
   ): Promise<ResumeWithMeta> {
-    return await axiosInstance.put(`/api/resumes/${id}`, resumeData);
+    const response = await axiosInstance.put(`/api/resumes/${id}`, resumeData);
+    return response.data;
   }
 
   async deleteResume(id: string): Promise<void> {
