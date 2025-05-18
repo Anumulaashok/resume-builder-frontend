@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
-import { PencilIcon, DocumentDuplicateIcon, DocumentArrowDownIcon, ArrowLeftIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
+import React, { useState } from "react";
+import {
+  PencilIcon,
+  DocumentDuplicateIcon,
+  DocumentArrowDownIcon,
+  ArrowLeftIcon,
+  PlusIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
 import {
   DndContext,
   closestCenter,
@@ -9,86 +16,181 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
-  DragEndEvent
-} from '@dnd-kit/core';
+  DragEndEvent,
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  useSortable
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { resumeService } from '../services/resume.service';
-import { Resume, ResumeSection } from '../types/resume';
-import ResumePreview from './ResumePreview';
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { resumeService } from "../services/resume.service";
+import { IResume, ISection, SectionType } from "../types/resume";
+import ResumePreview from "./ResumePreview";
+import SectionEditors from "./sections";
 
-interface SectionOption {
+export interface SectionOption {
   id: string;
+  type: SectionType;
   title: string;
   description: string;
   icon?: React.ReactNode;
 }
 
 interface ResumeEditorProps {
-  initialResume?: Resume;
-  onSave?: (resume: Resume) => void;
+  initialResume?: IResume;
+  onSave?: (resume: IResume) => void;
   onBack: () => void;
 }
 
 const sectionOptions: SectionOption[] = [
-  { id: 'education', title: 'Education', description: 'Show off your primary education, college degrees & exchange semesters.' },
-  { id: 'work', title: 'Professional Experience', description: 'A place to highlight your professional experience - including internships.' },
-  { id: 'skills', title: 'Skills', description: 'List your technical, managerial or soft skills in this section.' },
-  { id: 'languages', title: 'Languages', description: 'You speak more than one language? Make sure to list them here.' },
-  { id: 'certificates', title: 'Certificates', description: 'Drivers licenses and other industry-specific certificates you have belong here.' },
-  { id: 'interests', title: 'Interests', description: 'Do you have interests that align with your career aspiration?' },
-  { id: 'projects', title: 'Projects', description: 'Worked on a particular challenging project in the past? Mention it here.' },
-  { id: 'courses', title: 'Courses', description: 'Did you complete MOOCs or an evening course? Show them off in this section.' },
-  { id: 'awards', title: 'Awards', description: 'Awards like student competitions or industry accolades belong here.' },
-  { id: 'organizations', title: 'Organisations', description: 'If you volunteer or participate in a good cause, why not state it?' },
-  { id: 'publications', title: 'Publications', description: 'Academic publications or book releases have a dedicated place here.' },
-  { id: 'references', title: 'References', description: 'If you have former colleagues or bosses that vouch for you, list them.' },
-  { id: 'softSkills', title: 'Soft Skills', description: 'Highlight your interpersonal and communication abilities.' },
-  { id: 'achievements', title: 'Achievements', description: 'Showcase your notable accomplishments and milestones.' },
-  { id: 'technicalSkills', title: 'Technical Skills', description: 'List your programming languages, tools, and technical expertise.' },
+  {
+    id: "education",
+    type: SectionType.EDUCATION,
+    title: "Education",
+    description:
+      "Show off your primary education, college degrees & exchange semesters.",
+  },
+  {
+    id: "work",
+    type: SectionType.WORK,
+    title: "Professional Experience",
+    description:
+      "A place to highlight your professional experience - including internships.",
+  },
+  {
+    id: "skills",
+    type: SectionType.SKILLS,
+    title: "Skills",
+    description:
+      "List your technical, managerial or soft skills in this section.",
+  },
+  {
+    id: "languages",
+    type: SectionType.LANGUAGES,
+    title: "Languages",
+    description:
+      "You speak more than one language? Make sure to list them here.",
+  },
+  {
+    id: "certificates",
+    type: SectionType.CERTIFICATES,
+    title: "Certificates",
+    description:
+      "Drivers licenses and other industry-specific certificates you have belong here.",
+  },
+  {
+    id: "interests",
+    type: SectionType.INTERESTS,
+    title: "Interests",
+    description:
+      "Do you have interests that align with your career aspiration?",
+  },
+  {
+    id: "projects",
+    type: SectionType.PROJECTS,
+    title: "Projects",
+    description:
+      "Worked on a particular challenging project in the past? Mention it here.",
+  },
+  {
+    id: "courses",
+    type: SectionType.COURSES,
+    title: "Courses",
+    description:
+      "Did you complete MOOCs or an evening course? Show them off in this section.",
+  },
+  {
+    id: "awards",
+    type: SectionType.AWARDS,
+    title: "Awards",
+    description:
+      "Awards like student competitions or industry accolades belong here.",
+  },
+  {
+    id: "organizations",
+    type: SectionType.ORGANIZATIONS,
+    title: "Organisations",
+    description:
+      "If you volunteer or participate in a good cause, why not state it?",
+  },
+  {
+    id: "publications",
+    type: SectionType.PUBLICATIONS,
+    title: "Publications",
+    description:
+      "Academic publications or book releases have a dedicated place here.",
+  },
+  {
+    id: "references",
+    type: SectionType.REFERENCES,
+    title: "References",
+    description:
+      "If you have former colleagues or bosses that vouch for you, list them.",
+  },
+  {
+    id: "softSkills",
+    type: SectionType.SOFTSKILSS,
+    title: "Soft Skills",
+    description: "Highlight your interpersonal and communication abilities.",
+  },
+  {
+    id: "achievements",
+    type: SectionType.ACHIVEMENTS,
+    title: "Achievements",
+    description: "Showcase your notable accomplishments and milestones.",
+  },
+  {
+    id: "technicalSkills",
+    type: SectionType.TECK_SKILLS,
+    title: "Technical Skills",
+    description:
+      "List your programming languages, tools, and technical expertise.",
+  },
 ];
 
 interface SortableItemProps {
   id: string;
-  section: ResumeSection;
+  section: ISection;
   onRemove: (id: string) => void;
 }
 
-const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBack }) => {
-  const defaultResume: Resume = {
-    title: 'Untitled Resume',
+const ResumeEditor: React.FC<ResumeEditorProps> = ({
+  initialResume,
+  onSave,
+  onBack,
+}) => {
+  const defaultResume: IResume = {
+    title: "Untitled Resume",
     content: {
       basics: {
-        name: '',
-        label: '',
-        email: '',
-        phone: '',
-        summary: '',
+        name: "",
+        label: "",
+        email: "",
+        phone: "",
+        summary: "",
         location: {
-          address: '',
-          city: '',
-          countryCode: '',
-          postalCode: ''
-        }
+          address: "",
+          city: "",
+          countryCode: "",
+          postalCode: "",
+        },
       },
       sections: [],
-      sectionOrder: []
-    }
+      sectionOrder: [],
+    },
   };
 
-  const [resume, setResume] = useState<Resume>(initialResume || defaultResume);
+  const [resume, setResume] = useState<IResume>(initialResume || defaultResume);
   const [loading, setLoading] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
-  const [customSectionTitle, setCustomSectionTitle] = useState('');
+  const [customSectionTitle, setCustomSectionTitle] = useState("");
+  const [addSection, setAddSection] = useState<SectionOption | null>(null);
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -110,12 +212,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
   );
 
   const handleChange = (section: string, value: any) => {
-    setResume(prev => ({
+    setResume((prev) => ({
       ...prev,
       content: {
         ...prev.content,
-        [section]: value
-      }
+        [section]: value,
+      },
     }));
   };
 
@@ -124,118 +226,145 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
 
     if (active.id !== over?.id) {
       setResume((prev) => {
-        const oldIndex = prev.content.sectionOrder.indexOf(active.id.toString());
-        const newIndex = prev.content.sectionOrder.indexOf(over?.id.toString() || '');
+        const oldIndex = prev.content.sectionOrder.indexOf(
+          active.id.toString()
+        );
+        const newIndex = prev.content.sectionOrder.indexOf(
+          over?.id.toString() || ""
+        );
 
         return {
           ...prev,
           content: {
             ...prev.content,
-            sectionOrder: arrayMove(prev.content.sectionOrder, oldIndex, newIndex)
-          }
+            sectionOrder: arrayMove(
+              prev.content.sectionOrder,
+              oldIndex,
+              newIndex
+            ),
+          },
         };
       });
     }
   };
 
+  const handleSectionPopup = (section: SectionOption | null) => {
+    setAddSection(section);
+  };
+
   const handleAddSection = (section: SectionOption) => {
-    const newSection: ResumeSection = {
-      id: `${section.id}-${Date.now()}`,
-      type: section.id,
-      title: section.title,
-      content: []
-    };
-
-    setResume(prev => ({
-      ...prev,
-      content: {
-        ...prev.content,
-        sections: [...(prev.content?.sections || []), newSection],
-        sectionOrder: [...(prev.content?.sectionOrder || []), newSection.id]
-      }
-    }));
-
     setShowSectionModal(false);
-    toast.success(`${section.title} section added`);
+    handleSectionPopup(section);
+    // Delay setting addSection to ensure the modal closes before opening the editor popup
+
+    // const newSection: ISection = {
+    //   id: `${section.id}-${Date.now()}`,
+    //   type: section.sectionType,
+    //   title: section.title,
+    //   content: [],
+    // };
+
+    // setResume((prev) => ({
+    //   ...prev,
+    //   content: {
+    //     ...prev.content,
+    //     sections: [...(prev.content?.sections || []), newSection],
+    //     sectionOrder: [...(prev.content?.sectionOrder || []), newSection.id],
+    //   },
+    // }));
+
+    // toast.success(`${section.title} section added`);
+
+    // setTimeout(() => handleSectionPopup(section), 100);
+    return;
   };
 
   const handleAddCustomSection = () => {
     if (!customSectionTitle.trim()) {
-      toast.error('Please enter a section title');
+      toast.error("Please enter a section title");
       return;
     }
 
-    const newSection: ResumeSection = {
+    const newSection: ISection = {
       id: `custom-${Date.now()}`,
-      type: 'custom',
+      type: SectionType.CUSTOM,
       title: customSectionTitle,
       content: [],
-      isCustom: true
+      isCustom: true,
     };
 
-    setResume(prev => ({
+    setResume((prev) => ({
       ...prev,
       content: {
         ...prev.content,
         sections: [...(prev.content?.sections || []), newSection],
-        sectionOrder: [...(prev.content?.sectionOrder || []), newSection.id]
-      }
+        sectionOrder: [...(prev.content?.sectionOrder || []), newSection.id],
+      },
     }));
 
     setShowCustomSectionModal(false);
-    setCustomSectionTitle('');
-    toast.success('Custom section added');
+    setCustomSectionTitle("");
+    toast.success("Custom section added");
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
       let savedResume;
-      debugger
-      if (initialResume?.id) {
-        savedResume = await resumeService.updateResume(initialResume.id, resume);
+      if (initialResume?._id) {
+        savedResume = await resumeService.updateResume(
+          initialResume._id,
+          resume
+        );
       } else {
         savedResume = await resumeService.createResume(resume);
       }
-      toast.success('Resume saved successfully!');
+      toast.success("Resume saved successfully!");
       onSave?.(savedResume);
     } catch (error) {
-      toast.error('Failed to save resume');
+      toast.error("Failed to save resume");
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredSections = sectionOptions.filter(section =>
-    section.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    section.description.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredSections = sectionOptions.filter(
+    (section) =>
+      section.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      section.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const orderedSections = resume?.content?.sections ? 
-    resume.content.sectionOrder
-      .map(id => resume.content.sections.find(section => section.id === id))
-      .filter((section): section is ResumeSection => section !== undefined)
+  const orderedSections = resume?.content?.sections
+    ? resume.content.sectionOrder
+        .map((id) =>
+          resume.content.sections.find((section) => section.id === id)
+        )
+        .filter((section): section is ISection => section !== undefined)
     : [];
 
-  const [activeView, setActiveView] = useState<'editor' | 'preview'>('editor');
+  const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
 
   // Update SortableItem component to be more touch-friendly
-  const SortableItem: React.FC<SortableItemProps> = ({ id, section, onRemove }) => {
+  const SortableItem: React.FC<SortableItemProps> = ({
+    id,
+    section,
+    onRemove,
+  }) => {
     const {
       attributes,
       listeners,
       setNodeRef,
       transform,
       transition,
-      isDragging
+      isDragging,
     } = useSortable({ id });
 
     const style = {
       transform: CSS.Transform.toString(transform),
       transition,
       zIndex: isDragging ? 999 : undefined,
-      position: isDragging ? 'relative' : undefined,
-      touchAction: 'none' // Important for mobile drag
+      position: isDragging ? "relative" : undefined,
+      touchAction: "none", // Important for mobile drag
     };
 
     return (
@@ -243,7 +372,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
         ref={setNodeRef}
         style={style as any}
         className={`bg-white rounded-lg shadow border border-gray-200 p-4 ${
-          isDragging ? 'opacity-75 shadow-lg' : ''
+          isDragging ? "opacity-75 shadow-lg" : ""
         }`}
         {...attributes}
         {...listeners}
@@ -270,21 +399,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
         {/* Mobile View Switcher */}
         <div className="lg:hidden flex justify-center space-x-4 py-2 bg-white border-b">
           <button
-            onClick={() => setActiveView('editor')}
+            onClick={() => setActiveView("editor")}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeView === 'editor'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-500 hover:text-gray-700'
+              activeView === "editor"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-500 hover:text-gray-700"
             }`}
           >
             Editor
           </button>
           <button
-            onClick={() => setActiveView('preview')}
+            onClick={() => setActiveView("preview")}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeView === 'preview'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-500 hover:text-gray-700'
+              activeView === "preview"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-500 hover:text-gray-700"
             }`}
           >
             Preview
@@ -293,10 +422,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
 
         {/* Mobile View */}
         <div className="lg:hidden h-full">
-          {activeView === 'editor' ? (
+          {activeView === "editor" ? (
             <div className="h-full overflow-auto px-4 py-6 bg-gray-50">
               <div className="bg-white shadow-xl rounded-lg overflow-hidden">
-          
                 {/* Header */}
                 <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
@@ -311,7 +439,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                       <input
                         type="text"
                         value={resume.title}
-                        onChange={(e) => setResume(prev => ({ ...prev, title: e.target.value }))}
+                        onChange={(e) =>
+                          setResume((prev) => ({
+                            ...prev,
+                            title: e.target.value,
+                          }))
+                        }
                         className="text-xl sm:text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 w-full sm:w-auto"
                         placeholder="Resume Title"
                       />
@@ -341,7 +474,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                 <div className="p-4 sm:p-6 space-y-6">
                   {/* Basic Information */}
                   <section>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Basic Information
+                    </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -350,7 +485,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                         <input
                           type="text"
                           value={resume.content.basics.name}
-                          onChange={(e) => handleChange('basics', { ...resume.content.basics, name: e.target.value })}
+                          onChange={(e) =>
+                            handleChange("basics", {
+                              ...resume.content.basics,
+                              name: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
@@ -361,7 +501,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                         <input
                           type="text"
                           value={resume.content.basics.label}
-                          onChange={(e) => handleChange('basics', { ...resume.content.basics, label: e.target.value })}
+                          onChange={(e) =>
+                            handleChange("basics", {
+                              ...resume.content.basics,
+                              label: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
@@ -372,7 +517,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                         <input
                           type="email"
                           value={resume.content.basics.email}
-                          onChange={(e) => handleChange('basics', { ...resume.content.basics, email: e.target.value })}
+                          onChange={(e) =>
+                            handleChange("basics", {
+                              ...resume.content.basics,
+                              email: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
@@ -383,7 +533,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                         <input
                           type="tel"
                           value={resume.content.basics.phone}
-                          onChange={(e) => handleChange('basics', { ...resume.content.basics, phone: e.target.value })}
+                          onChange={(e) =>
+                            handleChange("basics", {
+                              ...resume.content.basics,
+                              phone: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
@@ -395,7 +550,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                       <textarea
                         rows={4}
                         value={resume.content.basics.summary}
-                        onChange={(e) => handleChange('basics', { ...resume.content.basics, summary: e.target.value })}
+                        onChange={(e) =>
+                          handleChange("basics", {
+                            ...resume.content.basics,
+                            summary: e.target.value,
+                          })
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       />
                     </div>
@@ -418,13 +578,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                             id={section.id}
                             section={section}
                             onRemove={(id) => {
-                              setResume(prev => ({
+                              setResume((prev) => ({
                                 ...prev,
                                 content: {
                                   ...prev.content,
-                                  sections: prev.content.sections.filter(s => s.id !== id),
-                                  sectionOrder: prev.content.sectionOrder.filter(sId => sId !== id)
-                                }
+                                  sections: prev.content.sections.filter(
+                                    (s) => s.id !== id
+                                  ),
+                                  sectionOrder:
+                                    prev.content.sectionOrder.filter(
+                                      (sId) => sId !== id
+                                    ),
+                                },
                               }));
                             }}
                           />
@@ -473,7 +638,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                         <input
                           type="text"
                           value={resume.title}
-                          onChange={(e) => setResume(prev => ({ ...prev, title: e.target.value }))}
+                          onChange={(e) =>
+                            setResume((prev) => ({
+                              ...prev,
+                              title: e.target.value,
+                            }))
+                          }
                           className="text-xl sm:text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 w-full sm:w-auto"
                           placeholder="Resume Title"
                         />
@@ -503,7 +673,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                   <div className="p-4 sm:p-6 space-y-6">
                     {/* Basic Information */}
                     <section>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                        Basic Information
+                      </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -512,7 +684,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                           <input
                             type="text"
                             value={resume.content.basics.name}
-                            onChange={(e) => handleChange('basics', { ...resume.content.basics, name: e.target.value })}
+                            onChange={(e) =>
+                              handleChange("basics", {
+                                ...resume.content.basics,
+                                name: e.target.value,
+                              })
+                            }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
@@ -523,7 +700,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                           <input
                             type="text"
                             value={resume.content.basics.label}
-                            onChange={(e) => handleChange('basics', { ...resume.content.basics, label: e.target.value })}
+                            onChange={(e) =>
+                              handleChange("basics", {
+                                ...resume.content.basics,
+                                label: e.target.value,
+                              })
+                            }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
@@ -534,7 +716,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                           <input
                             type="email"
                             value={resume.content.basics.email}
-                            onChange={(e) => handleChange('basics', { ...resume.content.basics, email: e.target.value })}
+                            onChange={(e) =>
+                              handleChange("basics", {
+                                ...resume.content.basics,
+                                email: e.target.value,
+                              })
+                            }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
@@ -545,7 +732,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                           <input
                             type="tel"
                             value={resume.content.basics.phone}
-                            onChange={(e) => handleChange('basics', { ...resume.content.basics, phone: e.target.value })}
+                            onChange={(e) =>
+                              handleChange("basics", {
+                                ...resume.content.basics,
+                                phone: e.target.value,
+                              })
+                            }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
@@ -557,7 +749,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                         <textarea
                           rows={4}
                           value={resume.content.basics.summary}
-                          onChange={(e) => handleChange('basics', { ...resume.content.basics, summary: e.target.value })}
+                          onChange={(e) =>
+                            handleChange("basics", {
+                              ...resume.content.basics,
+                              summary: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
@@ -580,13 +777,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                               id={section.id}
                               section={section}
                               onRemove={(id) => {
-                                setResume(prev => ({
+                                setResume((prev) => ({
                                   ...prev,
                                   content: {
                                     ...prev.content,
-                                    sections: prev.content.sections.filter(s => s.id !== id),
-                                    sectionOrder: prev.content.sectionOrder.filter(sId => sId !== id)
-                                  }
+                                    sections: prev.content.sections.filter(
+                                      (s) => s.id !== id
+                                    ),
+                                    sectionOrder:
+                                      prev.content.sectionOrder.filter(
+                                        (sId) => sId !== id
+                                      ),
+                                  },
                                 }));
                               }}
                             />
@@ -622,7 +824,6 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
             </Panel>
           </PanelGroup>
         </div>
-        
       </div>
 
       {/* Add Section Modal */}
@@ -631,7 +832,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
           <div className="bg-white rounded-xl w-full max-w-3xl mx-4 shadow-2xl transform transition-all">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Add Content</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Add Content
+                </h2>
                 <button
                   onClick={() => setShowSectionModal(false)}
                   className="text-gray-400 hover:text-gray-500 transition-colors"
@@ -659,11 +862,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                     onClick={() => handleAddSection(section)}
                     className="flex flex-col p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
                   >
-                    <h3 className="text-base font-medium text-gray-900 mb-1">{section.title}</h3>
-                    <p className="text-sm text-gray-500">{section.description}</p>
+                    <h3 className="text-base font-medium text-gray-900 mb-1">
+                      {section.title}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {section.description}
+                    </p>
                   </button>
                 ))}
-                
+
                 {/* Custom Section Option */}
                 <button
                   onClick={() => {
@@ -672,9 +879,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
                   }}
                   className="flex flex-col p-4 border border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
                 >
-                  <h3 className="text-base font-medium text-gray-900 mb-1">Custom</h3>
+                  <h3 className="text-base font-medium text-gray-900 mb-1">
+                    Custom
+                  </h3>
                   <p className="text-sm text-gray-500">
-                    Create a custom section to combine different elements or add something unique.
+                    Create a custom section to combine different elements or add
+                    something unique.
                   </p>
                 </button>
               </div>
@@ -689,7 +899,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
           <div className="bg-white rounded-xl w-full max-w-md mx-4 shadow-2xl transform transition-all">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Create Custom Section</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Create Custom Section
+                </h2>
                 <button
                   onClick={() => setShowCustomSectionModal(false)}
                   className="text-gray-400 hover:text-gray-500 transition-colors"
@@ -700,7 +912,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
 
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="sectionTitle" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="sectionTitle"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Section Title
                   </label>
                   <input
@@ -731,6 +946,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ initialResume, onSave, onBa
             </div>
           </div>
         </div>
+      )}
+
+      {addSection !== null && (
+        <SectionEditors section={addSection} setAddSection={setAddSection} />
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { Resume as BaseResume } from "../types/resume";
+import { IResume as BaseResume } from "../types/resume";
 import axiosInstance from "../services/axios";
 
 export type Resume = BaseResume;
