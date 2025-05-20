@@ -28,17 +28,15 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { resumeService } from "../services/resume.service";
-import { IResume, ISection, SectionType } from "../types/resume";
+import {
+  EducationItem,
+  IResume,
+  ISection,
+  SectionOption,
+  SectionType,
+} from "../types/resume";
 import ResumePreview from "./ResumePreview";
 import SectionEditors from "./sections";
-
-export interface SectionOption {
-  id: string;
-  type: SectionType;
-  title: string;
-  description: string;
-  icon?: React.ReactNode;
-}
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -152,6 +150,27 @@ const sectionOptions: SectionOption[] = [
   },
 ];
 
+const initialBaseSection: ISection = {
+  id: "base-section",
+  type: SectionType.CUSTOM,
+  title: "Base Section",
+  content: [],
+  isCustom: true,
+};
+
+const initialEducationContent: EducationItem = {
+  id: "education-1",
+  title: "Education",
+  institution: "",
+  degree: "",
+  field: "",
+  startDate: "",
+  endDate: "",
+  current: false,
+  location: "",
+  description: "",
+};
+
 interface SortableItemProps {
   id: string;
   section: ISection;
@@ -190,7 +209,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
   const [customSectionTitle, setCustomSectionTitle] = useState("");
-  const [addSection, setAddSection] = useState<SectionOption | null>(null);
+  const [addSection, setAddSection] = useState<ISection | null>(null);
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -248,13 +267,22 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   };
 
-  const handleSectionPopup = (section: SectionOption | null) => {
+  const handleSectionPopup = (section: ISection | null) => {
     setAddSection(section);
   };
 
   const handleAddSection = (section: SectionOption) => {
     setShowSectionModal(false);
-    handleSectionPopup(section);
+    if (section.type === SectionType.EDUCATION) {
+      const newSection: ISection = {
+        ...initialBaseSection,
+        id: `education-${Date.now()}`,
+        type: section.type,
+        title: section.title,
+        content: [initialEducationContent],
+      };
+      handleSectionPopup(newSection);
+    }
     // Delay setting addSection to ensure the modal closes before opening the editor popup
 
     // const newSection: ISection = {

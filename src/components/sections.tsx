@@ -1,7 +1,13 @@
-import { ISection, SectionType } from "../types/resume";
+import {
+  EducationItem,
+  ISection,
+  SectionOption,
+  SectionType,
+} from "../types/resume";
+import EducationForm from "./Education-form";
 
 interface SectionEditorProps {
-  section: Partial<ISection> | null;
+  section: ISection | null;
   setAddSection: (section: null) => void;
 }
 
@@ -12,7 +18,7 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
   if (!section) {
     return null;
   }
-  
+
   if (section.type === SectionType.SKILLS) {
     return (
       <DialogBox title="Skills" onClose={() => setAddSection(null)}>
@@ -28,7 +34,7 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
   } else if (section.type === SectionType.EDUCATION) {
     return (
       <DialogBox title="Education" onClose={() => setAddSection(null)}>
-        <div>Education</div>
+        <EducationForm />
       </DialogBox>
     );
   } else if (section.type === SectionType.LANGUAGES) {
@@ -124,9 +130,8 @@ const DialogBox: React.FC<{
   children: React.ReactNode;
 }> = ({ title, onClose, children }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md m-auto">
-        <h2 className="text-xl font-semibold mb-4">{title}</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm w-full">
+      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl m-auto">
         {children}
         <button
           onClick={onClose}
@@ -140,3 +145,62 @@ const DialogBox: React.FC<{
 };
 
 export default SectionEditors;
+
+// const ContentEducationItem: React.FC<{ section: ISection | null }> = ({ section }) => {
+//   if (!section) {
+//     return null;
+//   }
+//   const { title, content } = section;
+
+//   return (
+//     <div className="space-y-6">
+//       <h2 className="text-xl font-bold text-gray-900 border-b-2 border-blue-500 pb-2 mb-4">
+//         {title}
+//       </h2>
+//       <div className="space-y-6">
+//         {content.map((item, index) => {
+//           const educationItem = item as EducationItem;
+//           return (
+//             <div key={index} className="bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+//               <div className="mb-4">
+//                 <input
+//                   type="text"
+//                   value={educationItem.institution || ""}
+//                   placeholder="Enter institution"
+//                   className="w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+//                   onChange={(e) => (educationItem.institution = e.target.value)}
+//                 />
+//               </div>
+//               <div className="flex flex-wrap gap-2 items-center mb-4">
+//                 <input
+//                   type="text"
+//                   value={educationItem.degree || ""}
+//                   placeholder="Enter degree"
+//                   className="flex-1 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+//                   onChange={(e) => (educationItem.degree = e.target.value)}
+//                 />
+//                 <span className="text-gray-600 font-medium">in</span>
+//                 <input
+//                   type="text"
+//                   value={educationItem.field || ""}
+//                   placeholder="Enter field"
+//                   className="flex-1 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+//                   onChange={(e) => (educationItem.field = e.target.value)}
+//                 />
+//               </div>
+//               <div>
+//                 <input
+//                   type="text"
+//                   value={educationItem.startDate || ""}
+//                   placeholder="Start date"
+//                   className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+//                   onChange={(e) => (educationItem.startDate = e.target.value)}
+//                 />
+//               </div>
+//             </div>
+//           );
+//         })}
+//       </div>
+//     </div>
+//   );
+// };

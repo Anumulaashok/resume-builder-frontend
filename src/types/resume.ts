@@ -162,6 +162,15 @@ export enum SectionType {
   CUSTOM = 'CustomItem',
 }
 
+export interface SectionOption {
+  id: string;
+  type: SectionType;
+  title: string;
+  description: string;
+  icon?: React.ReactNode;
+}
+
+
 export interface ISection {
   id: string;
   type: SectionType;
