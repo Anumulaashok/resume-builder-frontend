@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+// React imports
+import React, { useEffect, useState } from "react";
+
+// UI Components
 import {
   PencilIcon,
   DocumentDuplicateIcon,
@@ -7,7 +10,11 @@ import {
   PlusIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+
+// Notifications
 import toast from "react-hot-toast";
+
+// DnD related imports
 import {
   DndContext,
   closestCenter,
@@ -26,8 +33,14 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+// Layout Components
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+
+// Services
 import { resumeService } from "../services/resume.service";
+
+// Types
 import {
   dateFields,
   EducationItem,
@@ -36,8 +49,11 @@ import {
   SectionOption,
   SectionType,
 } from "../types/resume";
+
+// Custom Components
 import ResumePreview from "./ResumePreview";
 import SectionEditors from "./sections";
+import { defaultResume } from "../constants/editorConstants";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -154,8 +170,8 @@ const sectionOptions: SectionOption[] = [
 interface SortableItemProps {
   id: string;
   section: ISection;
-  onRemove: (id: string) => void;
-  onEdit: (section: ISection) => void;
+  onRemove: (type: SectionType, id: string) => void;
+  onEdit: (type: SectionType, item: any) => void;
 }
 
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
@@ -163,34 +179,19 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   onSave,
   onBack,
 }) => {
-  const defaultResume: IResume = {
-    title: "Untitled Resume",
-    content: {
-      basics: {
-        name: "",
-        label: "",
-        email: "",
-        phone: "",
-        summary: "",
-        location: {
-          address: "",
-          city: "",
-          countryCode: "",
-          postalCode: "",
-        },
-      },
-      sections: [],
-      sectionOrder: [],
-    },
-  };
-
   const [resume, setResume] = useState<IResume>(initialResume || defaultResume);
   const [loading, setLoading] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
   const [customSectionTitle, setCustomSectionTitle] = useState("");
-  const [addSection, setAddSection] = useState<ISection | null>(null);
+  const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
+  const [filteredSections, setFilteredSections] = useState<SectionOption[]>();
+  const [orderedSections, setOrderedSections] = useState<ISection[]>([]);
+  const [addContent, setAddContent] = useState<{
+    type: SectionType;
+    item: any;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -210,6 +211,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // ----------- handlers start -----------
 
   const handleChange = (section: string, value: any) => {
     setResume((prev) => ({
@@ -248,9 +251,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   };
 
-  const handleSectionPopup = (section: ISection | null) => {
-    setAddSection(section);
-  };
+  const handleSectionPopup = (section: ISection | null) => {};
 
   const handleAddSection = (section: SectionOption) => {
     setShowSectionModal(false);
@@ -260,7 +261,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       title: section.title,
       content: [],
     };
-    handleSectionPopup(newSection); // Open the editor for the new section
+
+    // Fix: Properly add the new section to both arrays
+    setResume((prev) => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        sections: [...prev.content.sections, newSection],
+        sectionOrder: [...prev.content.sectionOrder, newSection.id],
+      },
+    }));
+
+    toast.success(`${section.title} section added`);
   };
 
   const handleAddCustomSection = () => {
@@ -312,68 +324,223 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   };
 
-  const handleSaveSection = () => {
-    if (addSection) {
-      setResume((prev) => ({
+  const handleAddNewItem = (section: ISection) => {
+    let newItem: any = {
+      id: `${section.id}-item-${Date.now()}`,
+    };
+
+    // Create appropriate item template based on section type
+    switch (section.type) {
+      case SectionType.EDUCATION:
+        newItem = {
+          ...newItem,
+          institution: "",
+          degree: "",
+          field: "",
+          startDate: {} as dateFields,
+          endDate: {} as dateFields,
+          current: false,
+          location: "",
+          description: "",
+        };
+        break;
+
+      case SectionType.WORK:
+        newItem = {
+          ...newItem,
+          company: "",
+          position: "",
+          startDate: {} as dateFields,
+          endDate: {} as dateFields,
+          current: false,
+          location: "",
+          description: "",
+        };
+        break;
+
+      case SectionType.SKILLS:
+      case SectionType.TECK_SKILLS:
+      case SectionType.SOFTSKILSS:
+        newItem = {
+          ...newItem,
+          name: "",
+          level: "Intermediate",
+        };
+        break;
+
+      case SectionType.LANGUAGES:
+        newItem = {
+          ...newItem,
+          language: "",
+          fluency: "",
+        };
+        break;
+
+      case SectionType.CERTIFICATES:
+        newItem = {
+          ...newItem,
+          name: "",
+          issuer: "",
+          date: {} as dateFields,
+          url: "",
+        };
+        break;
+
+      case SectionType.INTERESTS:
+        newItem = {
+          ...newItem,
+          name: "",
+        };
+        break;
+
+      case SectionType.PROJECTS:
+        newItem = {
+          ...newItem,
+          name: "",
+          description: "",
+          url: "",
+          startDate: {} as dateFields,
+          endDate: {} as dateFields,
+          current: false,
+          technologies: [],
+        };
+        break;
+
+      case SectionType.COURSES:
+        newItem = {
+          ...newItem,
+          course: "",
+          institution: "",
+          date: {} as dateFields,
+          description: "",
+        };
+        break;
+
+      case SectionType.AWARDS:
+      case SectionType.ACHIVEMENTS:
+        newItem = {
+          ...newItem,
+          title: "",
+          awarder: "",
+          date: {} as dateFields,
+          description: "",
+        };
+        break;
+
+      case SectionType.ORGANIZATIONS:
+        newItem = {
+          ...newItem,
+          organization: "",
+          position: "",
+          startDate: {} as dateFields,
+          endDate: {} as dateFields,
+          current: false,
+          description: "",
+        };
+        break;
+
+      case SectionType.PUBLICATIONS:
+        newItem = {
+          ...newItem,
+          title: "",
+          publisher: "",
+          date: {} as dateFields,
+          url: "",
+          description: "",
+        };
+        break;
+
+      case SectionType.REFERENCES:
+        newItem = {
+          ...newItem,
+          name: "",
+          position: "",
+          company: "",
+          phone: "",
+          email: "",
+          reference: "",
+        };
+        break;
+
+      case SectionType.CUSTOM:
+      default:
+        newItem = {
+          ...newItem,
+          title: "",
+          subtitle: "",
+          startDate: {} as dateFields,
+          endDate: {} as dateFields,
+          location: "",
+          description: "",
+        };
+    }
+
+    setAddContent({ type: section.type, item: newItem });
+  };
+
+  const handleAddContent = (type: SectionType, item: any) => {
+    const updatedSections = resume.content.sections.map((section) => {
+      if (section.type === type) {
+        const existingItemIndex = section.content.findIndex(
+          (content) => content.id === item.id
+        );
+
+        if (existingItemIndex !== -1) {
+          // Update existing item
+          const updatedContent = [...section.content];
+          updatedContent[existingItemIndex] = item;
+          return {
+            ...section,
+            content: updatedContent,
+          };
+        } else {
+          // Add new item
+          return {
+            ...section,
+            content: [...(section.content || []), item],
+          };
+        }
+      }
+      return section;
+    });
+
+    setResume((prev) => {
+      return {
         ...prev,
         content: {
           ...prev.content,
-          sections: prev.content.sections.map((section) =>
-            section.id === addSection.id ? addSection : section
-          ),
+          sections: updatedSections,
         },
-      }));
-    }
-    setAddSection(null);
+      };
+    });
+
+    setAddContent(null);
+    toast.success("Content added successfully");
   };
 
-  const selectedSectionTypes = resume.content.sections.map(
-    (section) => section.type
-  );
+  // ----------- handlers end -----------
 
-  const filteredSections = sectionOptions.filter(
-    (section) =>
-      !selectedSectionTypes.includes(section.type) ||
-      section.type === SectionType.CUSTOM
-  );
+  useEffect(() => {
+    const selectedSectionTypes = resume.content.sections.map(
+      (section) => section.type
+    );
 
-  const orderedSections = resume?.content?.sections
-    ? resume.content.sectionOrder
-        .map((id) =>
-          resume.content.sections.find((section) => section.id === id)
-        )
-        .filter((section): section is ISection => section !== undefined)
-    : [];
+    const filteredSections = sectionOptions.filter(
+      (section) =>
+        !selectedSectionTypes.includes(section.type) ||
+        section.type === SectionType.CUSTOM
+    );
 
-  const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
-
-
-  const handleAddNewItem = (section: ISection) => {
-    const newItem: EducationItem = {
-      id: `${section.id}-${Date.now()}`,
-      type: SectionType.EDUCATION,
-      title: section.title,
-      name: "",
-      position: "",
-      startDate: {} as dateFields,
-      endDate: {} as dateFields,
-      current: false,
-      location: "",
-      description: "",
-    } as any;
-
-    setResume((prev) => ({
-      ...prev,
-      content: {
-        ...prev.content,
-        sections: prev.content.sections.map((s) =>
-          s.id === section.id
-            ? { ...s, content: [...(s.content || []), newItem] }
-            : s
-        ),
-      },
-    }));
-  }
+    const orderedSections = resume?.content?.sections
+      ? resume.content.sectionOrder
+          .map((id) =>
+            resume.content.sections.find((section) => section.id === id)
+          )
+          .filter((section): section is ISection => section !== undefined)
+      : [];
+    setOrderedSections(orderedSections);
+    setFilteredSections(filteredSections);
+  }, [resume]);
 
   // Update SortableItem component to be more touch-friendly
   const SortableItem: React.FC<SortableItemProps> = ({
@@ -389,7 +556,6 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       transform,
       transition,
       isDragging,
-      
     } = useSortable({ id });
 
     const style = {
@@ -416,18 +582,47 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             <button
               onClick={() => handleAddNewItem(section)}
               className="text-gray-400 hover:text-blue-500"
+              aria-label={`Add item to ${section.title}`}
             >
               <PlusIcon className="h-5 w-5" />
             </button>
-            <button
-              onClick={() => onRemove(id)}
-              className="text-gray-400 hover:text-red-500"
-            >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
           </div>
         </div>
-        {/* <div className="space-y-2">{renderContent()}</div> */}
+        {/* Display content items or empty state message */}
+        <div className="space-y-2">
+          {section.content && section.content.length > 0 ? (
+            section.content.map((item: any) => (
+              <div
+                key={item.id}
+                className="p-3 border border-gray-200 rounded-md hover:border-blue-300 transition-colors flex justify-between items-center"
+              >
+                {item.title ||
+                  item.name ||
+                  item.institution ||
+                  item.company ||
+                  "Untitled Item"}
+
+                <div className="flex space-x-5 items-center">
+                  {" "}
+                  <PencilIcon
+                    onClick={() => onEdit(section.type, item)}
+                    className="h-5 w-5 hover:text-blue-500 cursor-pointer"
+                    name="edit"
+                  />
+                  <XMarkIcon
+                    onClick={() => onRemove(section.type, item.id)}
+                    className="h-5 w-5 hover:text-red-500 cursor-pointer"
+                    name="delete"
+                  />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-4 text-gray-500">
+              <p>No items yet. Click the + button to add content.</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -616,19 +811,27 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                             key={section.id}
                             id={section.id}
                             section={section}
-                            onEdit={(section) => handleSectionPopup(section)}
-                            onRemove={(id) => {
+                            onEdit={(type, content) => {
+                              setAddContent({ type, item: content });
+                            }}
+                            onRemove={(type, id) => {
                               setResume((prev) => ({
                                 ...prev,
                                 content: {
                                   ...prev.content,
-                                  sections: prev.content.sections.filter(
-                                    (s) => s.id !== id
+                                  sections: prev.content.sections.map(
+                                    (section) => {
+                                      if (section.type === type) {
+                                        return {
+                                          ...section,
+                                          content: section.content.filter(
+                                            (item) => item.id !== id
+                                          ),
+                                        };
+                                      }
+                                      return section;
+                                    }
                                   ),
-                                  sectionOrder:
-                                    prev.content.sectionOrder.filter(
-                                      (sId) => sId !== id
-                                    ),
                                 },
                               }));
                             }}
@@ -816,19 +1019,27 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               key={section.id}
                               id={section.id}
                               section={section}
-                              onEdit={(section) => handleSectionPopup(section)}
-                              onRemove={(id) => {
+                              onEdit={(type, content) => {
+                                setAddContent({ type, item: content });
+                              }}
+                              onRemove={(type, id) => {
                                 setResume((prev) => ({
                                   ...prev,
                                   content: {
                                     ...prev.content,
-                                    sections: prev.content.sections.filter(
-                                      (s) => s.id !== id
+                                    sections: prev.content.sections.map(
+                                      (section) => {
+                                        if (section.type === type) {
+                                          return {
+                                            ...section,
+                                            content: section.content.filter(
+                                              (item) => item.id !== id
+                                            ),
+                                          };
+                                        }
+                                        return section;
+                                      }
                                     ),
-                                    sectionOrder:
-                                      prev.content.sectionOrder.filter(
-                                        (sId) => sId !== id
-                                      ),
                                   },
                                 }));
                               }}
@@ -897,7 +1108,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
               {/* Sections Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
-                {filteredSections.map((section) => (
+                {filteredSections?.map((section) => (
                   <button
                     key={section.id}
                     onClick={() => handleAddSection(section)}
@@ -989,11 +1200,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         </div>
       )}
 
-      {addSection !== null && (
+      {addContent !== null && (
         <SectionEditors
-          section={addSection}
-          setAddSection={setAddSection}
-          onSave={handleSaveSection}
+          content={addContent}
+          onClose={() => setAddContent(null)}
+          onSave={handleAddContent}
         />
       )}
     </div>

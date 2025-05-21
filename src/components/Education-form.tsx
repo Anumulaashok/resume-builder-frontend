@@ -22,47 +22,38 @@ import {
 import { BaseSection, EducationItem } from "../types/resume";
 
 export default function EducationForm({
-  initialContent = [],
+  initialContent,
   onSave,
   onCancel,
 }: {
-  initialContent?: EducationItem[];
-  onSave: (content: any[]) => void;
+  initialContent?: EducationItem;
+  onSave: (content: any) => void;
   onCancel: () => void;
 }) {
-  const [content, setContent] = useState(initialContent);
+  const [content, setContent] = useState(
+    initialContent ??
+      ({
+        id: Date.now().toString(),
+        degree: "",
+        field: "",
+        location: "",
+        current: false,
+        startDate: { month: "", year: "" },
+        endDate: { month: "", year: "" },
+        description: "",
+      } as EducationItem)
+  );
 
   const handleSave = () => {
     onSave(content);
   };
 
-  const handleChange = (index: number, field: string, value: any) => {
-    setContent((prev) =>
-      prev.map((entry, i) =>
-        i === index ? { ...entry, [field]: value } : entry
-      )
-    );
+  const handleChange = (field: keyof EducationItem | string, value: any) => {
+    setContent((prevContent) => ({
+      ...prevContent,
+      [field]: value,
+    }));
   };
-
-  useEffect(() => {
-    if (content.length === 0) {
-      setContent([
-        {
-          id: Date.now().toString(),
-          title: "",
-          degree: "",
-          field: "",
-          location: "",
-          current: false,
-          startDate: { month: "", year: "" },
-          endDate: { month: "", year: "" },
-          description: "",
-        },
-      ]);
-    } else {
-      setContent(initialContent);
-    }
-  }, [initialContent]);
 
   const MonthYearSelector = ({
     selectedMonth,
@@ -130,7 +121,7 @@ export default function EducationForm({
     <div className="max-w-3xl mx-auto p-6 bg-white rounded-xl shadow">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-semibold text-blue-800">
-          {initialContent.length > 0 ? "Edit Education" : "Create Education"}
+          Create Education
         </h1>
         <Button
           variant="ghost"
@@ -141,126 +132,119 @@ export default function EducationForm({
         </Button>
       </div>
 
-      {content.map((entry, index) => (
-        <div key={index} className="space-y-6">
-          <div>
-            <label className="font-medium text-blue-900">Degree</label>
+      <div className="space-y-6">
+        <div>
+          <label className="font-medium text-blue-900">Degree</label>
+          <Input
+            placeholder="Enter Degree / Field Of Study"
+            className="bg-blue-50 border border-blue-200 focus:border-blue-500"
+            value={content.degree}
+            onChange={(e) => handleChange("degree", e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="font-medium text-blue-900">School</label>
+          <div className="flex gap-2">
             <Input
-              placeholder="Enter Degree / Field Of Study"
-              className="bg-blue-50 border border-blue-200 focus:border-blue-500"
-              value={entry.degree}
-              onChange={(e) => handleChange(index, "degree", e.target.value)}
+              placeholder="Enter school / university"
+              className="bg-blue-50 border border-blue-200 flex-1"
+              value={content.field}
+              onChange={(e) => handleChange("field", e.target.value)}
             />
-          </div>
-
-          <div>
-            <label className="font-medium text-blue-900">School</label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Enter school / university"
-                className="bg-blue-50 border border-blue-200 flex-1"
-                value={entry.field}
-                onChange={(e) => handleChange(index, "school", e.target.value)}
-              />
-              <Button
-                variant="outline"
-                className="border-blue-300 text-blue-600"
-              >
-                <LinkIcon className="h-4 w-4 mr-1" />
-                Link
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="font-medium text-blue-900">City</label>
-              <Input
-                placeholder="Enter City and Country"
-                className="bg-blue-50 border border-blue-200"
-                value={entry.location}
-                onChange={(e) => handleChange(index, "city", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="font-medium text-blue-900">Start Date</label>
-              <MonthYearSelector
-                selectedMonth={entry.startDate?.month}
-                selectedYear={entry.startDate?.year}
-                onMonthChange={(value) =>
-                  handleChange(index, "startDate", {
-                    ...entry.startDate,
-                    month: value,
-                  })
-                }
-                onYearChange={(value) =>
-                  handleChange(index, "startDate", {
-                    ...entry.startDate,
-                    year: value,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <label className="font-medium text-blue-900">End Date</label>
-              <MonthYearSelector
-                selectedMonth={entry.endDate?.month}
-                selectedYear={entry.endDate?.year}
-                onMonthChange={(value) =>
-                  handleChange(index, "endDate", {
-                    ...entry.startDate,
-                    month: value,
-                  })
-                }
-                onYearChange={(value) =>
-                  handleChange(index, "endDate", {
-                    ...entry.startDate,
-                    year: value,
-                  })
-                }
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="font-medium text-blue-900">Description</label>
-            <div className="bg-blue-50 rounded-md">
-              <div className="flex items-center p-2 border-b border-blue-200 gap-1">
-                {[
-                  Bold,
-                  Italic,
-                  Underline,
-                  AlignLeft,
-                  List,
-                  ListOrdered,
-                  LinkIcon,
-                ].map((Icon, i) => (
-                  <Button
-                    key={i}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-blue-600 hover:bg-blue-100"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </Button>
-                ))}
-              </div>
-              <textarea
-                className="w-full p-4 bg-transparent outline-none resize-none"
-                rows={3}
-                placeholder="Add a description of your education entry..."
-                value={entry.description}
-                onChange={(e) =>
-                  handleChange(index, "description", e.target.value)
-                }
-              />
-            </div>
+            <Button variant="outline" className="border-blue-300 text-blue-600">
+              <LinkIcon className="h-4 w-4 mr-1" />
+              Link
+            </Button>
           </div>
         </div>
-      ))}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="font-medium text-blue-900">City</label>
+            <Input
+              placeholder="Enter City and Country"
+              className="bg-blue-50 border border-blue-200"
+              value={content.location}
+              onChange={(e) => handleChange("location", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="font-medium text-blue-900">Start Date</label>
+            <MonthYearSelector
+              selectedMonth={content.startDate?.month}
+              selectedYear={content.startDate?.year}
+              onMonthChange={(value) =>
+                handleChange("startDate", {
+                  ...content.startDate,
+                  month: value,
+                })
+              }
+              onYearChange={(value) =>
+                handleChange("startDate", {
+                  ...content.startDate,
+                  year: value,
+                })
+              }
+            />
+          </div>
+          <div>
+            <label className="font-medium text-blue-900">End Date</label>
+            <MonthYearSelector
+              selectedMonth={content.endDate?.month}
+              selectedYear={content.endDate?.year}
+              onMonthChange={(value) =>
+                handleChange("endDate", {
+                  ...content.startDate,
+                  month: value,
+                })
+              }
+              onYearChange={(value) =>
+                handleChange("endDate", {
+                  ...content.startDate,
+                  year: value,
+                })
+              }
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="font-medium text-blue-900">Description</label>
+          <div className="bg-blue-50 rounded-md">
+            <div className="flex items-center p-2 border-b border-blue-200 gap-1">
+              {[
+                Bold,
+                Italic,
+                Underline,
+                AlignLeft,
+                List,
+                ListOrdered,
+                LinkIcon,
+              ].map((Icon, i) => (
+                <Button
+                  key={i}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-blue-600 hover:bg-blue-100"
+                >
+                  <Icon className="h-4 w-4" />
+                </Button>
+              ))}
+            </div>
+            <textarea
+              className="w-full p-4 bg-transparent outline-none resize-none"
+              rows={3}
+              placeholder="Add a description of your education content..."
+              value={content.description}
+              onChange={(e) => handleChange("description", e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
 
       <div className="flex justify-end mt-8">
         <Button

@@ -1,128 +1,132 @@
+import { on } from "events";
 import { EducationItem, ISection, SectionType } from "../types/resume";
 import EducationForm from "./Education-form";
 
+export interface ContntProps {
+  type: SectionType;
+  item: any;
+}
 interface SectionEditorProps {
-  section: ISection;
-  setAddSection: (section: null) => void;
-  onSave: (section: ISection) => void;
+  content: ContntProps;
+  onClose: () => void;
+  onSave: (type: SectionType, item: any) => void;
 }
 
 const SectionEditors: React.FC<SectionEditorProps> = ({
-  section,
-  setAddSection,
+  content,
+  onClose,
   onSave,
 }) => {
-  if (!section) {
+  if (!content) {
     return null;
   }
 
-  if (section.type === SectionType.SKILLS) {
+  if (content.type === SectionType.SKILLS) {
     return (
-      <DialogBox title="Skills" onClose={() => setAddSection(null)}>
+      <DialogBox title="Skills" onClose={onClose}>
         <div>Skills</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.WORK) {
+  } else if (content.type === SectionType.WORK) {
     return (
-      <DialogBox title="Work" onClose={() => setAddSection(null)}>
+      <DialogBox title="Work" onClose={onClose}>
         <div>Work</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.EDUCATION) {
+  } else if (content.type === SectionType.EDUCATION) {
     return (
       <DialogBox title="Education">
         <EducationForm
-          initialContent={section.content as EducationItem[]}
-          onSave={(content) => {
-            onSave({ ...section, content });
-            setAddSection(null);
+          initialContent={content.item as EducationItem}
+          onSave={(newContent) => {
+            onSave(content.type, newContent);
           }}
-          onCancel={() => setAddSection(null)}
+          onCancel={() => onClose()}
         />
       </DialogBox>
     );
-  } else if (section.type === SectionType.LANGUAGES) {
+  } else if (content.type === SectionType.LANGUAGES) {
     return (
-      <DialogBox title="Languages" onClose={() => setAddSection(null)}>
+      <DialogBox title="Languages" onClose={onClose}>
         <div>Languages</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.CERTIFICATES) {
+  } else if (content.type === SectionType.CERTIFICATES) {
     return (
-      <DialogBox title="Certificates" onClose={() => setAddSection(null)}>
+      <DialogBox title="Certificates" onClose={onClose}>
         <div>Certificates</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.INTERESTS) {
+  } else if (content.type === SectionType.INTERESTS) {
     return (
-      <DialogBox title="Interests" onClose={() => setAddSection(null)}>
+      <DialogBox title="Interests" onClose={onClose}>
         <div>Interests</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.PROJECTS) {
+  } else if (content.type === SectionType.PROJECTS) {
     return (
-      <DialogBox title="Projects" onClose={() => setAddSection(null)}>
+      <DialogBox title="Projects" onClose={onClose}>
         <div>Projects</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.COURSES) {
+  } else if (content.type === SectionType.COURSES) {
     return (
-      <DialogBox title="Courses" onClose={() => setAddSection(null)}>
+      <DialogBox title="Courses" onClose={onClose}>
         <div>Courses</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.AWARDS) {
+  } else if (content.type === SectionType.AWARDS) {
     return (
-      <DialogBox title="Awards" onClose={() => setAddSection(null)}>
+      <DialogBox title="Awards" onClose={onClose}>
         <div>Awards</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.ORGANIZATIONS) {
+  } else if (content.type === SectionType.ORGANIZATIONS) {
     return (
-      <DialogBox title="Organizations" onClose={() => setAddSection(null)}>
+      <DialogBox title="Organizations" onClose={onClose}>
         <div>Organizations</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.PUBLICATIONS) {
+  } else if (content.type === SectionType.PUBLICATIONS) {
     return (
-      <DialogBox title="Publications" onClose={() => setAddSection(null)}>
+      <DialogBox title="Publications" onClose={onClose}>
         <div>Publications</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.REFERENCES) {
+  } else if (content.type === SectionType.REFERENCES) {
     return (
-      <DialogBox title="References" onClose={() => setAddSection(null)}>
+      <DialogBox title="References" onClose={onClose}>
         <div>References</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.SOFTSKILSS) {
+  } else if (content.type === SectionType.SOFTSKILSS) {
     return (
-      <DialogBox title="Soft Skills" onClose={() => setAddSection(null)}>
+      <DialogBox title="Soft Skills" onClose={onClose}>
         <div>Soft Skills</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.ACHIVEMENTS) {
+  } else if (content.type === SectionType.ACHIVEMENTS) {
     return (
-      <DialogBox title="Achievements" onClose={() => setAddSection(null)}>
+      <DialogBox title="Achievements" onClose={onClose}>
         <div>Achievements</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.TECK_SKILLS) {
+  } else if (content.type === SectionType.TECK_SKILLS) {
     return (
-      <DialogBox title="Technical Skills" onClose={() => setAddSection(null)}>
+      <DialogBox title="Technical Skills" onClose={onClose}>
         <div>Technical Skills</div>
       </DialogBox>
     );
-  } else if (section.type === SectionType.CUSTOM) {
+  } else if (content.type === SectionType.CUSTOM) {
     return (
-      <DialogBox title="Custom" onClose={() => setAddSection(null)}>
+      <DialogBox title="Custom" onClose={onClose}>
         <div>Custom</div>
       </DialogBox>
     );
   } else {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-        <p>Unknown section type: {section.type}</p>
+        <p>Unknown content type: {content.type}</p>
       </div>
     );
   }

@@ -24,7 +24,6 @@ export interface IResume {
 // Section type interfaces
 export interface BaseSection {
   id: string;
-  title: string;
   enabled?: boolean;
 }
 
