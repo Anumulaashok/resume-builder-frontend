@@ -9,6 +9,7 @@ import {
   ArrowLeftIcon,
   PlusIcon,
   XMarkIcon,
+  EyeSlashIcon,
 } from "@heroicons/react/24/outline";
 
 // Notifications
@@ -54,6 +55,7 @@ import {
 import ResumePreview from "./ResumePreview";
 import SectionEditors from "./sections";
 import { defaultResume } from "../constants/editorConstants";
+import { EyeClosed, EyeClosedIcon, EyeIcon } from "lucide-react";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -172,6 +174,7 @@ interface SortableItemProps {
   section: ISection;
   onRemove: (type: SectionType, id: string) => void;
   onEdit: (type: SectionType, item: any) => void;
+  onHide: (type: SectionType, id: string) => void;
 }
 
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
@@ -548,6 +551,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     section,
     onRemove,
     onEdit,
+    onHide,
   }) => {
     const {
       attributes,
@@ -603,7 +607,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   "Untitled Item"}
 
                 <div className="flex space-x-5 items-center">
-                  {" "}
+                  <p onClick={() => onHide(section.type, item.id)}>
+                    {item.enabled ? (
+                      <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    ) : (
+                      <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </p>
                   <PencilIcon
                     onClick={() => onEdit(section.type, item)}
                     className="h-5 w-5 hover:text-blue-500 cursor-pointer"
@@ -814,6 +824,32 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                             onEdit={(type, content) => {
                               setAddContent({ type, item: content });
                             }}
+                            onHide={(type, id) => {
+                              setResume((prev) => ({
+                                ...prev,
+                                content: {
+                                  ...prev.content,
+                                  sections: prev.content.sections.map(
+                                    (section) => {
+                                      if (section.type === type) {
+                                        return {
+                                          ...section,
+                                          content: section.content.map((item) =>
+                                            item.id === id
+                                              ? {
+                                                  ...item,
+                                                  enabled: !item.enabled,
+                                                }
+                                              : item
+                                          ),
+                                        };
+                                      }
+                                      return section;
+                                    }
+                                  ),
+                                },
+                              }));
+                            }}
                             onRemove={(type, id) => {
                               setResume((prev) => ({
                                 ...prev,
@@ -1021,6 +1057,33 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               section={section}
                               onEdit={(type, content) => {
                                 setAddContent({ type, item: content });
+                              }}
+                              onHide={(type, id) => {
+                                setResume((prev) => ({
+                                  ...prev,
+                                  content: {
+                                    ...prev.content,
+                                    sections: prev.content.sections.map(
+                                      (section) => {
+                                        if (section.type === type) {
+                                          return {
+                                            ...section,
+                                            content: section.content.map(
+                                              (item) =>
+                                                item.id === id
+                                                  ? {
+                                                      ...item,
+                                                      enabled: !item.enabled,
+                                                    }
+                                                  : item
+                                            ),
+                                          };
+                                        }
+                                        return section;
+                                      }
+                                    ),
+                                  },
+                                }));
                               }}
                               onRemove={(type, id) => {
                                 setResume((prev) => ({
