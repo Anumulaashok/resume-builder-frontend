@@ -29,6 +29,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { resumeService } from "../services/resume.service";
 import {
+  dateFields,
   EducationItem,
   IResume,
   ISection,
@@ -150,31 +151,11 @@ const sectionOptions: SectionOption[] = [
   },
 ];
 
-const initialBaseSection: ISection = {
-  id: "base-section",
-  type: SectionType.CUSTOM,
-  title: "Base Section",
-  content: [],
-  isCustom: true,
-};
-
-const initialEducationContent: EducationItem = {
-  id: "education-1",
-  title: "Education",
-  institution: "",
-  degree: "",
-  field: "",
-  startDate: "",
-  endDate: "",
-  current: false,
-  location: "",
-  description: "",
-};
-
 interface SortableItemProps {
   id: string;
   section: ISection;
   onRemove: (id: string) => void;
+  onEdit: (section: ISection) => void;
 }
 
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
@@ -273,38 +254,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const handleAddSection = (section: SectionOption) => {
     setShowSectionModal(false);
-    if (section.type === SectionType.EDUCATION) {
-      const newSection: ISection = {
-        ...initialBaseSection,
-        id: `education-${Date.now()}`,
-        type: section.type,
-        title: section.title,
-        content: [initialEducationContent],
-      };
-      handleSectionPopup(newSection);
-    }
-    // Delay setting addSection to ensure the modal closes before opening the editor popup
-
-    // const newSection: ISection = {
-    //   id: `${section.id}-${Date.now()}`,
-    //   type: section.sectionType,
-    //   title: section.title,
-    //   content: [],
-    // };
-
-    // setResume((prev) => ({
-    //   ...prev,
-    //   content: {
-    //     ...prev.content,
-    //     sections: [...(prev.content?.sections || []), newSection],
-    //     sectionOrder: [...(prev.content?.sectionOrder || []), newSection.id],
-    //   },
-    // }));
-
-    // toast.success(`${section.title} section added`);
-
-    // setTimeout(() => handleSectionPopup(section), 100);
-    return;
+    const newSection: ISection = {
+      id: `${section.id}-${Date.now()}`,
+      type: section.type,
+      title: section.title,
+      content: [],
+    };
+    handleSectionPopup(newSection); // Open the editor for the new section
   };
 
   const handleAddCustomSection = () => {
@@ -356,10 +312,29 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   };
 
+  const handleSaveSection = () => {
+    if (addSection) {
+      setResume((prev) => ({
+        ...prev,
+        content: {
+          ...prev.content,
+          sections: prev.content.sections.map((section) =>
+            section.id === addSection.id ? addSection : section
+          ),
+        },
+      }));
+    }
+    setAddSection(null);
+  };
+
+  const selectedSectionTypes = resume.content.sections.map(
+    (section) => section.type
+  );
+
   const filteredSections = sectionOptions.filter(
     (section) =>
-      section.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      section.description.toLowerCase().includes(searchTerm.toLowerCase())
+      !selectedSectionTypes.includes(section.type) ||
+      section.type === SectionType.CUSTOM
   );
 
   const orderedSections = resume?.content?.sections
@@ -372,11 +347,40 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
 
+
+  const handleAddNewItem = (section: ISection) => {
+    const newItem: EducationItem = {
+      id: `${section.id}-${Date.now()}`,
+      type: SectionType.EDUCATION,
+      title: section.title,
+      name: "",
+      position: "",
+      startDate: {} as dateFields,
+      endDate: {} as dateFields,
+      current: false,
+      location: "",
+      description: "",
+    } as any;
+
+    setResume((prev) => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        sections: prev.content.sections.map((s) =>
+          s.id === section.id
+            ? { ...s, content: [...(s.content || []), newItem] }
+            : s
+        ),
+      },
+    }));
+  }
+
   // Update SortableItem component to be more touch-friendly
   const SortableItem: React.FC<SortableItemProps> = ({
     id,
     section,
     onRemove,
+    onEdit,
   }) => {
     const {
       attributes,
@@ -385,6 +389,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       transform,
       transition,
       isDragging,
+      
     } = useSortable({ id });
 
     const style = {
@@ -407,16 +412,22 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-900">{section.title}</h3>
-          <button
-            onClick={() => onRemove(id)}
-            className="text-gray-400 hover:text-gray-500"
-          >
-            <XMarkIcon className="h-5 w-5" />
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => handleAddNewItem(section)}
+              className="text-gray-400 hover:text-blue-500"
+            >
+              <PlusIcon className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => onRemove(id)}
+              className="text-gray-400 hover:text-red-500"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-        <div className="prose prose-sm max-w-none">
-          <p className="text-gray-500 italic">Content editor coming soon...</p>
-        </div>
+        {/* <div className="space-y-2">{renderContent()}</div> */}
       </div>
     );
   };
@@ -605,6 +616,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                             key={section.id}
                             id={section.id}
                             section={section}
+                            onEdit={(section) => handleSectionPopup(section)}
                             onRemove={(id) => {
                               setResume((prev) => ({
                                 ...prev,
@@ -804,6 +816,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               key={section.id}
                               id={section.id}
                               section={section}
+                              onEdit={(section) => handleSectionPopup(section)}
                               onRemove={(id) => {
                                 setResume((prev) => ({
                                   ...prev,
@@ -977,7 +990,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       )}
 
       {addSection !== null && (
-        <SectionEditors section={addSection} setAddSection={setAddSection} />
+        <SectionEditors
+          section={addSection}
+          setAddSection={setAddSection}
+          onSave={handleSaveSection}
+        />
       )}
     </div>
   );

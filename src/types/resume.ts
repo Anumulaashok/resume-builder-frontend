@@ -1,4 +1,3 @@
-
 export interface IResume {
   _id?: string;
   title: string;
@@ -29,8 +28,13 @@ export interface BaseSection {
   enabled?: boolean;
 }
 
+export interface dateFields {
+  month: string;
+  year: string;
+}
+
 export interface WorkItem extends BaseSection {
-  company: string;
+  name: string;
   position: string;
   startDate: string;
   endDate?: string;
@@ -40,11 +44,10 @@ export interface WorkItem extends BaseSection {
 }
 
 export interface EducationItem extends BaseSection {
-  institution: string;
   degree: string;
   field: string;
-  startDate: string;
-  endDate?: string;
+  startDate?: dateFields;
+  endDate?: dateFields;
   current?: boolean;
   location?: string;
   description?: string;

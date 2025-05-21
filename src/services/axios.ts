@@ -1,7 +1,7 @@
 import axios, { isAxiosError } from 'axios';
 import { getToken, removeToken } from '../utils/token';
 
-const baseURL = 'http://localhost:3000'//'https://resume-builder-backend-wzkk.onrender.com';
+const baseURL = 'https://resume-builder-backend-wzkk.onrender.com';//'http://localhost:3000'
 
 const axiosInstance = axios.create({
   baseURL,

@@ -1,19 +1,16 @@
-import {
-  EducationItem,
-  ISection,
-  SectionOption,
-  SectionType,
-} from "../types/resume";
+import { EducationItem, ISection, SectionType } from "../types/resume";
 import EducationForm from "./Education-form";
 
 interface SectionEditorProps {
-  section: ISection | null;
+  section: ISection;
   setAddSection: (section: null) => void;
+  onSave: (section: ISection) => void;
 }
 
 const SectionEditors: React.FC<SectionEditorProps> = ({
   section,
   setAddSection,
+  onSave,
 }) => {
   if (!section) {
     return null;
@@ -33,8 +30,15 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
     );
   } else if (section.type === SectionType.EDUCATION) {
     return (
-      <DialogBox title="Education" onClose={() => setAddSection(null)}>
-        <EducationForm />
+      <DialogBox title="Education">
+        <EducationForm
+          initialContent={section.content as EducationItem[]}
+          onSave={(content) => {
+            onSave({ ...section, content });
+            setAddSection(null);
+          }}
+          onCancel={() => setAddSection(null)}
+        />
       </DialogBox>
     );
   } else if (section.type === SectionType.LANGUAGES) {
@@ -125,20 +129,27 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
 };
 
 const DialogBox: React.FC<{
-  title: string;
-  onClose: () => void;
+  title?: string;
+  onClose?: () => void;
   children: React.ReactNode;
 }> = ({ title, onClose, children }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm w-full">
       <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl m-auto">
+        {title && (
+          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 pb-2 mb-4">
+            {title}
+          </h2>
+        )}
         {children}
-        <button
-          onClick={onClose}
-          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          Close
-        </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            Close
+          </button>
+        )}
       </div>
     </div>
   );
