@@ -132,16 +132,23 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
   }
 };
 
-const DialogBox: React.FC<{
+export const DialogBox: React.FC<{
   title?: string;
+  id?: string;
   onClose?: () => void;
   children: React.ReactNode;
-}> = ({ title, onClose, children }) => {
+  onSave?: (id: string) => void;
+  [key: string]: any;
+}> = ({ title, onClose, children, onSave, id, ...props }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm w-full">
+    <div
+      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm w-full ${
+        props.className || ""
+      }`}
+    >
       <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl m-auto">
         {title && (
-          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 pb-2 mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 pb-2 mb-4 ">
             {title}
           </h2>
         )}
@@ -152,6 +159,16 @@ const DialogBox: React.FC<{
             className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
           >
             Close
+          </button>
+        )}
+        {onSave && id && (
+          <button
+            onClick={() => onSave(id)}
+            className={`mt-4 bg-green-500 text-white px-4 py-2 rounded ml-2 ${
+              props?.saveText && props.saveText === "Delete" && "bg-red-500"
+            }`}
+          >
+            {props?.saveText ?? "Save"}
           </button>
         )}
       </div>

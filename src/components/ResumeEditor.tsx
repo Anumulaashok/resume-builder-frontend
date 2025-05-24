@@ -53,7 +53,7 @@ import {
 
 // Custom Components
 import ResumePreview from "./ResumePreview";
-import SectionEditors from "./sections";
+import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
 import { EyeClosed, EyeClosedIcon, EyeIcon } from "lucide-react";
 
@@ -195,7 +195,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     type: SectionType;
     item: any;
   } | null>(null);
-
+  const [deletableSection, setDeletableSection] = useState<ISection | null>(
+    null
+  );
   const sensors = useSensors(
     useSensor(TouchSensor, {
       // Add custom touch sensor options for better mobile experience
@@ -521,6 +523,25 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     toast.success("Content added successfully");
   };
 
+  const handleDeleteSection = (id: string) => {
+    setResume((prev) => {
+      const updatedSections = prev.content.sections.filter(
+        (section) => section.id !== id
+      );
+      const updatedSectionOrder = prev.content.sectionOrder.filter(
+        (sectionId) => sectionId !== id
+      );
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          sections: updatedSections,
+          sectionOrder: updatedSectionOrder,
+        },
+      };
+    });
+    setDeletableSection(null);
+  };
   // ----------- handlers end -----------
 
   useEffect(() => {
@@ -588,7 +609,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               className="text-gray-400 hover:text-blue-500"
               aria-label={`Add item to ${section.title}`}
             >
-              <PlusIcon className="h-5 w-5" />
+              <PlusIcon className="h-5 w-5" name="add" unicode={"\u002B"} />
+            </button>
+            <button
+              onClick={() => setDeletableSection(section)}
+              className="text-gray-400 hover:text-blue-500"
+              aria-label={`Edit ${section.title}`}
+            >
+              <XMarkIcon
+                className="h-5 w-5 hover:text-red-500 cursor-pointer"
+                name="delete"
+                unicode={"\u2716"}
+              />
             </button>
           </div>
         </div>
@@ -1269,6 +1301,22 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           onClose={() => setAddContent(null)}
           onSave={handleAddContent}
         />
+      )}
+
+      {deletableSection && (
+        <DialogBox
+          title="Delete Section"
+          onClose={() => setDeletableSection(null)}
+          onSave={handleDeleteSection}
+          id={deletableSection.id}
+          className="max-w-full mx-auto"
+          saveText="Delete"
+        >
+          <p className="text-gray-700">
+            Are you sure you want to delete this section? This action cannot be
+            undone.
+          </p>
+        </DialogBox>
       )}
     </div>
   );
