@@ -44,7 +44,6 @@ import { resumeService } from "../services/resume.service";
 // Types
 import {
   dateFields,
-  EducationItem,
   IResume,
   ISection,
   SectionOption,
@@ -55,7 +54,7 @@ import {
 import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
-import { EyeClosed, EyeClosedIcon, EyeIcon, Loader } from "lucide-react";
+import { EyeIcon, Loader } from "lucide-react";
 
 interface ResumeEditorProps {
   initialResume?: IResume;

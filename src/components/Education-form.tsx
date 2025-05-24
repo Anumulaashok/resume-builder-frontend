@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import {
@@ -19,7 +19,7 @@ import {
   AlignLeft,
   LinkIcon,
 } from "lucide-react";
-import { BaseSection, EducationItem } from "../types/resume";
+import {  EducationItem } from "../types/resume";
 
 export default function EducationForm({
   initialContent,
