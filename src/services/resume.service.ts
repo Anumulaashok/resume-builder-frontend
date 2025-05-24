@@ -1,4 +1,4 @@
-import { Resume as BaseResume } from "../types/resume";
+import { IResume as BaseResume, ISection } from "../types/resume";
 import axiosInstance from "../services/axios";
 
 export type Resume = BaseResume;
@@ -35,7 +35,35 @@ class ResumeService {
       success: boolean;
       data: ResumeWithMeta[];
     }>("/api/resumes");
-    return response.data?.data || [];
+
+    // const response: any = {
+    //   "success": true,
+    //   "data": [
+    //     {
+    //       "content": {
+    //         "basics": {
+    //           "location": {
+    //             "address": "",
+    //             "city": "",
+    //             "countryCode": "",
+    //             "postalCode": ""
+    //           },
+    //           "name": "Anumula Ashok",
+    //           "label": "Software engineer-1",
+    //           "email": "ashoksmart850@gmail.com",
+    //           "phone": "8179463267",
+    //           "summary": ""
+    //         },
+    //         "sections": [],
+    //         "sectionOrder": []
+    //       },
+    //       "_id": "6829d637b58e93c03f11f219",
+    //       "title": "Anumula Ashok",
+    //       "updatedAt": "2023-10-16T07:45:59.000Z",
+    //     }
+    //   ]
+    // }
+    return response?.data?.data || [];
   }
 
   async updateResume(
