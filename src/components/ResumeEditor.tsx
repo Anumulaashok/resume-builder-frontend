@@ -54,7 +54,7 @@ import {
 import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
-import { EyeIcon, Loader } from "lucide-react";
+import { EyeIcon } from "lucide-react";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
