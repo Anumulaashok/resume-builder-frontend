@@ -1,5 +1,4 @@
-import { on } from "events";
-import { EducationItem, ISection, SectionType } from "../types/resume";
+import { EducationItem,  SectionType } from "../types/resume";
 import EducationForm from "./Education-form";
 
 export interface ContntProps {
