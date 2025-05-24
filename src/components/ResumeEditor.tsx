@@ -55,7 +55,7 @@ import {
 import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
-import { EyeClosed, EyeClosedIcon, EyeIcon } from "lucide-react";
+import { EyeClosed, EyeClosedIcon, EyeIcon, Loader } from "lucide-react";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -256,8 +256,6 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   };
 
-  const handleSectionPopup = (section: ISection | null) => {};
-
   const handleAddSection = (section: SectionOption) => {
     setShowSectionModal(false);
     const newSection: ISection = {
@@ -312,11 +310,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     setLoading(true);
     try {
       let savedResume;
-      if (initialResume?._id) {
-        savedResume = await resumeService.updateResume(
-          initialResume._id,
-          resume
-        );
+      if (resume?._id) {
+        savedResume = await resumeService.updateResume(resume._id, resume);
       } else {
         savedResume = await resumeService.createResume(resume);
       }
@@ -339,7 +334,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.EDUCATION:
         newItem = {
           ...newItem,
-          institution: "",
+
           degree: "",
           field: "",
           startDate: {} as dateFields,
@@ -541,6 +536,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       };
     });
     setDeletableSection(null);
+    toast.success("Section deleted successfully");
   };
   // ----------- handlers end -----------
 
@@ -636,8 +632,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   item.name ||
                   item.institution ||
                   item.company ||
+                  item.degree ||
                   "Untitled Item"}
-
                 <div className="flex space-x-5 items-center">
                   <p onClick={() => onHide(section.type, item.id)}>
                     {item.enabled ? (
@@ -1317,6 +1313,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             undone.
           </p>
         </DialogBox>
+      )}
+      {loading && (
+        <div className="fixed inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
+        </div>
       )}
     </div>
   );

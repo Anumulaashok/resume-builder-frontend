@@ -24,20 +24,20 @@ axiosInstance.interceptors.request.use(
   }
 );
 axiosInstance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-          removeToken();
-          // Don't redirect, let the component handle it
-            throw new Error('Authentication failed');
-        }
-        if(isAxiosError(error)) {
-            return new Error(error.response?.data?.message || 'An error occurred');
-
-        }
-        throw new Error(error.response?.data?.message || 'Request failed');
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      removeToken();
+      // Don't redirect, let the component handle it
+      throw new Error('Authentication failed');
     }
-    
+    if (isAxiosError(error)) {
+      return new Error(error.response?.data?.message || 'An error occurred');
+
+    }
+    throw new Error(error.response?.data?.message || 'Request failed');
+  }
+
 );
 
 

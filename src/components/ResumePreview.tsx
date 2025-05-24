@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { IResume } from "../types/resume";
+import { EducationItem, IResume } from "../types/resume";
 import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
@@ -26,6 +26,44 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
 
   const handleResetZoom = () => {
     setScale(1);
+  };
+
+  const renderSectionContent = (section: any) => {
+    if (Array.isArray(section.content)) {
+      return section.content.map((item: any) => (
+        <div key={item.id} className="mb-4">
+          {section.type === "EducationItem" ? (
+            renderEducationItem(item)
+          ) : (
+            <div className="text-sm text-gray-700">
+              {item.title ||
+                item.name ||
+                item.institution ||
+                item.company ||
+                item.degree ||
+                "Untitled Item"}
+            </div>
+          )}
+        </div>
+      ));
+    } else {
+      return <div className="text-sm text-gray-700">{section.content}</div>;
+    }
+  };
+
+  const renderEducationItem = (item: EducationItem) => {
+    if (item.enabled) return null;
+    return (
+      <div key={item.id} className="mb-4">
+        <h3 className="text-md font-semibold text-gray-900">{item.degree}</h3>
+        <p className="text-sm text-gray-600">{item.field}</p>
+        <p className="text-xs text-gray-500">
+          {item?.startDate?.month || ""} - {item?.startDate?.year ?? ""} -{" "}
+          {item?.endDate?.month || "Present"} -{item?.endDate?.year || ""}
+        </p>
+        <p className="text-xs text-gray-500">{item?.description}</p>
+      </div>
+    );
   };
 
   return (
@@ -110,7 +148,8 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
                 <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-1 mb-2">
                   {section.title}
                 </h2>
-                <div className="text-sm text-gray-700">
+                {renderSectionContent(section)}
+                {/* <div className="text-sm text-gray-700">
                   {Array.isArray(section.content) ? (
                     <ul className="list-disc list-inside space-y-2">
                       {section.content.map((item, index) => (
@@ -120,7 +159,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
                   ) : (
                     <p>{JSON.stringify(section.content)}</p>
                   )}
-                </div>
+                </div> */}
               </div>
             );
           })}

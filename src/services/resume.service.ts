@@ -31,42 +31,39 @@ class ResumeService {
   }
 
   async getResumes(): Promise<ResumeWithMeta[]> {
-    // const response = await axiosInstance.get<{
-    //   success: boolean;
-    //   data: ResumeWithMeta[];
-    // }>("/api/resumes");
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: ResumeWithMeta[];
+    }>("/api/resumes");
 
-    const response: any = {
-      "success": true,
-      "data": [
-        {
-          "content": {
-            "basics": {
-              "location": {
-                "address": "",
-                "city": "",
-                "countryCode": "",
-                "postalCode": ""
-              },
-              "name": "Anumula Ashok",
-              "label": "Software engineer-1",
-              "email": "ashoksmart850@gmail.com",
-              "phone": "8179463267",
-              "summary": ""
-            },
-            "sections": [],
-            "sectionOrder": []
-          },
-          "_id": "6829d637b58e93c03f11f219",
-          "userId": "6829ae597c5f26332f24fd6b",
-          "title": "some Resume 2",
-          "createdAt": "2025-05-18T12:44:39.827Z",
-          "updatedAt": "2025-05-18T17:37:37.325Z",
-          "__v": 0
-        }
-      ]
-    }
-    return response?.data || [];
+    // const response: any = {
+    //   "success": true,
+    //   "data": [
+    //     {
+    //       "content": {
+    //         "basics": {
+    //           "location": {
+    //             "address": "",
+    //             "city": "",
+    //             "countryCode": "",
+    //             "postalCode": ""
+    //           },
+    //           "name": "Anumula Ashok",
+    //           "label": "Software engineer-1",
+    //           "email": "ashoksmart850@gmail.com",
+    //           "phone": "8179463267",
+    //           "summary": ""
+    //         },
+    //         "sections": [],
+    //         "sectionOrder": []
+    //       },
+    //       "_id": "6829d637b58e93c03f11f219",
+    //       "title": "Anumula Ashok",
+    //       "updatedAt": "2023-10-16T07:45:59.000Z",
+    //     }
+    //   ]
+    // }
+    return response?.data?.data || [];
   }
 
   async updateResume(

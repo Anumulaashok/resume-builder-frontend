@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
-import toast, { Toaster } from 'react-hot-toast';
-import { EnvelopeIcon, LockClosedIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
-import { authService } from '../services/auth.service';
-import Header from './common/Header';
+import React, { useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
+import {
+  EnvelopeIcon,
+  LockClosedIcon,
+  EyeIcon,
+  EyeSlashIcon,
+} from "@heroicons/react/24/outline";
+import { authService } from "../services/auth.service";
+import Header from "./common/Header";
 
 interface LoginFormData {
   email: string;
@@ -16,8 +21,8 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
   const [formData, setFormData] = useState<LoginFormData>({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -28,19 +33,23 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
 
     try {
       if (!formData.email || !formData.password) {
-        throw new Error('Please fill in all fields');
+        throw new Error("Please fill in all fields");
       }
 
       const response = await authService.login({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
       });
 
       toast.success(response.message);
       onLoginSuccess();
       // Redirect to dashboard or home page
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Login failed. Please try again.');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Login failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -48,9 +57,9 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -71,11 +80,14 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                 Please sign in to your account
               </p>
             </div>
-            
+
             <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Email address
                   </label>
                   <div className="mt-1 relative">
@@ -96,7 +108,10 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Password
                   </label>
                   <div className="mt-1 relative">
@@ -136,15 +151,20 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                     type="checkbox"
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                  <label
+                    htmlFor="remember-me"
+                    className="ml-2 block text-sm text-gray-900"
+                  >
                     Remember me
                   </label>
                 </div>
 
                 <div className="text-sm">
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => alert('Password reset functionality coming soon!')}
+                    onClick={() =>
+                      alert("Password reset functionality coming soon!")
+                    }
                     className="font-medium text-blue-600 hover:text-blue-500"
                   >
                     Forgot your password?
@@ -159,12 +179,28 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                   className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      className="animate-spin h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
                     </svg>
                   ) : (
-                    'Sign in'
+                    "Sign in"
                   )}
                 </button>
               </div>
@@ -172,7 +208,7 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
-                Don't have an account?{' '}
+                Don't have an account?{" "}
                 <button
                   onClick={onToggleAuth}
                   className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"

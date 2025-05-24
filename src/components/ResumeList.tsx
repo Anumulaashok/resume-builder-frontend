@@ -12,6 +12,8 @@ import toast from "react-hot-toast";
 interface ResumeWithMeta extends Resume {
   id: string;
   updatedAt: string;
+  createdAt: string;
+  userId: string;
 }
 
 interface ResumeListProps {
@@ -109,7 +111,8 @@ export default function ResumeList({
             No resumes yet
           </h3>
           <p className="mt-2 text-sm text-gray-500">
-            Get started by creating a new resume or let AI help you generate one.
+            Get started by creating a new resume or let AI help you generate
+            one.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
             <button
@@ -144,7 +147,10 @@ export default function ResumeList({
               {resume.title}
             </h3>
             <p className="text-xs sm:text-sm text-gray-500 mb-4">
-              Last updated: {new Date(resume.updatedAt).toLocaleDateString()}
+              Last updated:{" "}
+              {new Date(
+                resume.updatedAt || resume?.createdAt
+              ).toLocaleDateString()}
             </p>
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <button

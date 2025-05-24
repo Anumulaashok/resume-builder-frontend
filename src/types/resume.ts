@@ -1,18 +1,18 @@
 export interface IResume {
   _id?: string;
-  title: string;
+  title?: string;
   content: {
     basics: {
-      name: string;
-      label: string;
-      email: string;
-      phone: string;
-      summary: string;
+      name?: string;
+      label?: string;
+      email?: string;
+      phone?: string;
+      summary?: string;
       location: {
-        address: string;
-        city: string;
-        countryCode: string;
-        postalCode: string;
+        address?: string;
+        city?: string;
+        countryCode?: string;
+        postalCode?: string;
       };
     };
     sections: ISection[];
