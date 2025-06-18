@@ -4,6 +4,7 @@ import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
 } from "@heroicons/react/24/outline";
+import { DescriptionPreview } from "../utils/markdownConverter";
 
 interface ResumePreviewProps {
   resume: IResume;
@@ -52,16 +53,21 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume }) => {
   };
 
   const renderEducationItem = (item: EducationItem) => {
-    if (item.enabled) return null;
+    if (!item.enabled) return null;
     return (
       <div key={item.id} className="mb-4">
         <h3 className="text-md font-semibold text-gray-900">{item.degree}</h3>
         <p className="text-sm text-gray-600">{item.field}</p>
         <p className="text-xs text-gray-500">
-          {item?.startDate?.month || ""} - {item?.startDate?.year ?? ""} -{" "}
-          {item?.endDate?.month || "Present"} -{item?.endDate?.year || ""}
+          {item?.startDate?.month || ""} {item?.startDate?.year ?? ""} -{" "}
+          {item?.endDate?.month || "Present"} {item?.endDate?.year || ""}
         </p>
-        <p className="text-xs text-gray-500">{item?.description}</p>
+        {item?.description && (
+          <div
+            className="prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: item.description }}
+          />
+        )}
       </div>
     );
   };

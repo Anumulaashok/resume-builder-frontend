@@ -10,16 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import {
-  Bold,
-  Italic,
-  Underline,
-  List,
-  ListOrdered,
-  AlignLeft,
-  LinkIcon,
-} from "lucide-react";
-import {  EducationItem } from "../types/resume";
+import { LinkIcon } from "lucide-react";
+import { EducationItem } from "../types/resume";
+import RichTextEditor from "./RichTextEditor";
 
 export default function EducationForm({
   initialContent,
@@ -198,13 +191,13 @@ export default function EducationForm({
               selectedYear={content.endDate?.year}
               onMonthChange={(value) =>
                 handleChange("endDate", {
-                  ...content.startDate,
+                  ...content.endDate,
                   month: value,
                 })
               }
               onYearChange={(value) =>
                 handleChange("endDate", {
-                  ...content.startDate,
+                  ...content.endDate,
                   year: value,
                 })
               }
@@ -215,32 +208,9 @@ export default function EducationForm({
         <div>
           <label className="font-medium text-blue-900">Description</label>
           <div className="bg-blue-50 rounded-md">
-            <div className="flex items-center p-2 border-b border-blue-200 gap-1">
-              {[
-                Bold,
-                Italic,
-                Underline,
-                AlignLeft,
-                List,
-                ListOrdered,
-                LinkIcon,
-              ].map((Icon, i) => (
-                <Button
-                  key={i}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-blue-600 hover:bg-blue-100"
-                >
-                  <Icon className="h-4 w-4" />
-                </Button>
-              ))}
-            </div>
-            <textarea
-              className="w-full p-4 bg-transparent outline-none resize-none"
-              rows={3}
-              placeholder="Add a description of your education content..."
-              value={content.description}
-              onChange={(e) => handleChange("description", e.target.value)}
+            <RichTextEditor
+              value={content.description || ""}
+              onChange={(value) => handleChange("description", value)}
             />
           </div>
         </div>

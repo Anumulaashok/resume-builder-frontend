@@ -1,0 +1,23 @@
+/* Quill Editor Styles */
+.ql-editor {
+  min-height: 150px;
+}
+
+.ql-container {
+  font-size: 14px;
+  border-bottom-left-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+}
+
+.ql-toolbar {
+  border-top-left-radius: 0.375rem;
+  border-top-right-radius: 0.375rem;
+  background-color: white;
+}
+
+/* Print styles */
+@media print {
+  .ql-editor {
+    padding: 0 !important;
+  }
+}

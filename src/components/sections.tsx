@@ -141,11 +141,11 @@ export const DialogBox: React.FC<{
 }> = ({ title, onClose, children, onSave, id, ...props }) => {
   return (
     <div
-      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm w-full ${
+      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 backdrop-blur-sm w-full ${
         props.className || ""
       }`}
     >
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl m-auto">
+      <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 w-full max-w-full sm:max-w-2xl m-auto">
         {title && (
           <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 pb-2 mb-4 ">
             {title}
