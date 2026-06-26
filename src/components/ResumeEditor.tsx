@@ -1,5 +1,6 @@
 // React imports
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // UI Components
 import {
@@ -10,7 +11,13 @@ import {
   PlusIcon,
   XMarkIcon,
   EyeSlashIcon,
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
 } from "@heroicons/react/24/outline";
+
+// Loadash debounce
+import { debounce } from "lodash";
+import { useResumeHistory } from "./useResumeHistory";
 
 // Notifications
 import toast from "react-hot-toast";
@@ -181,7 +188,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   onSave,
   onBack,
 }) => {
-  const [resume, setResume] = useState<IResume>(initialResume || defaultResume);
+  const { resume, setResume, undo, redo, canUndo, canRedo } = useResumeHistory(initialResume || defaultResume);
   const [loading, setLoading] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -304,6 +311,23 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     setCustomSectionTitle("");
     toast.success("Custom section added");
   };
+
+  const debouncedAutoSave = useMemo(
+    () =>
+      debounce(async (currentResume: IResume) => {
+        if (!currentResume._id) return;
+        try {
+          await resumeService.updateResume(currentResume._id, currentResume);
+        } catch (error) {
+          console.error("Auto-save failed", error);
+        }
+      }, 2000),
+    []
+  );
+
+  useEffect(() => {
+    debouncedAutoSave(resume);
+  }, [resume, debouncedAutoSave]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -590,14 +614,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       <div
         ref={setNodeRef}
         style={style as any}
-        className={`bg-white rounded-lg shadow border border-gray-200 p-4 ${
+        className={`bg-gray-800 rounded-lg shadow border border-gray-700 p-4 ${
           isDragging ? "opacity-75 shadow-lg" : ""
         }`}
         {...attributes}
         {...listeners}
       >
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">{section.title}</h3>
+          <h3 className="text-lg font-medium text-white">{section.title}</h3>
           <div className="flex space-x-2">
             <button
               onClick={() => handleAddNewItem(section)}
@@ -625,7 +649,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             section.content.map((item: any) => (
               <div
                 key={item.id}
-                className="p-3 border border-gray-200 rounded-md hover:border-blue-300 transition-colors flex justify-between items-center"
+                className="p-3 border border-gray-700 rounded-md hover:border-blue-300 transition-colors flex justify-between items-center"
               >
                 {item.title ||
                   item.name ||
@@ -665,16 +689,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-16">
-      <div className="h-[calc(100vh-4rem)] bg-gray-50">
+    <div className="min-h-screen bg-gray-900 pt-16">
+      <div className="h-[calc(100vh-4rem)] bg-gray-900">
         {/* Mobile View Switcher */}
-        <div className="lg:hidden flex justify-center space-x-4 py-2 bg-white border-b">
+        <div className="lg:hidden flex justify-center space-x-4 py-2 bg-gray-800 border-b">
           <button
             onClick={() => setActiveView("editor")}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeView === "editor"
                 ? "bg-blue-100 text-blue-700"
-                : "text-gray-500 hover:text-gray-700"
+                : "text-gray-500 hover:text-gray-300"
             }`}
           >
             Editor
@@ -684,7 +708,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeView === "preview"
                 ? "bg-blue-100 text-blue-700"
-                : "text-gray-500 hover:text-gray-700"
+                : "text-gray-500 hover:text-gray-300"
             }`}
           >
             Preview
@@ -694,15 +718,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         {/* Mobile View */}
         <div className="lg:hidden h-full">
           {activeView === "editor" ? (
-            <div className="h-full overflow-auto px-4 py-6 bg-gray-50">
-              <div className="bg-white shadow-xl rounded-lg overflow-hidden">
+            <div className="h-full overflow-auto px-4 py-6 bg-gray-900">
+              <div className="bg-gray-800 shadow-xl rounded-lg overflow-hidden">
                 {/* Header */}
-                <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-700">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                     <div className="flex items-center space-x-4">
                       <button
                         onClick={onBack}
-                        className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
                         <ArrowLeftIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1" />
                         Back
@@ -721,6 +745,24 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                       />
                     </div>
                     <div className="flex items-center space-x-2 sm:space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={undo}
+                          disabled={!canUndo}
+                          className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                          title="Undo"
+                        >
+                          <ArrowUturnLeftIcon className="h-5 w-5 text-gray-600" />
+                        </button>
+                        <button
+                          onClick={redo}
+                          disabled={!canRedo}
+                          className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                          title="Redo"
+                        >
+                          <ArrowUturnRightIcon className="h-5 w-5 text-gray-600" />
+                        </button>
+                      </div>
                       <button
                         onClick={handleSave}
                         disabled={loading}
@@ -729,11 +771,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                         <PencilIcon className="h-4 w-4 mr-1.5" />
                         Save
                       </button>
-                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
                         Clone
                       </button>
-                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
                         Export
                       </button>
@@ -745,12 +787,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <div className="p-4 sm:p-6 space-y-6">
                   {/* Basic Information */}
                   <section>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    <h3 className="text-lg font-medium text-white mb-4">
                       Basic Information
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
                           Full Name
                         </label>
                         <input
@@ -762,11 +804,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               name: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
                           Professional Title
                         </label>
                         <input
@@ -778,11 +820,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               label: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
                           Email
                         </label>
                         <input
@@ -794,11 +836,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               email: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
                           Phone
                         </label>
                         <input
@@ -810,12 +852,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               phone: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
                     </div>
                     <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Professional Summary
                       </label>
                       <textarea
@@ -827,7 +869,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                             summary: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       />
                     </div>
                   </section>
@@ -908,7 +950,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <div className="flex justify-center py-6">
                     <button
                       onClick={() => setShowSectionModal(true)}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      className="inline-flex items-center px-4 py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       <PlusIcon className="h-5 w-5 mr-2 text-gray-400" />
                       Add Content
@@ -918,8 +960,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               </div>
             </div>
           ) : (
-            <div className="h-full bg-gray-100">
-              <ResumePreview resume={resume} />
+            <div className="h-full bg-gray-900">
+              <ResumePreview resume={resume} onChange={setResume} />
             </div>
           )}
         </div>
@@ -928,15 +970,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         <div className="hidden lg:block h-full">
           <PanelGroup direction="horizontal" className="h-full">
             <Panel defaultSize={55} minSize={40}>
-              <div className="h-full overflow-auto px-4 sm:px-6 lg:px-8 py-6 bg-gray-50">
-                <div className="bg-white shadow-xl rounded-lg overflow-hidden">
+              <div className="h-full overflow-auto px-4 sm:px-6 lg:px-8 py-6 bg-gray-900">
+                <div className="bg-gray-800 shadow-xl rounded-lg overflow-hidden">
                   {/* Header */}
-                  <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+                  <div className="px-4 sm:px-6 py-4 border-b border-gray-700">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                       <div className="flex items-center space-x-4">
                         <button
                           onClick={onBack}
-                          className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                           <ArrowLeftIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1" />
                           Back
@@ -955,6 +997,24 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                         />
                       </div>
                       <div className="flex items-center space-x-2 sm:space-x-4">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={undo}
+                            disabled={!canUndo}
+                            className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                            title="Undo"
+                          >
+                            <ArrowUturnLeftIcon className="h-5 w-5 text-gray-600" />
+                          </button>
+                          <button
+                            onClick={redo}
+                            disabled={!canRedo}
+                            className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                            title="Redo"
+                          >
+                            <ArrowUturnRightIcon className="h-5 w-5 text-gray-600" />
+                          </button>
+                        </div>
                         <button
                           onClick={handleSave}
                           disabled={loading}
@@ -963,11 +1023,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                           <PencilIcon className="h-4 w-4 mr-1.5" />
                           Save
                         </button>
-                        <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                           <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
                           Clone
                         </button>
-                        <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                           <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
                           Export
                         </button>
@@ -979,12 +1039,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <div className="p-4 sm:p-6 space-y-6">
                     {/* Basic Information */}
                     <section>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      <h3 className="text-lg font-medium text-white mb-4">
                         Basic Information
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
                             Full Name
                           </label>
                           <input
@@ -996,11 +1056,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                                 name: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
                             Professional Title
                           </label>
                           <input
@@ -1012,11 +1072,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                                 label: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
                             Email
                           </label>
                           <input
@@ -1028,11 +1088,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                                 email: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
                             Phone
                           </label>
                           <input
@@ -1044,12 +1104,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                                 phone: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           />
                         </div>
                       </div>
                       <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
                           Professional Summary
                         </label>
                         <textarea
@@ -1061,7 +1121,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                               summary: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         />
                       </div>
                     </section>
@@ -1143,7 +1203,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                     <div className="flex justify-center py-6">
                       <button
                         onClick={() => setShowSectionModal(true)}
-                        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        className="inline-flex items-center px-4 py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
                         <PlusIcon className="h-5 w-5 mr-2 text-gray-400" />
                         Add Content
@@ -1160,8 +1220,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             </PanelResizeHandle>
 
             <Panel defaultSize={45} minSize={30}>
-              <div className="h-full bg-gray-100">
-                <ResumePreview resume={resume} />
+              <div className="h-full bg-gray-900">
+                <ResumePreview resume={resume} onChange={setResume} />
               </div>
             </Panel>
           </PanelGroup>
@@ -1169,12 +1229,19 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       </div>
 
       {/* Add Section Modal */}
+      <AnimatePresence>
       {showSectionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl w-full max-w-3xl mx-4 shadow-2xl transform transition-all">
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+            className="bg-gray-800 rounded-xl w-full max-w-3xl mx-4 shadow-2xl transform transition-all"
+          >
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-xl font-semibold text-white">
                   Add Content
                 </h2>
                 <button
@@ -1192,7 +1259,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   placeholder="Search sections..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
@@ -1202,9 +1269,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <button
                     key={section.id}
                     onClick={() => handleAddSection(section)}
-                    className="flex flex-col p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
+                    className="flex flex-col p-4 border border-gray-700 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
                   >
-                    <h3 className="text-base font-medium text-gray-900 mb-1">
+                    <h3 className="text-base font-medium text-white mb-1">
                       {section.title}
                     </h3>
                     <p className="text-sm text-gray-500">
@@ -1219,9 +1286,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                     setShowSectionModal(false);
                     setShowCustomSectionModal(true);
                   }}
-                  className="flex flex-col p-4 border border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
+                  className="flex flex-col p-4 border border-dashed border-gray-600 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
                 >
-                  <h3 className="text-base font-medium text-gray-900 mb-1">
+                  <h3 className="text-base font-medium text-white mb-1">
                     Custom
                   </h3>
                   <p className="text-sm text-gray-500">
@@ -1231,17 +1298,25 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Custom Section Modal */}
+      <AnimatePresence>
       {showCustomSectionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl w-full max-w-md mx-4 shadow-2xl transform transition-all">
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+            className="bg-gray-800 rounded-xl w-full max-w-md mx-4 shadow-2xl transform transition-all"
+          >
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-xl font-semibold text-white">
                   Create Custom Section
                 </h2>
                 <button
@@ -1256,7 +1331,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <div>
                   <label
                     htmlFor="sectionTitle"
-                    className="block text-sm font-medium text-gray-700 mb-1"
+                    className="block text-sm font-medium text-gray-300 mb-1"
                   >
                     Section Title
                   </label>
@@ -1265,7 +1340,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                     type="text"
                     value={customSectionTitle}
                     onChange={(e) => setCustomSectionTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="Enter section title..."
                   />
                 </div>
@@ -1273,7 +1348,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setShowCustomSectionModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-600 rounded-md shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     Cancel
                   </button>
@@ -1286,10 +1361,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {addContent !== null && (
         <SectionEditors
           content={addContent}
@@ -1297,7 +1374,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           onSave={handleAddContent}
         />
       )}
+      </AnimatePresence>
 
+      <AnimatePresence>
       {deletableSection && (
         <DialogBox
           title="Delete Section"
@@ -1307,17 +1386,24 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           className="max-w-full mx-auto"
           saveText="Delete"
         >
-          <p className="text-gray-700">
+          <p className="text-gray-300">
             Are you sure you want to delete this section? This action cannot be
             undone.
           </p>
         </DialogBox>
       )}
+      </AnimatePresence>
+      
+      <AnimatePresence>
       {loading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 z-50"
+        >
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 };

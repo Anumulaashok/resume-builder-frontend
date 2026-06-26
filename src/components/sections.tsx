@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { EducationItem,  SectionType } from "../types/resume";
 import EducationForm from "./Education-form";
 
@@ -145,9 +146,9 @@ export const DialogBox: React.FC<{
         props.className || ""
       }`}
     >
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl m-auto">
+      <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }} className="bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-2xl m-auto">
         {title && (
-          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 pb-2 mb-4 ">
+          <h2 className="text-2xl font-bold text-white border-b-2 border-blue-500 pb-2 mb-4 ">
             {title}
           </h2>
         )}
@@ -170,7 +171,7 @@ export const DialogBox: React.FC<{
             {props?.saveText ?? "Save"}
           </button>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };
@@ -185,7 +186,7 @@ export default SectionEditors;
 
 //   return (
 //     <div className="space-y-6">
-//       <h2 className="text-xl font-bold text-gray-900 border-b-2 border-blue-500 pb-2 mb-4">
+//       <h2 className="text-xl font-bold text-white border-b-2 border-blue-500 pb-2 mb-4">
 //         {title}
 //       </h2>
 //       <div className="space-y-6">
