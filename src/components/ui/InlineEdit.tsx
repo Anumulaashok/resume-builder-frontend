@@ -8,6 +8,7 @@ interface InlineEditProps {
   className?: string;
   placeholder?: string;
   textClassName?: string;
+  style?: React.CSSProperties;
 }
 
 export const InlineEdit: React.FC<InlineEditProps> = ({
@@ -17,6 +18,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
   className = "",
   placeholder = "Click to edit",
   textClassName = "",
+  style,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
@@ -59,6 +61,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className={`cursor-pointer hover:bg-gray-100 hover:ring-2 hover:ring-blue-300 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-gray-400 italic' : ''}`}
+            style={style}
             onClick={() => setIsEditing(true)}
           >
             {value || placeholder}
@@ -78,6 +81,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
                 onChange={(e) => setTempValue(e.target.value)}
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
+                style={style}
                 className={`w-full bg-white border border-blue-500 rounded px-2 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${textClassName}`}
                 rows={Math.max(3, tempValue.split('\n').length)}
               />
@@ -89,6 +93,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
                 onChange={(e) => setTempValue(e.target.value)}
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
+                style={style}
                 className={`w-full bg-white border border-blue-500 rounded px-2 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${textClassName}`}
               />
             )}

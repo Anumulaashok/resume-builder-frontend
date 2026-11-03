@@ -43,11 +43,16 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
         if (item.enabled) return null;
         
         return (
-          <div key={item.id} className="mb-5">
+          <div key={item.id} style={{ marginBottom: 'var(--theme-item-spacing, 1.25rem)' }}>
             {section.type === SectionType.EDUCATION ? (
               <div className="flex justify-between items-start">
                 <div className="w-3/4">
-                  <InlineEdit value={item.degree} onChange={(v) => updateSectionItem(section.id, item.id, 'degree', v)} textClassName="text-md font-bold text-gray-800 font-serif" />
+                  <InlineEdit 
+                    value={item.degree} 
+                    onChange={(v) => updateSectionItem(section.id, item.id, 'degree', v)} 
+                    textClassName="text-md font-bold" 
+                    style={{ fontFamily: 'var(--theme-heading-font)', color: 'var(--theme-heading-color, #1e293b)' }}
+                  />
                   <InlineEdit value={item.field} onChange={(v) => updateSectionItem(section.id, item.id, 'field', v)} textClassName="text-sm text-gray-700 italic" />
                   <InlineEdit value={item.description || ''} onChange={(v) => updateSectionItem(section.id, item.id, 'description', v)} multiline textClassName="text-sm text-gray-600 mt-2 block" />
                 </div>
@@ -60,7 +65,12 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
             ) : section.type === SectionType.WORK ? (
               <div className="flex justify-between items-start">
                 <div className="w-3/4">
-                  <InlineEdit value={item.position} onChange={(v) => updateSectionItem(section.id, item.id, 'position', v)} textClassName="text-md font-bold text-gray-800 font-serif" />
+                  <InlineEdit 
+                    value={item.position} 
+                    onChange={(v) => updateSectionItem(section.id, item.id, 'position', v)} 
+                    textClassName="text-md font-bold" 
+                    style={{ fontFamily: 'var(--theme-heading-font)', color: 'var(--theme-heading-color, #1e293b)' }}
+                  />
                   <InlineEdit value={item.name} onChange={(v) => updateSectionItem(section.id, item.id, 'name', v)} textClassName="text-sm font-semibold text-gray-700 uppercase" />
                   <InlineEdit value={item.description || ''} onChange={(v) => updateSectionItem(section.id, item.id, 'description', v)} multiline textClassName="text-sm text-gray-600 mt-2 block" />
                 </div>
@@ -70,11 +80,14 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
               </div>
             ) : (
               <div className="text-sm text-gray-700">
-                <InlineEdit value={item.title || item.name || item.institution || item.company || item.degree || "Untitled Item"} 
-                            onChange={(v) => {
-                              const key = item.title !== undefined ? 'title' : item.name !== undefined ? 'name' : item.institution !== undefined ? 'institution' : item.company !== undefined ? 'company' : item.degree !== undefined ? 'degree' : 'name';
-                              updateSectionItem(section.id, item.id, key, v);
-                            }} />
+                <InlineEdit 
+                  value={item.title || item.name || item.institution || item.company || item.degree || "Untitled Item"} 
+                  onChange={(v) => {
+                    const key = item.title !== undefined ? 'title' : item.name !== undefined ? 'name' : item.institution !== undefined ? 'institution' : item.company !== undefined ? 'company' : item.degree !== undefined ? 'degree' : 'name';
+                    updateSectionItem(section.id, item.id, key, v);
+                  }} 
+                  style={{ fontFamily: 'var(--theme-heading-font)', color: 'var(--theme-heading-color, #1e293b)' }}
+                />
                 {item.description && <InlineEdit value={item.description} onChange={(v) => updateSectionItem(section.id, item.id, 'description', v)} multiline textClassName="text-sm text-gray-600 mt-1 block" />}
               </div>
             )}
@@ -87,20 +100,28 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
   };
 
   return (
-    <div className="p-[2cm] h-full print:p-8 mt-5 font-serif bg-slate-50">
+    <div className="p-[2cm] h-full print:p-8 mt-5 bg-slate-50" style={{ fontFamily: 'var(--theme-body-font, serif)', color: 'var(--theme-text-color, #334155)' }}>
       {/* Header */}
-      <div className="flex justify-between items-end mb-8 border-b-[3px] border-slate-800 pb-4">
+      <div 
+        className="flex justify-between items-end border-b-[3px] pb-4"
+        style={{ 
+          borderColor: 'var(--theme-primary, #1e293b)',
+          marginBottom: 'var(--theme-section-spacing, 2rem)'
+        }}
+      >
         <div>
           <InlineEdit 
             value={resume.content.basics.name || ""} 
             onChange={(v) => updateBasics('name', v)} 
-            textClassName="text-5xl font-black text-slate-800 tracking-tight" 
+            textClassName="text-5xl font-black tracking-tight" 
+            style={{ fontFamily: 'var(--theme-heading-font)', color: 'var(--theme-heading-color, #1e293b)' }}
             placeholder="Your Name"
           />
           <InlineEdit 
             value={resume.content.basics.label || ""} 
             onChange={(v) => updateBasics('label', v)} 
-            textClassName="text-xl text-slate-600 mt-1 block" 
+            textClassName="text-xl mt-1 block font-medium" 
+            style={{ color: 'var(--theme-primary, #475569)' }}
             placeholder="Professional Title"
           />
         </div>
@@ -122,15 +143,23 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
 
       {/* Summary */}
       {resume.content.basics.summary !== undefined && (
-        <div className="mb-6">
-          <h2 className="text-lg font-bold text-slate-800 uppercase tracking-widest border-b border-slate-300 mb-3 pb-1">
+        <div style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}>
+          <h2 
+            className="text-lg font-bold uppercase tracking-widest border-b pb-1 mb-3"
+            style={{ 
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-primary, #1e293b)',
+              borderBottomColor: 'var(--theme-primary, #cbd5e1)'
+            }}
+          >
             Profile
           </h2>
           <InlineEdit 
             value={resume.content.basics.summary} 
             onChange={(v) => updateBasics('summary', v)} 
             multiline 
-            textClassName="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap break-words block" 
+            textClassName="text-sm leading-relaxed whitespace-pre-wrap break-words block" 
+            style={{ color: 'var(--theme-text-color, #334155)' }}
             placeholder="A brief summary of your professional background..."
           />
         </div>
@@ -142,8 +171,15 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
         if (!section || section.enabled) return null;
 
         return (
-          <div key={section.id} className="mb-6">
-            <h2 className="text-lg font-bold text-slate-800 uppercase tracking-widest border-b border-slate-300 mb-3 pb-1">
+          <div key={section.id} style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}>
+            <h2 
+              className="text-lg font-bold uppercase tracking-widest border-b pb-1 mb-3"
+              style={{ 
+                fontFamily: 'var(--theme-heading-font)',
+                color: 'var(--theme-primary, #1e293b)',
+                borderBottomColor: 'var(--theme-primary, #cbd5e1)'
+              }}
+            >
               {section.title}
             </h2>
             {renderSectionContent(section)}

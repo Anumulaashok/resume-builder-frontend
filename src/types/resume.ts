@@ -1,6 +1,19 @@
+export interface ThemeConfig {
+  fontPairingId?: string;
+  headingFont?: string;
+  bodyFont?: string;
+  primaryColor?: string;
+  textColor?: string;
+  headingColor?: string;
+  sectionSpacing?: 'compact' | 'normal' | 'spacious' | string;
+  fontSize?: 'sm' | 'base' | 'lg' | string;
+}
+
 export interface IResume {
   _id?: string;
   title?: string;
+  templateId?: string;
+  themeConfig?: ThemeConfig;
   content: {
     basics: {
       name?: string;
