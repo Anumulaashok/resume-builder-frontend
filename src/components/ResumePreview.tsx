@@ -4,10 +4,13 @@ import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SwatchIcon,
+  PaintBrushIcon,
 } from "@heroicons/react/24/outline";
 import { ModernTemplate } from "./templates/ModernTemplate";
 import { ProfessionalTemplate } from "./templates/ProfessionalTemplate";
 import { motion } from "framer-motion";
+import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
+import { getThemeStyles } from "../constants/themeConstants";
 
 interface ResumePreviewProps {
   resume: IResume;
@@ -21,8 +24,9 @@ const templates = [
 
 const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
   const [scale, setScale] = useState(1);
-  const [activeTemplateId, setActiveTemplateId] = useState('modern');
+  const [activeTemplateId, setActiveTemplateId] = useState(resume.templateId || 'modern');
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [showThemePanel, setShowThemePanel] = useState(false);
 
   const handlePrint = () => {
     window.print();
@@ -41,6 +45,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
   };
 
   const ActiveTemplateComponent = templates.find(t => t.id === activeTemplateId)?.component || ModernTemplate;
+  const themeStyles = getThemeStyles(resume.themeConfig);
 
   return (
     <div className="bg-gray-800 h-full overflow-auto p-4 sm:p-8 relative transition-colors duration-300">
@@ -56,7 +61,11 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
             {templates.map(t => (
               <button
                 key={t.id}
-                onClick={() => { setActiveTemplateId(t.id); setShowTemplateSelector(false); }}
+                onClick={() => { 
+                  setActiveTemplateId(t.id); 
+                  setShowTemplateSelector(false); 
+                  if (onChange) onChange({ ...resume, templateId: t.id });
+                }}
                 className={`w-full text-left px-4 py-2 rounded-md transition-colors ${activeTemplateId === t.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
               >
                 {t.name}
@@ -64,6 +73,22 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Theme Customization Overlay */}
+      {showThemePanel && (
+        <ThemeCustomizationPanel
+          themeConfig={resume.themeConfig}
+          onChange={(newTheme) => {
+            if (onChange) {
+              onChange({
+                ...resume,
+                themeConfig: newTheme,
+              });
+            }
+          }}
+          onClose={() => setShowThemePanel(false)}
+        />
       )}
 
       <div
@@ -82,6 +107,18 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
           >
             <SwatchIcon className="h-4 w-4" />
             Templates
+          </button>
+          <button
+            onClick={() => setShowThemePanel(!showThemePanel)}
+            data-testid="theme-customization-btn"
+            className={`px-3 py-1.5 text-sm rounded-md shadow transition-all flex items-center gap-2 ${
+              showThemePanel
+                ? "bg-blue-600 text-white border border-blue-500"
+                : "bg-gray-800 border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700"
+            }`}
+          >
+            <PaintBrushIcon className="h-4 w-4" />
+            Customize Theme
           </button>
           <button
             onClick={handleZoomOut}
@@ -116,6 +153,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           className="h-full"
+          style={themeStyles}
         >
           <ActiveTemplateComponent resume={resume} onChange={onChange} />
         </motion.div>
