@@ -1,6 +1,22 @@
+export interface IPrivacySettings {
+  hideEmail: boolean;
+  hidePhone: boolean;
+  hideAddress: boolean;
+}
+
+export interface ISharing {
+  isPublic: boolean;
+  shareToken?: string | null;
+  privacy: IPrivacySettings;
+}
+
 export interface IResume {
   _id?: string;
   title?: string;
+  summary?: string;
+  templateId?: string;
+  themeConfig?: Record<string, any>;
+  sharing?: ISharing;
   content: {
     basics: {
       name?: string;
@@ -8,7 +24,7 @@ export interface IResume {
       email?: string;
       phone?: string;
       summary?: string;
-      location: {
+      location?: {
         address?: string;
         city?: string;
         countryCode?: string;
