@@ -5,9 +5,11 @@ import {
   DocumentDuplicateIcon,
   PlusIcon,
   SparklesIcon,
+  ShareIcon,
 } from "@heroicons/react/24/outline";
 import { Resume, resumeService } from "../services/resume.service";
 import toast from "react-hot-toast";
+import ShareModal from "./ShareModal";
 
 interface ResumeWithMeta extends Resume {
   id: string;
@@ -31,6 +33,7 @@ export default function ResumeList({
 }: ResumeListProps) {
   const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sharingResume, setSharingResume] = useState<ResumeWithMeta | null>(null);
 
   const loadResumes = useCallback(async () => {
     try {
@@ -161,11 +164,11 @@ export default function ResumeList({
                 Edit
               </button>
               <button
-                onClick={() => handleDelete(resume.id)}
-                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                onClick={() => setSharingResume(resume)}
+                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                Delete
+                <ShareIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                Share
               </button>
               <button
                 onClick={() => handleClone(resume)}
@@ -174,10 +177,37 @@ export default function ResumeList({
                 <DocumentDuplicateIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                 Clone
               </button>
+              <button
+                onClick={() => handleDelete(resume.id)}
+                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                Delete
+              </button>
             </div>
           </div>
         </div>
       ))}
+
+      {sharingResume && (
+        <ShareModal
+          isOpen={!!sharingResume}
+          onClose={() => setSharingResume(null)}
+          resumeId={sharingResume.id || (sharingResume as any)._id || ""}
+          resumeTitle={sharingResume.title}
+          initialSharing={sharingResume.sharing}
+          onSharingUpdated={(sharing) => {
+            setResumes((prev) =>
+              prev.map((r) =>
+                (r.id === sharingResume.id || (r as any)._id === sharingResume.id)
+                  ? { ...r, sharing }
+                  : r
+              )
+            );
+            setSharingResume((prev) => (prev ? { ...prev, sharing } : null));
+          }}
+        />
+      )}
     </div>
   );
 }
