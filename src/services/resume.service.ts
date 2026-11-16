@@ -1,4 +1,4 @@
-import { IResume as BaseResume } from "../types/resume";
+import { IResume as BaseResume, ISharing, IPrivacySettings } from "../types/resume";
 import axiosInstance from "../services/axios";
 
 export type Resume = BaseResume;
@@ -76,6 +76,38 @@ class ResumeService {
 
   async deleteResume(id: string): Promise<void> {
     await axiosInstance.delete(`/api/resumes/${id}`);
+  }
+
+  async getPublicResume(shareToken: string): Promise<Resume> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: Resume;
+    }>(`/api/resumes/share/${shareToken}`);
+    return response.data?.data;
+  }
+
+  async getShareSettings(resumeId: string): Promise<ISharing> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: ISharing;
+    }>(`/api/resumes/${resumeId}/share`);
+    return response.data?.data;
+  }
+
+  async updateShareSettings(
+    resumeId: string,
+    settings: {
+      isPublic?: boolean;
+      privacy?: Partial<IPrivacySettings>;
+      privacySettings?: Partial<IPrivacySettings>;
+      regenerateToken?: boolean;
+    }
+  ): Promise<ISharing> {
+    const response = await axiosInstance.patch<{
+      success: boolean;
+      data: ISharing;
+    }>(`/api/resumes/${resumeId}/share`, settings);
+    return response.data?.data;
   }
 }
 
