@@ -83,8 +83,18 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ resume, onChange, read
     }
   };
 
+  const isEmailHidden = readOnly && Boolean(
+    resume.sharing?.privacy?.hideEmail || resume.sharing?.privacySettings?.hideEmail
+  );
+  const isPhoneHidden = readOnly && Boolean(
+    resume.sharing?.privacy?.hidePhone || resume.sharing?.privacySettings?.hidePhone
+  );
+  const isAddressHidden = readOnly && Boolean(
+    resume.sharing?.privacy?.hideAddress || resume.sharing?.privacySettings?.hideAddress
+  );
+
   const contactItems: React.ReactNode[] = [];
-  if (resume.content.basics.email || !readOnly) {
+  if (!isEmailHidden && (resume.content.basics.email || !readOnly)) {
     contactItems.push(
       <InlineEdit 
         key="email"
@@ -95,7 +105,7 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ resume, onChange, read
       />
     );
   }
-  if (resume.content.basics.phone || !readOnly) {
+  if (!isPhoneHidden && (resume.content.basics.phone || !readOnly)) {
     contactItems.push(
       <InlineEdit 
         key="phone"
@@ -107,10 +117,10 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ resume, onChange, read
     );
   }
   const formattedAddress = [
-    resume.content.basics.location?.address,
+    !isAddressHidden ? resume.content.basics.location?.address : undefined,
     resume.content.basics.location?.city,
     resume.content.basics.location?.countryCode
-  ].filter(Boolean).join(', ') || resume.content.basics.location?.address;
+  ].filter(Boolean).join(', ') || (!isAddressHidden ? resume.content.basics.location?.address : undefined);
 
   if (formattedAddress) {
     contactItems.push(

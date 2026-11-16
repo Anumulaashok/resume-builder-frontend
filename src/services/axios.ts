@@ -1,7 +1,33 @@
 import axios, { isAxiosError } from 'axios';
 import { getToken, removeToken } from '../utils/token';
 
-const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:10000';
+/**
+ * Resolves the base URL for API requests.
+ * Supports:
+ * - Explicit process.env.REACT_APP_API_URL if configured.
+ * - Relative /api base path (empty string '') when using Netlify proxy in production.
+ * - Explicit fallback to http://localhost:10000 for local development.
+ */
+export const getBaseURL = (): string => {
+  if (process.env.REACT_APP_API_URL !== undefined) {
+    const raw = process.env.REACT_APP_API_URL.trim();
+    if (raw === '' || raw === '/api' || raw === '/api/') {
+      return '';
+    }
+    // Remove trailing slash or trailing /api since endpoints are prefixed with /api
+    return raw.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+  }
+
+  // When deployed in production without an explicit API URL, use relative base path (Netlify proxy rewrite)
+  if (process.env.NODE_ENV === 'production') {
+    return '';
+  }
+
+  // Explicit fallback to local backend for development/testing
+  return 'http://localhost:10000';
+};
+
+const baseURL = getBaseURL();
 
 const axiosInstance = axios.create({
   baseURL,

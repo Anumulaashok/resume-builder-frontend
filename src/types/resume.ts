@@ -8,6 +8,7 @@ export interface ISharing {
   isPublic: boolean;
   shareToken?: string | null;
   privacy: IPrivacySettings;
+  privacySettings?: IPrivacySettings;
 }
 
 export interface IResume {

@@ -9,12 +9,15 @@ import {
 } from "@heroicons/react/24/outline";
 
 interface PublicResumeViewProps {
-  shareToken: string;
+  shareToken?: string;
+  token?: string;
 }
 
 export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
-  shareToken,
+  shareToken: propShareToken,
+  token,
 }) => {
+  const activeToken = propShareToken || token || "";
   const [resume, setResume] = useState<IResume | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +27,14 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     setLoading(true);
     setError(null);
 
+    if (!activeToken) {
+      setLoading(false);
+      setError("This shared resume link is invalid, has expired, or has been revoked by the owner.");
+      return;
+    }
+
     resumeService
-      .getPublicResume(shareToken)
+      .getPublicResume(activeToken)
       .then((data) => {
         if (isMounted) {
           if (data) {
@@ -54,7 +63,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [shareToken]);
+  }, [activeToken]);
 
   if (loading) {
     return (
