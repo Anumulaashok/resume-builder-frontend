@@ -1,3 +1,14 @@
+export interface ThemeConfig {
+  fontPairingId?: string;
+  headingFont?: string;
+  bodyFont?: string;
+  primaryColor?: string;
+  textColor?: string;
+  headingColor?: string;
+  sectionSpacing?: 'compact' | 'normal' | 'spacious' | string;
+  fontSize?: 'sm' | 'base' | 'lg' | string;
+}
+
 export interface IPrivacySettings {
   hideEmail: boolean;
   hidePhone: boolean;
@@ -15,7 +26,7 @@ export interface IResume {
   title?: string;
   summary?: string;
   templateId?: string;
-  themeConfig?: Record<string, any>;
+  themeConfig?: ThemeConfig;
   sharing?: ISharing;
   content: {
     basics: {
