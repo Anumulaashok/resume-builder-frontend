@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 
 interface InlineEditProps {
   value: string;
-  onChange: (val: string) => void;
+  onChange?: (val: string) => void;
   multiline?: boolean;
   className?: string;
   placeholder?: string;
   textClassName?: string;
+  readOnly?: boolean;
 }
 
 export const InlineEdit: React.FC<InlineEditProps> = ({
@@ -17,6 +18,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
   className = "",
   placeholder = "Click to edit",
   textClassName = "",
+  readOnly = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
@@ -31,6 +33,15 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
       inputRef.current.focus();
     }
   }, [isEditing]);
+
+  if (readOnly || !onChange) {
+    if (!value) return null;
+    return (
+      <div className={`relative ${className}`}>
+        <span className={textClassName}>{value}</span>
+      </div>
+    );
+  }
 
   const handleSave = () => {
     setIsEditing(false);

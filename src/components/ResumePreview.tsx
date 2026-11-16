@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 interface ResumePreviewProps {
   resume: IResume;
   onChange?: (resume: IResume) => void;
+  readOnly?: boolean;
 }
 
 const templates = [
@@ -19,9 +20,9 @@ const templates = [
   { id: 'professional', name: 'Professional', component: ProfessionalTemplate },
 ];
 
-const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
+const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange, readOnly = false }) => {
   const [scale, setScale] = useState(1);
-  const [activeTemplateId, setActiveTemplateId] = useState('modern');
+  const [activeTemplateId, setActiveTemplateId] = useState(resume.templateId || 'modern');
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   const handlePrint = () => {
@@ -117,7 +118,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resume, onChange }) => {
           transition={{ duration: 0.4 }}
           className="h-full"
         >
-          <ActiveTemplateComponent resume={resume} onChange={onChange} />
+          <ActiveTemplateComponent resume={resume} onChange={readOnly ? undefined : onChange} readOnly={readOnly} />
         </motion.div>
       </div>
     </div>

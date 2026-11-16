@@ -13,6 +13,7 @@ import {
   EyeSlashIcon,
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
+  ShareIcon,
 } from "@heroicons/react/24/outline";
 
 // Loadash debounce
@@ -62,6 +63,7 @@ import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
 import { EyeIcon } from "lucide-react";
+import ShareModal from "./ShareModal";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -190,6 +192,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 }) => {
   const { resume, setResume, undo, redo, canUndo, canRedo } = useResumeHistory(initialResume || defaultResume);
   const [loading, setLoading] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
@@ -345,6 +348,24 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOpenShare = async () => {
+    if (!resume._id) {
+      toast("Saving resume before opening share settings...", { icon: "ℹ️" });
+      setLoading(true);
+      try {
+        const savedResume: any = await resumeService.createResume(resume);
+        setResume((prev) => ({ ...prev, _id: savedResume.id || savedResume._id }));
+        setShowShareModal(true);
+      } catch (error) {
+        toast.error("Failed to save resume before sharing");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    setShowShareModal(true);
   };
 
   const handleAddNewItem = (section: ISection) => {
@@ -771,6 +792,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                         <PencilIcon className="h-4 w-4 mr-1.5" />
                         Save
                       </button>
+                      <button
+                        onClick={handleOpenShare}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-indigo-500 rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        title="Share Resume & Privacy Settings"
+                        data-testid="share-resume-btn-1"
+                      >
+                        <ShareIcon className="h-4 w-4 mr-1.5" />
+                        Share
+                      </button>
                       <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
                         Clone
@@ -1022,6 +1052,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                         >
                           <PencilIcon className="h-4 w-4 mr-1.5" />
                           Save
+                        </button>
+                        <button
+                          onClick={handleOpenShare}
+                          disabled={loading}
+                          className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <ShareIcon className="h-4 w-4 mr-1.5" />
+                          Share
                         </button>
                         <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                           <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
@@ -1404,6 +1442,17 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         </motion.div>
       )}
       </AnimatePresence>
+
+      {resume._id && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          resumeId={resume._id}
+          resumeTitle={resume.title}
+          initialSharing={resume.sharing}
+          onSharingUpdated={(sharing) => setResume((prev) => ({ ...prev, sharing }))}
+        />
+      )}
     </div>
   );
 };

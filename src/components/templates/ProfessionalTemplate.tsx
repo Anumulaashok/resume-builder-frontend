@@ -5,11 +5,12 @@ import { InlineEdit } from '../ui/InlineEdit';
 interface TemplateProps {
   resume: IResume;
   onChange?: (resume: IResume) => void;
+  readOnly?: boolean;
 }
 
-export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange }) => {
+export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange, readOnly = false }) => {
   const updateBasics = (field: string, value: string) => {
-    if (!onChange) return;
+    if (!onChange || readOnly) return;
     onChange({
       ...resume,
       content: {
@@ -23,7 +24,7 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
   };
 
   const updateSectionItem = (sectionId: string, itemId: string, field: string, value: string) => {
-    if (!onChange) return;
+    if (!onChange || readOnly) return;
     onChange({
       ...resume,
       content: {
@@ -47,9 +48,9 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
             {section.type === SectionType.EDUCATION ? (
               <div className="flex justify-between items-start">
                 <div className="w-3/4">
-                  <InlineEdit value={item.degree} onChange={(v) => updateSectionItem(section.id, item.id, 'degree', v)} textClassName="text-md font-bold text-gray-800 font-serif" />
-                  <InlineEdit value={item.field} onChange={(v) => updateSectionItem(section.id, item.id, 'field', v)} textClassName="text-sm text-gray-700 italic" />
-                  <InlineEdit value={item.description || ''} onChange={(v) => updateSectionItem(section.id, item.id, 'description', v)} multiline textClassName="text-sm text-gray-600 mt-2 block" />
+                  <InlineEdit value={item.degree} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'degree', v)} readOnly={readOnly} textClassName="text-md font-bold text-gray-800 font-serif" />
+                  <InlineEdit value={item.field} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'field', v)} readOnly={readOnly} textClassName="text-sm text-gray-700 italic" />
+                  <InlineEdit value={item.description || ''} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'description', v)} readOnly={readOnly} multiline textClassName="text-sm text-gray-600 mt-2 block" />
                 </div>
                 <div className="w-1/4 text-right">
                   <p className="text-xs text-gray-500 font-medium">
@@ -60,9 +61,9 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
             ) : section.type === SectionType.WORK ? (
               <div className="flex justify-between items-start">
                 <div className="w-3/4">
-                  <InlineEdit value={item.position} onChange={(v) => updateSectionItem(section.id, item.id, 'position', v)} textClassName="text-md font-bold text-gray-800 font-serif" />
-                  <InlineEdit value={item.name} onChange={(v) => updateSectionItem(section.id, item.id, 'name', v)} textClassName="text-sm font-semibold text-gray-700 uppercase" />
-                  <InlineEdit value={item.description || ''} onChange={(v) => updateSectionItem(section.id, item.id, 'description', v)} multiline textClassName="text-sm text-gray-600 mt-2 block" />
+                  <InlineEdit value={item.position} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'position', v)} readOnly={readOnly} textClassName="text-md font-bold text-gray-800 font-serif" />
+                  <InlineEdit value={item.name} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'name', v)} readOnly={readOnly} textClassName="text-sm font-semibold text-gray-700 uppercase" />
+                  <InlineEdit value={item.description || ''} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'description', v)} readOnly={readOnly} multiline textClassName="text-sm text-gray-600 mt-2 block" />
                 </div>
                 <div className="w-1/4 text-right">
                   <span className="text-xs text-gray-500 font-medium">{item.startDate} - {item.endDate || "Present"}</span>
@@ -71,11 +72,12 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
             ) : (
               <div className="text-sm text-gray-700">
                 <InlineEdit value={item.title || item.name || item.institution || item.company || item.degree || "Untitled Item"} 
-                            onChange={(v) => {
+                            onChange={readOnly ? undefined : (v) => {
                               const key = item.title !== undefined ? 'title' : item.name !== undefined ? 'name' : item.institution !== undefined ? 'institution' : item.company !== undefined ? 'company' : item.degree !== undefined ? 'degree' : 'name';
                               updateSectionItem(section.id, item.id, key, v);
-                            }} />
-                {item.description && <InlineEdit value={item.description} onChange={(v) => updateSectionItem(section.id, item.id, 'description', v)} multiline textClassName="text-sm text-gray-600 mt-1 block" />}
+                            }}
+                            readOnly={readOnly} />
+                {item.description && <InlineEdit value={item.description} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'description', v)} readOnly={readOnly} multiline textClassName="text-sm text-gray-600 mt-1 block" />}
               </div>
             )}
           </div>
@@ -86,6 +88,12 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
     }
   };
 
+  const formattedAddress = [
+    resume.content.basics.location?.address,
+    resume.content.basics.location?.city,
+    resume.content.basics.location?.countryCode
+  ].filter(Boolean).join(', ') || resume.content.basics.location?.address;
+
   return (
     <div className="p-[2cm] h-full print:p-8 mt-5 font-serif bg-slate-50">
       {/* Header */}
@@ -93,30 +101,41 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
         <div>
           <InlineEdit 
             value={resume.content.basics.name || ""} 
-            onChange={(v) => updateBasics('name', v)} 
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)} 
             textClassName="text-5xl font-black text-slate-800 tracking-tight" 
             placeholder="Your Name"
+            readOnly={readOnly}
           />
           <InlineEdit 
             value={resume.content.basics.label || ""} 
-            onChange={(v) => updateBasics('label', v)} 
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)} 
             textClassName="text-xl text-slate-600 mt-1 block" 
             placeholder="Professional Title"
+            readOnly={readOnly}
           />
         </div>
         <div className="text-sm text-slate-600 text-right space-y-1">
-          <InlineEdit 
-            value={resume.content.basics.email || ""} 
-            onChange={(v) => updateBasics('email', v)} 
-            placeholder="Email Address"
-            textClassName="block"
-          />
-          <InlineEdit 
-            value={resume.content.basics.phone || ""} 
-            onChange={(v) => updateBasics('phone', v)} 
-            placeholder="Phone Number"
-            textClassName="block"
-          />
+          {(resume.content.basics.email || !readOnly) && (
+            <InlineEdit 
+              value={resume.content.basics.email || ""} 
+              onChange={readOnly ? undefined : (v) => updateBasics('email', v)} 
+              placeholder="Email Address"
+              textClassName="block"
+              readOnly={readOnly}
+            />
+          )}
+          {(resume.content.basics.phone || !readOnly) && (
+            <InlineEdit 
+              value={resume.content.basics.phone || ""} 
+              onChange={readOnly ? undefined : (v) => updateBasics('phone', v)} 
+              placeholder="Phone Number"
+              textClassName="block"
+              readOnly={readOnly}
+            />
+          )}
+          {formattedAddress && (
+            <span className="block text-slate-600">{formattedAddress}</span>
+          )}
         </div>
       </div>
 
@@ -128,17 +147,18 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
           </h2>
           <InlineEdit 
             value={resume.content.basics.summary} 
-            onChange={(v) => updateBasics('summary', v)} 
+            onChange={readOnly ? undefined : (v) => updateBasics('summary', v)} 
             multiline 
             textClassName="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap break-words block" 
             placeholder="A brief summary of your professional background..."
+            readOnly={readOnly}
           />
         </div>
       )}
 
       {/* Sections */}
-      {resume.content.sectionOrder.map((sectionId) => {
-        const section = resume.content.sections.find((s) => s.id === sectionId);
+      {(resume.content.sectionOrder || []).map((sectionId) => {
+        const section = (resume.content.sections || []).find((s) => s.id === sectionId);
         if (!section || section.enabled) return null;
 
         return (
