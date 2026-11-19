@@ -3,7 +3,7 @@ import { resumeService } from "../services/resume.service";
 import { IResume } from "../types/resume";
 import { A4_WIDTH_PX, A4_HEIGHT_PX } from "./ResumePreview";
 import { getTemplate } from "./templates/registry";
-import { getThemeStyles } from "../constants/themeConstants";
+import { getPageDimensions, getThemeStyles } from "../constants/themeConstants";
 import { Container } from "./ui/container";
 import { Skeleton } from "./ui/skeleton";
 import {
@@ -24,11 +24,14 @@ interface PublicResumeViewProps {
 const DEFAULT_ERROR_MESSAGE =
   "This shared resume link is invalid, has expired, or has been revoked by the owner.";
 
-function computeFitScale(availableWidth: number): number {
-  if (!availableWidth || availableWidth <= 0) {
+function computeFitScale(
+  availableWidth: number,
+  pageWidthPx: number = A4_WIDTH_PX
+): number {
+  if (!availableWidth || availableWidth <= 0 || !pageWidthPx || pageWidthPx <= 0) {
     return 1;
   }
-  const raw = (availableWidth - 2) / A4_WIDTH_PX;
+  const raw = (availableWidth - 2) / pageWidthPx;
   return Math.max(0.25, Math.min(1, Number(raw.toFixed(4))));
 }
 
@@ -209,6 +212,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
   }, [activeSlug, activeToken]);
 
   const hasResume = !loading && !error && Boolean(resume);
+  const pageDims = getPageDimensions(resume?.themeConfig?.pageSize);
   const rawTemplateId =
     resume?.templateId ||
     (resume as { template?: string } | null)?.template ||
@@ -223,7 +227,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
 
     const initialWidth = measureContentWidth(viewport);
     if (initialWidth > 0) {
-      setFitScale(computeFitScale(initialWidth));
+      setFitScale(computeFitScale(initialWidth, pageDims.widthPx));
     }
 
     if (typeof ResizeObserver === "undefined") {
@@ -234,7 +238,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
       for (const entry of entries) {
         const width = measureContentWidth(viewport, entry.contentRect?.width);
         if (width > 0) {
-          const nextScale = computeFitScale(width);
+          const nextScale = computeFitScale(width, pageDims.widthPx);
           setFitScale((prev) =>
             Math.abs(prev - nextScale) > 0.002 ? nextScale : prev
           );
@@ -244,7 +248,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
 
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [hasResume]);
+  }, [hasResume, pageDims.widthPx]);
 
   // Track unscaled page height so the scaled wrapper reserves exact vertical scroll space
   useEffect(() => {
@@ -253,7 +257,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     if (!pageEl) return;
 
     const syncHeight = () => {
-      const h = Math.max(A4_HEIGHT_PX, pageEl.offsetHeight || 0);
+      const h = Math.max(pageDims.heightPx, pageEl.offsetHeight || 0);
       setPageHeight(h);
     };
 
@@ -269,7 +273,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
 
     observer.observe(pageEl);
     return () => observer.disconnect();
-  }, [hasResume, normalizedTemplateId, resume]);
+  }, [hasResume, normalizedTemplateId, resume, pageDims.heightPx]);
 
   const handlePrint = () => {
     window.print();
@@ -381,7 +385,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     resume.themeConfig,
     activeTemplate.defaultTheme
   );
-  const scaledWidth = Math.round(A4_WIDTH_PX * fitScale);
+  const scaledWidth = Math.round(pageDims.widthPx * fitScale);
   const scaledHeight = Math.round(pageHeight * fitScale);
 
   return (
@@ -389,6 +393,9 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
       className="min-h-screen bg-neutral-100 flex flex-col print:!bg-white print:!block print:!min-h-0"
       data-testid="public-resume-view"
     >
+      <style data-testid="resume-print-page-style">
+        {`@page { size: ${pageDims.cssSize}; }`}
+      </style>
       <TopBar onPrint={handlePrint} />
 
       {/* Centred Neutral Canvas with Fit-to-Width Scaling */}
@@ -409,10 +416,12 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
           <div
             ref={pageRef}
             data-testid="resume-preview-page"
+            data-page-size={pageDims.id}
+            data-ats-mode={resume.themeConfig?.atsMode ? "true" : "false"}
             className="bg-white shadow-card ring-1 ring-neutral-900/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
             style={{
-              width: `${A4_WIDTH_PX}px`,
-              minHeight: `${A4_HEIGHT_PX}px`,
+              width: `${pageDims.widthPx}px`,
+              minHeight: `${pageDims.heightPx}px`,
               transform: `scale(${fitScale})`,
               transformOrigin: "top left",
             }}

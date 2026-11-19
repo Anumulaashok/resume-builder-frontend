@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { IResume, ThemeConfig } from "../types/resume";
 import {
@@ -11,8 +11,20 @@ import {
   PrinterIcon,
 } from "@heroicons/react/24/outline";
 import { motion } from "framer-motion";
-import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
-import { getThemeStyles } from "../constants/themeConstants";
+import {
+  FitToOnePageResult,
+  ThemeCustomizationPanel,
+} from "./ThemeCustomizationPanel";
+import {
+  A4_WIDTH_PX,
+  A4_HEIGHT_PX,
+  LETTER_WIDTH_PX,
+  LETTER_HEIGHT_PX,
+  getPageDimensions,
+  getNextFitThemeStep,
+  getThemeStyles,
+  resolveTemplateDefaultTheme,
+} from "../constants/themeConstants";
 import { resumeService } from "../services/resume.service";
 import { triggerFileDownload } from "../utils/download";
 import {
@@ -21,6 +33,8 @@ import {
   TemplateDefinition,
 } from "./templates/registry";
 import { TemplateGalleryModal } from "./templates/TemplateGalleryModal";
+
+export { A4_WIDTH_PX, A4_HEIGHT_PX, LETTER_WIDTH_PX, LETTER_HEIGHT_PX };
 
 interface ResumePreviewProps {
   resume: IResume;
@@ -32,14 +46,14 @@ interface ResumePreviewProps {
   isExportingTxt?: boolean;
 }
 
-export const A4_WIDTH_PX = 794; // 21cm at 96dpi
-export const A4_HEIGHT_PX = 1123; // 29.7cm at 96dpi
-
-function computeFitScale(availableWidth: number): number {
-  if (!availableWidth || availableWidth <= 0) {
+function computeFitScale(
+  availableWidth: number,
+  pageWidthPx: number = A4_WIDTH_PX
+): number {
+  if (!availableWidth || availableWidth <= 0 || !pageWidthPx || pageWidthPx <= 0) {
     return 1;
   }
-  const raw = (availableWidth - 2) / A4_WIDTH_PX;
+  const raw = (availableWidth - 2) / pageWidthPx;
   return Math.max(0.25, Math.min(1, Number(raw.toFixed(4))));
 }
 
@@ -57,6 +71,19 @@ function measureContentWidth(el: HTMLElement, contentRectWidth?: number): number
   return 0;
 }
 
+function measurePageContentHeight(pageEl: HTMLElement): number {
+  return Math.max(pageEl.scrollHeight || 0, pageEl.offsetHeight || 0);
+}
+
+export function calculatePageCount(
+  measuredHeightPx: number,
+  pageHeightPx: number
+): number {
+  if (!pageHeightPx || pageHeightPx <= 0) return 1;
+  if (measuredHeightPx <= pageHeightPx + 2) return 1;
+  return Math.max(1, Math.ceil((measuredHeightPx - 2) / pageHeightPx));
+}
+
 const ResumePreview: React.FC<ResumePreviewProps> = ({
   resume,
   onChange,
@@ -71,9 +98,12 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const [activeTemplateId, setActiveTemplateId] = useState(
     getTemplate(externalTemplateId).id
   );
+  const pageDims = getPageDimensions(resume.themeConfig?.pageSize);
+
   const [fitScale, setFitScale] = useState<number>(1);
   const [manualScale, setManualScale] = useState<number | null>(null);
-  const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
+  const [pageHeight, setPageHeight] = useState<number>(pageDims.heightPx);
+  const [pageCount, setPageCount] = useState<number>(1);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
   const [internalExportingTxt, setInternalExportingTxt] =
@@ -96,7 +126,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
     const initialWidth = measureContentWidth(viewport);
     if (initialWidth > 0) {
-      setFitScale(computeFitScale(initialWidth));
+      setFitScale(computeFitScale(initialWidth, pageDims.widthPx));
     }
 
     if (typeof ResizeObserver === "undefined") {
@@ -107,7 +137,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
       for (const entry of entries) {
         const width = measureContentWidth(viewport, entry.contentRect?.width);
         if (width > 0) {
-          const nextScale = computeFitScale(width);
+          const nextScale = computeFitScale(width, pageDims.widthPx);
           setFitScale((prev) =>
             Math.abs(prev - nextScale) > 0.002 ? nextScale : prev
           );
@@ -117,16 +147,18 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, []);
+  }, [pageDims.widthPx]);
 
-  // Track unscaled page height so the scaled wrapper reserves exact vertical scroll space
+  // Track unscaled page height & page count so the scaled wrapper reserves exact vertical scroll space
   useEffect(() => {
     const pageEl = pageRef.current;
     if (!pageEl) return;
 
     const syncHeight = () => {
-      const h = Math.max(A4_HEIGHT_PX, pageEl.offsetHeight || 0);
+      const raw = measurePageContentHeight(pageEl);
+      const h = Math.max(pageDims.heightPx, raw);
       setPageHeight(h);
+      setPageCount(calculatePageCount(raw, pageDims.heightPx));
     };
 
     syncHeight();
@@ -141,7 +173,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
     observer.observe(pageEl);
     return () => observer.disconnect();
-  }, [activeTemplateId, resume]);
+  }, [activeTemplateId, resume, pageDims.heightPx]);
 
   const effectiveScale = manualScale ?? fitScale;
   const isFitMode = manualScale === null;
@@ -213,6 +245,128 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     activeTemplate.defaultTheme
   );
 
+  const handleFitToOnePage = useCallback((): FitToOnePageResult => {
+    const pageEl = pageRef.current;
+    const baseDefaults = resolveTemplateDefaultTheme(activeTemplate.defaultTheme);
+    let workingTheme: ThemeConfig = {
+      ...baseDefaults,
+      ...(resume.themeConfig || {}),
+    };
+
+    if (!pageEl) {
+      return {
+        status: "already-fit",
+        pageCount: 1,
+        message: "Resume already fits on one page.",
+      };
+    }
+
+    const applyThemeCssVars = (targetTheme: ThemeConfig) => {
+      const styles = getThemeStyles(targetTheme, activeTemplate.defaultTheme);
+      Object.entries(styles).forEach(([key, val]) => {
+        if (key.startsWith("--") && val !== undefined) {
+          pageEl.style.setProperty(key, String(val));
+        }
+      });
+    };
+
+    const previousMinHeight = pageEl.style.minHeight;
+    let measured = 0;
+    let fitted = false;
+    const modifiedPatch: Partial<ThemeConfig> = {};
+    const changedKeys = new Set<keyof ThemeConfig>();
+
+    try {
+      pageEl.style.minHeight = "0px";
+      pageEl.style.setProperty("--theme-page-height", "0px");
+      measured = measurePageContentHeight(pageEl);
+
+      if (measured <= pageDims.heightPx + 2) {
+        return {
+          status: "already-fit",
+          pageCount: 1,
+          message: "Resume already fits on one page.",
+        };
+      }
+
+      let step = 0;
+      while (step < 24) {
+        const nextCandidate = getNextFitThemeStep(workingTheme, step);
+        if (!nextCandidate) {
+          break;
+        }
+
+        if (nextCandidate.sectionSpacing !== workingTheme.sectionSpacing) {
+          modifiedPatch.sectionSpacing = nextCandidate.sectionSpacing;
+          changedKeys.add("sectionSpacing");
+        }
+        if (nextCandidate.lineHeight !== workingTheme.lineHeight) {
+          modifiedPatch.lineHeight = nextCandidate.lineHeight;
+          changedKeys.add("lineHeight");
+        }
+        if (nextCandidate.fontScale !== workingTheme.fontScale) {
+          modifiedPatch.fontScale = nextCandidate.fontScale;
+          changedKeys.add("fontScale");
+        }
+
+        workingTheme = nextCandidate;
+        applyThemeCssVars(workingTheme);
+        pageEl.style.setProperty("--theme-page-height", "0px");
+
+        measured = measurePageContentHeight(pageEl);
+        if (measured <= pageDims.heightPx + 2) {
+          fitted = true;
+          break;
+        }
+
+        step += 1;
+      }
+    } finally {
+      pageEl.style.minHeight = previousMinHeight || `${pageDims.heightPx}px`;
+      pageEl.style.setProperty("--theme-page-height", `${pageDims.heightPx}px`);
+    }
+
+    if (changedKeys.size > 0) {
+      changedKeys.forEach((k) => customisedKeysRef.current.add(k));
+      const nextThemeConfig: ThemeConfig = {
+        ...(resume.themeConfig || {}),
+        ...modifiedPatch,
+      };
+      applyThemeCssVars(nextThemeConfig);
+      if (onChange) {
+        onChange({
+          ...resume,
+          themeConfig: nextThemeConfig,
+        });
+      }
+    }
+
+    const updatedPageCount = fitted
+      ? 1
+      : calculatePageCount(measured, pageDims.heightPx);
+    setPageHeight(Math.max(pageDims.heightPx, fitted ? pageDims.heightPx : measured));
+    setPageCount(updatedPageCount);
+
+    if (fitted) {
+      const msg = "Adjusted spacing and typography to fit on one page.";
+      toast.success(msg);
+      return {
+        status: "fitted",
+        pageCount: 1,
+        message: msg,
+      };
+    }
+
+    const msg =
+      "Could not fit all content onto a single page within readable minimums. Consider trimming a few bullet points.";
+    toast.error(msg);
+    return {
+      status: "cannot-fit",
+      pageCount: updatedPageCount,
+      message: msg,
+    };
+  }, [activeTemplate.defaultTheme, onChange, pageDims.heightPx, resume]);
+
   const handleTemplateSelect = (nextTemplate: TemplateDefinition) => {
     const prevTemplate = getTemplate(activeTemplateId);
     const nextThemeConfig = mergeTemplateTheme(
@@ -234,11 +388,15 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     }
   };
 
-  const scaledWidth = Math.round(A4_WIDTH_PX * effectiveScale);
+  const scaledWidth = Math.round(pageDims.widthPx * effectiveScale);
   const scaledHeight = Math.round(pageHeight * effectiveScale);
 
   return (
     <div className="flex flex-col h-full min-h-full bg-neutral-100 print:!bg-white print:!block print:!h-auto print:!min-h-0">
+      <style data-testid="resume-print-page-style">
+        {`@page { size: ${pageDims.cssSize}; }`}
+      </style>
+
       {/* Dedicated Non-Overlapping Toolbar */}
       <div
         data-testid="resume-preview-toolbar"
@@ -279,6 +437,28 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             <PaintBrushIcon className="h-4 w-4" />
             <span>Customize Theme</span>
           </button>
+
+          <span
+            data-testid="page-count-indicator"
+            aria-live="polite"
+            title={`Page size: ${pageDims.name} (${pageDims.description})`}
+            className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border tabular-nums ${
+              pageCount > 1
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-neutral-100 text-neutral-700 border-neutral-200"
+            }`}
+          >
+            {pageCount === 1 ? "1 page" : `${pageCount} pages`}
+          </span>
+
+          {resume.themeConfig?.atsMode && (
+            <span
+              data-testid="ats-mode-badge"
+              className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+            >
+              ATS Mode
+            </span>
+          )}
         </div>
 
         {/* Right: Zoom & Print Controls */}
@@ -385,6 +565,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             themeConfig={resume.themeConfig}
             templateDefaultTheme={activeTemplate.defaultTheme}
             templateLayout={activeTemplate.layout}
+            onFitToOnePage={handleFitToOnePage}
             onKeysCustomised={(changedKeys) => {
               changedKeys.forEach((k) => customisedKeysRef.current.add(k));
             }}
@@ -416,7 +597,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
           className="flex-1 overflow-auto p-4 sm:p-6 bg-neutral-100 print:!p-0 print:!m-0 print:!bg-white print:!overflow-visible"
           style={{ scrollbarGutter: "stable" }}
         >
-          {/* Centered Sizing Box matching scaled A4 dimensions */}
+          {/* Centered Sizing Box matching scaled page dimensions */}
           <div
             data-testid="resume-preview-scaler"
             className="mx-auto print:!w-full print:!h-auto print:!m-0"
@@ -425,14 +606,16 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
               height: `${scaledHeight}px`,
             }}
           >
-            {/* A4 Sheet (page root carrying theme CSS variables) */}
+            {/* Sheet (page root carrying theme CSS variables) */}
             <div
               ref={pageRef}
               data-testid="resume-preview-page"
-              className="bg-white shadow-md ring-1 ring-black/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
+              data-page-size={pageDims.id}
+              data-ats-mode={resume.themeConfig?.atsMode ? "true" : "false"}
+              className="relative bg-white shadow-md ring-1 ring-black/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
               style={{
-                width: `${A4_WIDTH_PX}px`,
-                minHeight: `${A4_HEIGHT_PX}px`,
+                width: `${pageDims.widthPx}px`,
+                minHeight: `${pageDims.heightPx}px`,
                 transform: `scale(${effectiveScale})`,
                 transformOrigin: "top left",
                 ...themeStyles,
@@ -451,6 +634,33 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
                   readOnly={readOnly}
                 />
               </motion.div>
+
+              {pageCount > 1 && (
+                <div
+                  aria-hidden="true"
+                  data-testid="page-break-overlay"
+                  className="pointer-events-none absolute inset-0 overflow-hidden z-20 print:hidden"
+                >
+                  {Array.from({ length: pageCount - 1 }, (_, idx) => {
+                    const breakNumber = idx + 1;
+                    const topPx = breakNumber * pageDims.heightPx;
+                    return (
+                      <div
+                        key={breakNumber}
+                        data-testid="page-break-marker"
+                        data-page-break={breakNumber}
+                        style={{ top: `${topPx}px` }}
+                        className="absolute left-0 right-0 flex items-center"
+                      >
+                        <div className="w-full border-t-2 border-dashed border-amber-500/80" />
+                        <span className="absolute right-3 -top-2.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-[10px] font-semibold uppercase tracking-wider text-amber-800 shadow-sm">
+                          Page {breakNumber + 1}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

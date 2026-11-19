@@ -133,7 +133,9 @@ export const SkillList: React.FC<SkillListProps> = ({
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
 
   const isReadOnly = readOnly ?? ctx.readOnly;
-  const effectiveVariant: SkillStyleVariant = variant || ctx.skillStyle || 'chips';
+  const effectiveVariant: SkillStyleVariant = ctx.atsMode
+    ? 'comma'
+    : variant || ctx.skillStyle || 'chips';
   const effectiveSectionId = sectionId || section?.id;
 
   const rawItems = items ?? (Array.isArray(section?.content) ? section!.content : []);

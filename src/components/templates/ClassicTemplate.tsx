@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import {
   ContactRow,
   Description,
+  HeaderWithPhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -30,6 +31,7 @@ const ClassicTemplateContent: React.FC = () => {
 
   if (!resume) return null;
 
+  const pageSizeCss = resume.themeConfig?.pageSize === 'Letter' ? 'Letter' : 'A4';
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
   const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
@@ -56,7 +58,7 @@ const ClassicTemplateContent: React.FC = () => {
     >
       {enablePrintPageRule && (
         <style>{`
-          @page { size: A4; margin: 1.4cm 0; }
+          @page { size: ${pageSizeCss}; margin: 1.4cm 0; }
           @media print {
             [data-template-id="classic"] {
               padding-top: 0.25cm !important;
@@ -72,33 +74,35 @@ const ClassicTemplateContent: React.FC = () => {
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <InlineEdit
-          value={basics.name || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-          readOnly={readOnly}
-          textClassName="text-[28px] font-bold tracking-wide leading-tight"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-heading-color, #111827)',
-          }}
-          placeholder="Your Name"
-        />
-        <InlineEdit
-          value={basics.label || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-          readOnly={readOnly}
-          textClassName="text-[1.02em] italic mt-1 block"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-accent, var(--theme-primary, #334155))',
-          }}
-          placeholder="Professional Title"
-        />
-        <ContactRow
-          variant="inline-center"
-          showIcons={false}
-          className="mt-2"
-        />
+        <HeaderWithPhoto align="center">
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-[28px] font-bold tracking-wide leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #111827)',
+            }}
+            placeholder="Your Name"
+          />
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-[1.02em] italic mt-1 block"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-accent, var(--theme-primary, #334155))',
+            }}
+            placeholder="Professional Title"
+          />
+          <ContactRow
+            variant="inline-center"
+            showIcons={false}
+            className="mt-2"
+          />
+        </HeaderWithPhoto>
       </header>
 
       {showSummary && (

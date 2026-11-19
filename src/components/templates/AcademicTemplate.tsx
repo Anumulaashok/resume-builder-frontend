@@ -15,6 +15,7 @@ import {
   ContactRow,
   DateRange,
   Description,
+  HeaderWithPhoto,
   ItemHeader,
   SectionHeading,
   SectionRenderer,
@@ -219,18 +220,22 @@ const AcademicPublicationsSection: React.FC<{ section: ISection }> = ({
 const AcademicReferencesSection: React.FC<{ section: ISection }> = ({
   section,
 }) => {
-  const { readOnly } = useTemplateContext();
+  const { readOnly, atsMode } = useTemplateContext();
   const enabledItems = Array.isArray(section.content)
     ? section.content.filter((item: any) => item && item.enabled !== false)
     : [];
 
   return (
     <section data-section-id={section.id}>
-      <SectionHeading title={section.title} accentBorder />
+      <SectionHeading title={section.title} accentBorder={!atsMode} />
       {enabledItems.length > 0 && (
         <div
           data-testid="academic-references-grid"
-          className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4"
+          className={
+            atsMode
+              ? 'space-y-3'
+              : 'grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4'
+          }
         >
           {enabledItems.map((item: any, idx: number) => {
             const roleAndCompany = [item.position, item.company]
@@ -287,13 +292,14 @@ const AcademicReferencesSection: React.FC<{ section: ISection }> = ({
 };
 
 const AcademicTemplateContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
 
   const orderedSections = getAcademicOrderedSections(
@@ -325,49 +331,59 @@ const AcademicTemplateContent: React.FC = () => {
           <tr>
             <td className="p-0 align-top">
               <header
-                className="text-center pb-4 border-b-[3px] border-double"
+                className={
+                  atsMode
+                    ? 'text-left pb-4 border-b border-slate-300'
+                    : 'text-center pb-4 border-b-[3px] border-double'
+                }
                 style={{
-                  borderColor: 'var(--theme-primary, #1e293b)',
+                  borderColor: atsMode
+                    ? undefined
+                    : 'var(--theme-primary, #1e293b)',
                   marginBottom:
                     showSummary || orderedSections.length > 0
                       ? 'var(--theme-section-spacing, 1.5rem)'
                       : undefined,
                 }}
               >
-                <InlineEdit
-                  value={basics.name || ''}
-                  onChange={
-                    readOnly ? undefined : (v) => updateBasics('name', v)
-                  }
-                  readOnly={readOnly}
-                  textClassName="text-3xl font-bold tracking-normal leading-tight"
-                  style={{
-                    fontFamily: 'var(--theme-heading-font)',
-                    color: 'var(--theme-heading-color, #111827)',
-                  }}
-                  placeholder="Full Name, Ph.D."
-                />
-                <InlineEdit
-                  value={basics.label || ''}
-                  onChange={
-                    readOnly ? undefined : (v) => updateBasics('label', v)
-                  }
-                  readOnly={readOnly}
-                  textClassName="text-base italic mt-1 block"
-                  style={{
-                    color: 'var(--theme-accent, var(--theme-primary, #7f1d1d))',
-                  }}
-                  placeholder="Department & Academic Title"
-                />
-                <ContactRow
-                  variant="inline-center"
-                  showIcons={false}
-                  className="mt-2.5"
-                />
+                <HeaderWithPhoto align={atsMode ? 'left' : 'center'}>
+                  <InlineEdit
+                    value={basics.name || ''}
+                    onChange={
+                      readOnly ? undefined : (v) => updateBasics('name', v)
+                    }
+                    readOnly={readOnly}
+                    textClassName="text-3xl font-bold tracking-normal leading-tight"
+                    style={{
+                      fontFamily: 'var(--theme-heading-font)',
+                      color: 'var(--theme-heading-color, #111827)',
+                    }}
+                    placeholder="Full Name, Ph.D."
+                  />
+                  <InlineEdit
+                    value={basics.label || ''}
+                    onChange={
+                      readOnly ? undefined : (v) => updateBasics('label', v)
+                    }
+                    readOnly={readOnly}
+                    textClassName="text-base italic mt-1 block"
+                    style={{
+                      color:
+                        'var(--theme-accent, var(--theme-primary, #7f1d1d))',
+                    }}
+                    placeholder="Department & Academic Title"
+                  />
+                  <ContactRow
+                    variant={atsMode ? 'inline-left' : 'inline-center'}
+                    showIcons={false}
+                    className="mt-2.5"
+                  />
+                </HeaderWithPhoto>
               </header>
 
               {showSummary && (
                 <section
+                  className={!hasSummaryText ? 'print:hidden' : undefined}
                   style={{
                     marginBottom:
                       orderedSections.length > 0
@@ -377,7 +393,7 @@ const AcademicTemplateContent: React.FC = () => {
                 >
                   <SectionHeading
                     title="Research Interests & Profile"
-                    accentBorder
+                    accentBorder={!atsMode}
                   />
                   <InlineEdit
                     value={summaryValue}

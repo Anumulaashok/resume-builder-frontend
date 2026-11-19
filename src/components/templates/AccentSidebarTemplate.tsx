@@ -8,8 +8,10 @@ import {
 import {
   ContactRow,
   Description,
+  ProfilePhoto,
   SectionHeading,
   SectionRenderer,
+  shouldRenderProfilePhoto,
   TemplateProvider,
   useTemplateContext,
 } from './shared';
@@ -71,25 +73,100 @@ function hasVisibleContactEntries(resume: IResume, readOnly: boolean): boolean {
 }
 
 const AccentSidebarContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
   const showHeader = readOnly
     ? Boolean(basics.name?.trim() || basics.label?.trim())
     : true;
   const showContact = hasVisibleContactEntries(resume, readOnly);
   const initials = getMonogramInitials(basics.name);
+  const showPhoto = shouldRenderProfilePhoto(
+    resume,
+    resume.themeConfig?.photo,
+    atsMode
+  );
+
+  if (atsMode) {
+    return (
+      <div
+        data-testid="accent-sidebar-template"
+        className="bg-white"
+        style={{
+          padding: 'var(--theme-page-margin, 1.25cm)',
+          fontFamily: 'var(--theme-body-font, inherit)',
+          color: 'var(--theme-text-color, #111827)',
+          fontSize: 'var(--theme-base-font-size, 13.5px)',
+          lineHeight: 'var(--theme-line-height, 1.5)',
+        }}
+      >
+        {(showHeader || showContact) && (
+          <header
+            className="pb-4 border-b border-slate-300"
+            style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
+          >
+            {showHeader && (
+              <>
+                <InlineEdit
+                  value={basics.name || ''}
+                  onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+                  readOnly={readOnly}
+                  textClassName="text-3xl font-bold tracking-tight leading-tight"
+                  style={{
+                    fontFamily: 'var(--theme-heading-font)',
+                    color: 'var(--theme-heading-color, #000000)',
+                  }}
+                  placeholder="Your Name"
+                />
+                <InlineEdit
+                  value={basics.label || ''}
+                  onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+                  readOnly={readOnly}
+                  textClassName="text-base font-medium mt-1 block"
+                  style={{ color: 'var(--theme-heading-color, #000000)' }}
+                  placeholder="Professional Title"
+                />
+              </>
+            )}
+            {showContact && (
+              <ContactRow variant="inline-left" className="mt-2.5" />
+            )}
+          </header>
+        )}
+
+        {showSummary && (
+          <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
+            style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
+          >
+            <SectionHeading title="Summary" />
+            <Description
+              value={summaryValue}
+              onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+              readOnly={readOnly}
+              placeholder="Summarize your impact, expertise, and career focus..."
+              textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
+            />
+          </section>
+        )}
+
+        <SectionRenderer tone="modern" />
+      </div>
+    );
+  }
 
   return (
     <div
       data-testid="accent-sidebar-template"
-      className="relative bg-white grid grid-cols-1 sm:grid-cols-[var(--theme-sidebar-width,33%)_minmax(0,1fr)] print:grid-cols-[var(--theme-sidebar-width,33%)_minmax(0,1fr)] min-h-[1123px] print:min-h-0"
+      className="relative bg-white grid grid-cols-1 sm:grid-cols-[var(--theme-sidebar-width,33%)_minmax(0,1fr)] print:grid-cols-[var(--theme-sidebar-width,33%)_minmax(0,1fr)] print:!min-h-0"
       style={{
+        minHeight: 'var(--theme-page-height, 1123px)',
         fontFamily: 'var(--theme-body-font, inherit)',
         color: 'var(--theme-text-color, #334155)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
@@ -98,7 +175,7 @@ const AccentSidebarContent: React.FC = () => {
         printColorAdjust: 'exact',
       }}
     >
-      {/* Repeats full-height solid accent sidebar background across every printed A4 page */}
+      {/* Repeats full-height solid accent sidebar background across every printed page */}
       <div
         aria-hidden="true"
         data-testid="accent-sidebar-print-bg"
@@ -132,17 +209,23 @@ const AccentSidebarContent: React.FC = () => {
             } as React.CSSProperties
           }
         >
-          <div
-            aria-hidden="true"
-            data-testid="accent-sidebar-monogram"
-            className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs select-none"
-            style={{
-              fontFamily: 'var(--theme-heading-font)',
-              marginBottom: 'var(--theme-section-spacing, 1.5rem)',
-            }}
-          >
-            {initials}
-          </div>
+          {showPhoto ? (
+            <div style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}>
+              <ProfilePhoto className="!border-2 !border-white/50" />
+            </div>
+          ) : (
+            <div
+              aria-hidden="true"
+              data-testid="accent-sidebar-monogram"
+              className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs select-none"
+              style={{
+                fontFamily: 'var(--theme-heading-font)',
+                marginBottom: 'var(--theme-section-spacing, 1.5rem)',
+              }}
+            >
+              {initials}
+            </div>
+          )}
 
           {showContact && (
             <section
@@ -203,6 +286,7 @@ const AccentSidebarContent: React.FC = () => {
 
         {showSummary && (
           <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
             style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
           >
             <SectionHeading title="Summary" accentBorder />

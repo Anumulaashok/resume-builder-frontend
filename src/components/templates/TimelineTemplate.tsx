@@ -13,6 +13,7 @@ import {
   ContactRow,
   DateRange,
   Description,
+  HeaderWithPhoto,
   ItemHeader,
   KeywordList,
   SectionHeading,
@@ -297,7 +298,7 @@ const TimelineSection: React.FC<{
 };
 
 const TimelineTemplateContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
@@ -328,34 +329,42 @@ const TimelineTemplateContent: React.FC = () => {
       }}
     >
       <header
-        className="pl-4 border-l-4 pb-1 break-inside-avoid"
+        className={`${
+          atsMode
+            ? 'pb-3 border-b border-slate-300'
+            : 'pl-4 border-l-4 pb-1'
+        } break-inside-avoid`}
         style={{
-          borderLeftColor: 'var(--theme-accent, var(--theme-primary, #059669))',
+          borderLeftColor: atsMode
+            ? undefined
+            : 'var(--theme-accent, var(--theme-primary, #059669))',
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <InlineEdit
-          value={basics.name || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-          readOnly={readOnly}
-          textClassName="text-3xl font-bold tracking-tight leading-tight"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-heading-color, #0f172a)',
-          }}
-          placeholder="Your Name"
-        />
-        <InlineEdit
-          value={basics.label || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-          readOnly={readOnly}
-          textClassName="text-sm font-semibold uppercase tracking-[0.08em] mt-1 block"
-          style={{
-            color: 'var(--theme-accent, var(--theme-primary, #059669))',
-          }}
-          placeholder="Creative Technologist / Product Designer"
-        />
-        <ContactRow variant="inline-left" className="mt-2.5" />
+        <HeaderWithPhoto>
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-3xl font-bold tracking-tight leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #0f172a)',
+            }}
+            placeholder="Your Name"
+          />
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-sm font-semibold uppercase tracking-[0.08em] mt-1 block"
+            style={{
+              color: 'var(--theme-accent, var(--theme-primary, #059669))',
+            }}
+            placeholder="Creative Technologist / Product Designer"
+          />
+          <ContactRow variant="inline-left" className="mt-2.5" />
+        </HeaderWithPhoto>
       </header>
 
       {showSummary && (
@@ -383,7 +392,7 @@ const TimelineTemplateContent: React.FC = () => {
         const isLastSection = idx === orderedSections.length - 1;
         const kind = resolveSectionKind(section);
 
-        if (TIMELINE_SECTION_KINDS.has(kind)) {
+        if (!atsMode && TIMELINE_SECTION_KINDS.has(kind)) {
           return (
             <section
               key={section.id}

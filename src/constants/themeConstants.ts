@@ -1,5 +1,11 @@
 import React from 'react';
-import { ThemeConfig } from '../types/resume';
+import {
+  PageSize,
+  PhotoShape,
+  PhotoSize,
+  ThemeConfig,
+  ThemePhotoConfig,
+} from '../types/resume';
 
 export interface FontPairingOption {
   id: string;
@@ -37,6 +43,159 @@ export interface PageMarginOption {
 export interface StyleVariantOption<T extends string> {
   id: T;
   name: string;
+}
+
+export interface PageDimensions {
+  id: PageSize;
+  name: string;
+  description: string;
+  widthPx: number;
+  heightPx: number;
+  cssSize: 'A4' | 'Letter';
+  printWidthCss: string;
+  printHeightCss: string;
+}
+
+export const A4_WIDTH_PX = 794; // 210mm at 96dpi
+export const A4_HEIGHT_PX = 1123; // 297mm at 96dpi
+export const LETTER_WIDTH_PX = 816; // 8.5in at 96dpi
+export const LETTER_HEIGHT_PX = 1056; // 11in at 96dpi
+
+export const pageSizeOptions: PageDimensions[] = [
+  {
+    id: 'A4',
+    name: 'A4',
+    description: '210 × 297 mm',
+    widthPx: A4_WIDTH_PX,
+    heightPx: A4_HEIGHT_PX,
+    cssSize: 'A4',
+    printWidthCss: '210mm',
+    printHeightCss: '297mm',
+  },
+  {
+    id: 'Letter',
+    name: 'Letter',
+    description: '8.5 × 11 in',
+    widthPx: LETTER_WIDTH_PX,
+    heightPx: LETTER_HEIGHT_PX,
+    cssSize: 'Letter',
+    printWidthCss: '8.5in',
+    printHeightCss: '11in',
+  },
+];
+
+export function getPageDimensions(pageSize?: PageSize | string): PageDimensions {
+  if (pageSize === 'Letter') {
+    return pageSizeOptions[1];
+  }
+  return pageSizeOptions[0];
+}
+
+export const defaultPhotoConfig: ThemePhotoConfig = {
+  show: true,
+  shape: 'circle',
+  size: 'md',
+};
+
+export function resolvePhotoConfig(photo?: Partial<ThemePhotoConfig>): ThemePhotoConfig {
+  return {
+    show: photo?.show ?? defaultPhotoConfig.show,
+    shape: photo?.shape || defaultPhotoConfig.shape,
+    size: photo?.size || defaultPhotoConfig.size,
+  };
+}
+
+export const photoShapeOptions: StyleVariantOption<PhotoShape>[] = [
+  { id: 'circle', name: 'Circle' },
+  { id: 'rounded', name: 'Rounded' },
+  { id: 'square', name: 'Square' },
+];
+
+export const photoSizeOptions: StyleVariantOption<PhotoSize>[] = [
+  { id: 'sm', name: 'Small' },
+  { id: 'md', name: 'Medium' },
+  { id: 'lg', name: 'Large' },
+];
+
+export const FIT_MIN_FONT_SCALE = 0.8;
+export const FIT_MIN_LINE_HEIGHT = 1.2;
+export const FIT_MIN_SECTION_SPACING = 'compact' as const;
+
+export function getNextFitThemeStep(
+  theme: ThemeConfig,
+  stepIndex: number
+): ThemeConfig | null {
+  const currentSpacing = theme.sectionSpacing || 'normal';
+  const currentFontScale =
+    typeof theme.fontScale === 'number' && !Number.isNaN(theme.fontScale)
+      ? Number(theme.fontScale.toFixed(2))
+      : 1;
+  const currentLineHeight =
+    typeof theme.lineHeight === 'number' && !Number.isNaN(theme.lineHeight)
+      ? Number(theme.lineHeight.toFixed(2))
+      : 1.5;
+
+  const canReduceSpacing =
+    currentSpacing === 'spacious' ||
+    (currentSpacing !== 'compact' && currentSpacing !== 'spacious');
+  const canReduceLineHeight = currentLineHeight > FIT_MIN_LINE_HEIGHT + 0.001;
+  const canReduceFontScale = currentFontScale > FIT_MIN_FONT_SCALE + 0.001;
+
+  if (!canReduceSpacing && !canReduceLineHeight && !canReduceFontScale) {
+    return null;
+  }
+
+  // Interleave spacing -> lineHeight -> fontScale reductions for balanced typography
+  if (canReduceSpacing && (stepIndex === 0 || stepIndex === 2 || (!canReduceLineHeight && !canReduceFontScale))) {
+    const nextSpacing: 'normal' | 'compact' =
+      currentSpacing === 'spacious' ? 'normal' : 'compact';
+    return {
+      ...theme,
+      sectionSpacing: nextSpacing,
+    };
+  }
+
+  const preferLineHeight = stepIndex % 2 === 1;
+  if (preferLineHeight && canReduceLineHeight) {
+    return {
+      ...theme,
+      lineHeight: Math.max(
+        FIT_MIN_LINE_HEIGHT,
+        Number((currentLineHeight - 0.05).toFixed(2))
+      ),
+    };
+  }
+
+  if (canReduceFontScale) {
+    return {
+      ...theme,
+      fontScale: Math.max(
+        FIT_MIN_FONT_SCALE,
+        Number((currentFontScale - 0.05).toFixed(2))
+      ),
+    };
+  }
+
+  if (canReduceLineHeight) {
+    return {
+      ...theme,
+      lineHeight: Math.max(
+        FIT_MIN_LINE_HEIGHT,
+        Number((currentLineHeight - 0.05).toFixed(2))
+      ),
+    };
+  }
+
+  if (canReduceSpacing) {
+    const nextSpacing: 'normal' | 'compact' =
+      currentSpacing === 'spacious' ? 'normal' : 'compact';
+    return {
+      ...theme,
+      sectionSpacing: nextSpacing,
+    };
+  }
+
+  return null;
 }
 
 export const pageMarginOptions: PageMarginOption[] = [
@@ -142,6 +301,7 @@ export const defaultThemeConfig: ThemeConfig = {
   headingColor: '#111827',
   sectionSpacing: 'normal',
   fontSize: 'base',
+  pageSize: 'A4',
 };
 
 export function resolveSidebarWidthCss(sidebarWidth?: number | string): string {
@@ -192,6 +352,9 @@ export function getThemeStyles(
     ...(themeConfig || {}),
   };
 
+  const isAtsMode = Boolean(activeTheme.atsMode);
+  const pageDims = getPageDimensions(activeTheme.pageSize);
+
   const spacingPreset = spacingOptions.find((s) => s.id === activeTheme.sectionSpacing);
   const sectionSpacingCss = spacingPreset
     ? spacingPreset.sectionSpacing
@@ -210,12 +373,17 @@ export function getThemeStyles(
 
   const headingFont = explicitHeadingFont || fontPairing.headingFont;
   const bodyFont = explicitBodyFont || fontPairing.bodyFont;
-  const primaryColor = activeTheme.primaryColor || '#1e293b';
-  const accentColor = activeTheme.accentColor || primaryColor;
-  const headingColor =
+  const rawPrimaryColor = activeTheme.primaryColor || '#1e293b';
+  const rawAccentColor = activeTheme.accentColor || rawPrimaryColor;
+  const rawHeadingColor =
     themeConfig?.headingColor ??
     templateDefaults?.headingColor ??
-    (themeConfig?.primaryColor ? themeConfig.primaryColor : activeTheme.headingColor || primaryColor);
+    (themeConfig?.primaryColor ? themeConfig.primaryColor : activeTheme.headingColor || rawPrimaryColor);
+
+  const primaryColor = isAtsMode ? '#000000' : rawPrimaryColor;
+  const accentColor = isAtsMode ? '#000000' : rawAccentColor;
+  const headingColor = isAtsMode ? '#000000' : rawHeadingColor;
+  const textColor = isAtsMode ? '#111827' : activeTheme.textColor || '#374151';
 
   const fontScale =
     typeof activeTheme.fontScale === 'number' && !Number.isNaN(activeTheme.fontScale)
@@ -228,7 +396,7 @@ export function getThemeStyles(
 
   const marginPreset =
     pageMarginOptions.find((m) => m.id === activeTheme.pageMargins) || pageMarginOptions[1];
-  const sidebarWidthCss = resolveSidebarWidthCss(activeTheme.sidebarWidth);
+  const sidebarWidthCss = isAtsMode ? '100%' : resolveSidebarWidthCss(activeTheme.sidebarWidth);
 
   return {
     '--theme-primary': primaryColor,
@@ -242,10 +410,14 @@ export function getThemeStyles(
     '--theme-item-spacing': itemSpacingCss,
     '--theme-page-margin': marginPreset.value,
     '--theme-sidebar-width': sidebarWidthCss,
-    '--theme-heading-style': activeTheme.headingStyle || 'underline',
-    '--theme-skill-style': activeTheme.skillStyle || 'chips',
+    '--theme-heading-style': isAtsMode ? 'underline' : activeTheme.headingStyle || 'underline',
+    '--theme-skill-style': isAtsMode ? 'comma' : activeTheme.skillStyle || 'chips',
     '--theme-date-format': activeTheme.dateFormat || 'MMM YYYY',
-    '--theme-text-color': activeTheme.textColor || '#374151',
+    '--theme-text-color': textColor,
     '--theme-heading-color': headingColor,
+    '--theme-page-width': `${pageDims.widthPx}px`,
+    '--theme-page-height': `${pageDims.heightPx}px`,
+    '--theme-print-width': pageDims.printWidthCss,
+    '--theme-print-height': pageDims.printHeightCss,
   } as React.CSSProperties;
 }

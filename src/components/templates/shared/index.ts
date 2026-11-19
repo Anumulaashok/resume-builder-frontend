@@ -40,5 +40,11 @@ export type {
 export { ContactRow } from './ContactRow';
 export type { ContactRowProps } from './ContactRow';
 
+export { ProfilePhoto, shouldRenderProfilePhoto } from './ProfilePhoto';
+export type { ProfilePhotoProps } from './ProfilePhoto';
+
+export { HeaderWithPhoto } from './HeaderWithPhoto';
+export type { HeaderWithPhotoProps } from './HeaderWithPhoto';
+
 export { SectionRenderer } from './SectionRenderer';
 export type { SectionRendererProps } from './SectionRenderer';

@@ -610,6 +610,7 @@ export function isResumeEmpty(resume?: IResume | null): boolean {
     (basics.label && basics.label.trim()) ||
     (basics.email && basics.email.trim()) ||
     (basics.phone && basics.phone.trim()) ||
+    (basics.image && basics.image.trim()) ||
     (basics.summary && basics.summary.trim()) ||
     (resume.summary && resume.summary.trim())
   ) {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react';
-import { IResume } from '../../../types/resume';
+import { IResume, ThemePhotoConfig } from '../../../types/resume';
+import { defaultPhotoConfig, resolvePhotoConfig } from '../../../constants/themeConstants';
 import { DateFormatPattern } from '../templateHelpers';
 
 export type HeadingStyleVariant = 'underline' | 'bar' | 'caps' | 'pill' | 'side-label';
@@ -24,6 +25,8 @@ export interface TemplateContextValue {
   headingStyle: HeadingStyleVariant;
   skillStyle: SkillStyleVariant;
   dateFormat?: DateFormatPattern;
+  atsMode: boolean;
+  photoConfig: ThemePhotoConfig;
 }
 
 const noop = () => {};
@@ -38,6 +41,8 @@ const defaultContextValue: TemplateContextValue = {
   headingStyle: 'underline',
   skillStyle: 'chips',
   dateFormat: undefined,
+  atsMode: false,
+  photoConfig: defaultPhotoConfig,
 };
 
 export const TemplateContext = createContext<TemplateContextValue>(defaultContextValue);
@@ -110,10 +115,14 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
     updateSectionItemPatch(sectionId, itemId, { [field]: value });
   };
 
-  const headingStyle: HeadingStyleVariant =
-    resume.themeConfig?.headingStyle || defaultHeadingStyle;
-  const skillStyle: SkillStyleVariant =
-    resume.themeConfig?.skillStyle || defaultSkillStyle;
+  const atsMode = Boolean(resume.themeConfig?.atsMode);
+  const photoConfig = resolvePhotoConfig(resume.themeConfig?.photo);
+  const headingStyle: HeadingStyleVariant = atsMode
+    ? 'underline'
+    : resume.themeConfig?.headingStyle || defaultHeadingStyle;
+  const skillStyle: SkillStyleVariant = atsMode
+    ? 'comma'
+    : resume.themeConfig?.skillStyle || defaultSkillStyle;
   const dateFormat: DateFormatPattern | undefined = resume.themeConfig?.dateFormat;
 
   return (
@@ -128,6 +137,8 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
         headingStyle,
         skillStyle,
         dateFormat,
+        atsMode,
+        photoConfig,
       }}
     >
       {children}

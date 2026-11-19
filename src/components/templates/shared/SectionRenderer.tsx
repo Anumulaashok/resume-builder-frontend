@@ -64,9 +64,11 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
 
   if (!ordered.length) return null;
 
-  const effectiveSkillVariant = skillVariant || ctx.skillStyle;
-  const effectiveKeywordVariant: 'chips' | 'comma' =
-    keywordVariant || (effectiveSkillVariant === 'comma' ? 'comma' : 'chips');
+  const isAtsMode = Boolean(ctx.atsMode);
+  const effectiveSkillVariant = isAtsMode ? 'comma' : skillVariant || ctx.skillStyle;
+  const effectiveKeywordVariant: 'chips' | 'comma' = isAtsMode
+    ? 'comma'
+    : keywordVariant || (effectiveSkillVariant === 'comma' ? 'comma' : 'chips');
 
   const renderSectionBody = (section: ISection, kind: CanonicalSectionKind) => {
     if (kind === 'skills') {
@@ -101,11 +103,15 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       return (
         <div
           data-section-kind="languages"
-          className={`grid min-w-0 ${
-            narrow
-              ? 'grid-cols-1 gap-y-1.5'
-              : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5'
-          }`}
+          className={
+            isAtsMode
+              ? 'space-y-1'
+              : `grid min-w-0 ${
+                  narrow
+                    ? 'grid-cols-1 gap-y-1.5'
+                    : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5'
+                }`
+          }
         >
           {enabledItems.map((item: any, idx: number) => {
             const langKey = item.name !== undefined ? 'name' : 'language';

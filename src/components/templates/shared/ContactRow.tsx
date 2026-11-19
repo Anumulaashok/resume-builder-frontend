@@ -9,10 +9,11 @@ import {
 import { IResume } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
 import { extractExtraBasicsLinks } from '../templateHelpers';
+import { ProfilePhoto } from './ProfilePhoto';
 import { useTemplateContext } from './TemplateContext';
 
 const linkClassName =
-  'underline decoration-slate-400/80 underline-offset-2 hover:decoration-current transition-colors print:decoration-slate-400';
+  'underline decoration-slate-400/80 underline-offset-2 hover:decoration-current transition-colors print:decoration-slate-400 [overflow-wrap:anywhere]';
 
 export interface ContactRowProps {
   resume?: IResume;
@@ -20,6 +21,7 @@ export interface ContactRowProps {
   onUpdateBasics?: (field: string, value: string) => void;
   variant?: 'inline-center' | 'inline-left' | 'stacked-right' | 'stacked-left';
   showIcons?: boolean;
+  showPhoto?: boolean;
   className?: string;
 }
 
@@ -29,12 +31,17 @@ export const ContactRow: React.FC<ContactRowProps> = ({
   onUpdateBasics,
   variant = 'inline-center',
   showIcons = true,
+  showPhoto = false,
   className = '',
 }) => {
   const ctx = useTemplateContext();
   const resume = propResume || ctx.resume;
   const isReadOnly = propReadOnly ?? ctx.readOnly;
   const updateBasics = onUpdateBasics || ctx.updateBasics;
+  const isAtsMode = Boolean(ctx.atsMode || resume?.themeConfig?.atsMode);
+  const effectiveShowIcons = showIcons && !isAtsMode;
+  const effectiveVariant =
+    isAtsMode && variant === 'stacked-right' ? 'inline-left' : variant;
 
   if (!resume) return null;
   const basics = resume.content?.basics || {};
@@ -154,41 +161,51 @@ export const ContactRow: React.FC<ContactRowProps> = ({
     });
   });
 
-  if (!entries.length) return null;
+  if (!entries.length && !showPhoto) return null;
 
   const hasAnyNonEmptyEntry = entries.some((entry) => !entry.isEmptyPlaceholder);
 
-  if (variant === 'stacked-right' || variant === 'stacked-left') {
-    const isRight = variant === 'stacked-right';
+  if (effectiveVariant === 'stacked-right' || effectiveVariant === 'stacked-left') {
+    const isRight = effectiveVariant === 'stacked-right';
     return (
       <div
-        className={`text-xs text-slate-600 space-y-1 shrink-0 ${
-          isRight ? 'sm:text-right' : 'text-left'
-        } ${!hasAnyNonEmptyEntry ? 'print:hidden' : ''} ${className}`}
+        className={`flex items-center gap-3 min-w-0 max-w-full ${
+          isRight ? 'sm:justify-end' : 'justify-start'
+        } ${!hasAnyNonEmptyEntry && !showPhoto ? 'print:hidden' : ''} ${className}`}
       >
-        {entries.map((entry) => (
-          <div
-            key={entry.key}
-            className={`flex items-center gap-1.5 ${
-              isRight ? 'sm:justify-end' : 'justify-start'
-            } ${entry.isEmptyPlaceholder ? 'print:hidden' : ''}`}
-          >
-            {showIcons && !isRight && entry.icon}
-            {entry.content}
-            {showIcons && isRight && entry.icon}
-          </div>
-        ))}
+        <div
+          className={`text-xs text-slate-600 space-y-1 min-w-0 max-w-full [overflow-wrap:anywhere] ${
+            isRight ? 'sm:text-right' : 'text-left'
+          } ${!hasAnyNonEmptyEntry ? 'print:hidden' : ''}`}
+          style={isAtsMode ? { color: '#111827' } : undefined}
+        >
+          {entries.map((entry) => (
+            <div
+              key={entry.key}
+              className={`flex items-center gap-1.5 ${
+                isRight ? 'sm:justify-end' : 'justify-start'
+              } ${entry.isEmptyPlaceholder ? 'print:hidden' : ''}`}
+            >
+              {effectiveShowIcons && !isRight && entry.icon}
+              {entry.content}
+              {effectiveShowIcons && isRight && entry.icon}
+            </div>
+          ))}
+        </div>
+        {showPhoto && <ProfilePhoto />}
       </div>
     );
   }
 
-  const justifyClass = variant === 'inline-left' ? 'justify-start' : 'justify-center';
+  const justifyClass =
+    effectiveVariant === 'inline-left' ? 'justify-start' : 'justify-center';
 
   return (
     <div
       className={`text-xs text-slate-600 flex flex-wrap ${justifyClass} items-center gap-x-2.5 gap-y-1 ${
-        !hasAnyNonEmptyEntry ? 'print:hidden' : ''
+        !hasAnyNonEmptyEntry && !showPhoto ? 'print:hidden' : ''
       } ${className}`}
+      style={isAtsMode ? { color: '#111827' } : undefined}
     >
       {entries.map((entry, idx) => {
         const hasPriorPrintVisibleEntry = entries
@@ -214,12 +231,13 @@ export const ContactRow: React.FC<ContactRowProps> = ({
                 entry.isEmptyPlaceholder ? 'print:hidden' : ''
               }`}
             >
-              {showIcons && entry.icon}
+              {effectiveShowIcons && entry.icon}
               {entry.content}
             </span>
           </React.Fragment>
         );
       })}
+      {showPhoto && <ProfilePhoto />}
     </div>
   );
 };

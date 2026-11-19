@@ -31,6 +31,7 @@ import {
   TrashIcon,
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
+  PhotoIcon,
   CodeBracketIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
@@ -73,6 +74,7 @@ import ShareModal from "./ShareModal";
 import ReauthModal from "./ReauthModal";
 import VersionHistoryDrawer from "./VersionHistoryDrawer";
 import { formatResumeDate } from "../utils/date";
+import { processProfilePhoto } from "../utils/imageCompression";
 import { triggerFileDownload } from "../utils/download";
 import {
   authEventBus,
@@ -715,6 +717,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [deletableSection, setDeletableSection] = useState<ISection | null>(
     null
   );
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const prevInitialResumeRef = useRef<IResume | undefined>(initialResume);
   const isInitialMountRef = useRef(true);
@@ -1144,6 +1149,71 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         },
       },
     });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) {
+      e.target.value = "";
+    }
+    if (!file) return;
+
+    setPhotoError(null);
+    setIsUploadingPhoto(true);
+    try {
+      const processedDataUrl = await processProfilePhoto(file);
+      if (!isMountedRef.current) return;
+
+      setResume((prev) => ({
+        ...prev,
+        content: {
+          ...prev.content,
+          basics: {
+            ...prev.content.basics,
+            image: processedDataUrl,
+          },
+        },
+        ...(prev.themeConfig?.photo?.show === false
+          ? {
+              themeConfig: {
+                ...prev.themeConfig,
+                photo: {
+                  ...prev.themeConfig.photo,
+                  show: true,
+                },
+              },
+            }
+          : {}),
+      }));
+      toast.success("Profile photo updated");
+    } catch (err: any) {
+      if (!isMountedRef.current) return;
+      const message =
+        err?.message ||
+        "Unsupported file format. Please upload a PNG, JPG, or WebP image.";
+      setPhotoError(message);
+      toast.error(message);
+    } finally {
+      if (isMountedRef.current) {
+        setIsUploadingPhoto(false);
+      }
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoError(null);
+    setResume((prev) => {
+      const nextBasics = { ...prev.content.basics };
+      delete nextBasics.image;
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          basics: nextBasics,
+        },
+      };
+    });
+    toast.success("Profile photo removed");
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -2099,6 +2169,109 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           </div>
 
           <div className="p-4 sm:p-5 space-y-4">
+            {/* Profile Photo Upload & Controls */}
+            <div
+              data-testid="profile-photo-section"
+              className="flex flex-col sm:flex-row sm:items-center gap-3.5 p-3.5 rounded-xl bg-neutral-50/90 border border-gray-200/80"
+            >
+              <div className="w-16 h-16 rounded-full overflow-hidden border border-gray-200 bg-white flex items-center justify-center shrink-0 shadow-sm">
+                {isUploadingPhoto ? (
+                  <ArrowPathIcon
+                    className="h-6 w-6 text-blue-600 animate-spin"
+                    aria-label="Processing photo"
+                  />
+                ) : resume.content.basics.image ? (
+                  <img
+                    src={resume.content.basics.image}
+                    alt="Profile preview"
+                    data-testid="editor-profile-photo-preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <PhotoIcon
+                    className="h-7 w-7 text-gray-400"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    htmlFor="basics-photo-upload"
+                    className="text-sm font-medium text-gray-800"
+                  >
+                    Profile Photo
+                  </label>
+                  <span className="text-[11px] font-medium text-gray-500">
+                    Optional
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  PNG, JPG, or WebP · Resized up to 400px and compressed under 150 KB
+                </p>
+
+                <input
+                  ref={photoInputRef}
+                  id="basics-photo-upload"
+                  data-testid="profile-photo-input"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handlePhotoUpload}
+                  disabled={isUploadingPhoto}
+                  className="sr-only"
+                />
+
+                <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                  <button
+                    type="button"
+                    data-testid="upload-photo-btn"
+                    disabled={isUploadingPhoto}
+                    onClick={() => photoInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-neutral-50 text-xs font-medium text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                  >
+                    <PhotoIcon className="h-4 w-4 text-gray-500 shrink-0" />
+                    <span>
+                      {isUploadingPhoto
+                        ? "Processing…"
+                        : resume.content.basics.image
+                        ? "Change Photo"
+                        : "Upload Photo"}
+                    </span>
+                  </button>
+
+                  {resume.content.basics.image && (
+                    <button
+                      type="button"
+                      data-testid="remove-photo-btn"
+                      disabled={isUploadingPhoto}
+                      onClick={handleRemovePhoto}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-xs font-medium text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 transition-colors"
+                    >
+                      <TrashIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
+
+                {resume.content.basics.image && resume.themeConfig?.atsMode && (
+                  <p className="text-xs text-amber-700 mt-1.5">
+                    Photo is saved and currently hidden in preview while ATS mode is enabled.
+                  </p>
+                )}
+
+                {photoError && (
+                  <p
+                    role="alert"
+                    data-testid="profile-photo-error"
+                    className="text-xs text-red-600 font-medium mt-1.5"
+                  >
+                    {photoError}
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label

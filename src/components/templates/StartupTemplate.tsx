@@ -15,8 +15,10 @@ import {
   Description,
   ItemHeader,
   KeywordList,
+  ProfilePhoto,
   SectionHeading,
   SectionRenderer,
+  shouldRenderProfilePhoto,
   TemplateProvider,
   useTemplateContext,
 } from './shared';
@@ -331,14 +333,20 @@ const StartupMetricSection: React.FC<{
 };
 
 const StartupTemplateContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
+  const showPhoto = shouldRenderProfilePhoto(
+    resume,
+    resume.themeConfig?.photo,
+    atsMode
+  );
 
   const hasContactDetails =
     !readOnly ||
@@ -363,10 +371,84 @@ const StartupTemplateContent: React.FC = () => {
     SIDEBAR_KINDS.has(resolveSectionKind(sec))
   );
 
+  if (atsMode) {
+    return (
+      <div
+        className="bg-white"
+        style={{
+          padding: 'var(--theme-page-margin, 1.25cm)',
+          fontFamily: 'var(--theme-body-font, inherit)',
+          color: 'var(--theme-text-color, #111827)',
+          fontSize: 'var(--theme-base-font-size, 13.5px)',
+          lineHeight: 'var(--theme-line-height, 1.48)',
+        }}
+      >
+        <header
+          className="pb-4 border-b border-slate-300"
+          style={{ marginBottom: 'var(--theme-section-spacing, 1rem)' }}
+        >
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-3xl font-bold tracking-tight leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #000000)',
+            }}
+            placeholder="Your Name"
+          />
+          {(basics.label || !readOnly) && (
+            <InlineEdit
+              value={basics.label || ''}
+              onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+              readOnly={readOnly}
+              textClassName="text-sm font-semibold mt-1 block"
+              style={{ color: 'var(--theme-heading-color, #000000)' }}
+              placeholder="Founding Engineer / Product Leader"
+            />
+          )}
+          {hasContactDetails && (
+            <ContactRow variant="inline-left" className="mt-2.5" />
+          )}
+        </header>
+
+        {showSummary && (
+          <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
+            style={{
+              marginBottom:
+                orderedSections.length > 0
+                  ? 'var(--theme-section-spacing, 1rem)'
+                  : undefined,
+            }}
+          >
+            <SectionHeading title="Impact Summary" />
+            <InlineEdit
+              value={summaryValue}
+              onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+              multiline
+              textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
+              style={{
+                color: 'var(--theme-text-color, #111827)',
+                lineHeight: 'var(--theme-line-height, 1.48)',
+              }}
+              placeholder="Highlight 0-to-1 launches, scale, and business outcomes..."
+              readOnly={readOnly}
+            />
+          </section>
+        )}
+
+        <SectionRenderer tone="modern" />
+      </div>
+    );
+  }
+
   return (
     <div
-      className="relative bg-white min-h-[1123px] print:min-h-[29.7cm] flex flex-col"
+      className="relative bg-white print:!min-h-0 flex flex-col"
       style={{
+        minHeight: 'var(--theme-page-height, 1123px)',
         fontFamily: 'var(--theme-body-font, inherit)',
         color: 'var(--theme-text-color, #334155)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
@@ -394,41 +476,49 @@ const StartupTemplateContent: React.FC = () => {
       {/* Two-Tone Header */}
       <header data-testid="startup-two-tone-header" className="relative z-10">
         <div
+          className={
+            showPhoto ? 'flex items-center justify-between gap-4' : undefined
+          }
           style={{
             backgroundColor: 'var(--theme-primary, #0f172a)',
             padding:
               '1.35rem var(--theme-page-margin, 1.25cm) 1.15rem var(--theme-page-margin, 1.25cm)',
           }}
         >
-          <InlineEdit
-            value={basics.name || ''}
-            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-            readOnly={readOnly}
-            textClassName="text-3xl font-extrabold tracking-tight leading-tight text-white focus:text-slate-900"
-            style={{
-              fontFamily: 'var(--theme-heading-font)',
-            }}
-            placeholder="Your Name"
-          />
-          {(basics.label || !readOnly) && (
-            <div className="mt-1.5 flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="inline-block w-2 h-2 rounded-full shrink-0"
-                style={{
-                  backgroundColor:
-                    'var(--theme-accent, var(--theme-primary, #ea580c))',
-                }}
-              />
-              <InlineEdit
-                value={basics.label || ''}
-                onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-                readOnly={readOnly}
-                textClassName="text-sm font-semibold tracking-wide uppercase block text-slate-200 focus:text-slate-900"
-                placeholder="Founding Engineer / Product Leader"
-              />
-            </div>
-          )}
+          <div className="min-w-0 flex-1">
+            <InlineEdit
+              value={basics.name || ''}
+              onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+              readOnly={readOnly}
+              textClassName="text-3xl font-extrabold tracking-tight leading-tight text-white focus:text-slate-900"
+              style={{
+                fontFamily: 'var(--theme-heading-font)',
+              }}
+              placeholder="Your Name"
+            />
+            {(basics.label || !readOnly) && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="inline-block w-2 h-2 rounded-full shrink-0"
+                  style={{
+                    backgroundColor:
+                      'var(--theme-accent, var(--theme-primary, #ea580c))',
+                  }}
+                />
+                <InlineEdit
+                  value={basics.label || ''}
+                  onChange={
+                    readOnly ? undefined : (v) => updateBasics('label', v)
+                  }
+                  readOnly={readOnly}
+                  textClassName="text-sm font-semibold tracking-wide uppercase block text-slate-200 focus:text-slate-900"
+                  placeholder="Founding Engineer / Product Leader"
+                />
+              </div>
+            )}
+          </div>
+          {showPhoto && <ProfilePhoto className="!border-2 !border-white/80" />}
         </div>
 
         {hasContactDetails && (
@@ -478,7 +568,9 @@ const StartupTemplateContent: React.FC = () => {
                   {showSummary && (
                     <section
                       data-testid="startup-summary-callout"
-                      className="rounded-r-xl border border-slate-200/90 border-l-4 bg-slate-50/90 print:bg-slate-50 p-3.5 break-inside-avoid"
+                      className={`rounded-r-xl border border-slate-200/90 border-l-4 bg-slate-50/90 print:bg-slate-50 p-3.5 break-inside-avoid ${
+                        !hasSummaryText ? 'print:hidden' : ''
+                      }`}
                       style={{
                         borderLeftColor:
                           'var(--theme-accent, var(--theme-primary, #ea580c))',

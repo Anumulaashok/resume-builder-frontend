@@ -5,8 +5,10 @@ import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
   Description,
+  ProfilePhoto,
   SectionHeading,
   SectionRenderer,
+  shouldRenderProfilePhoto,
   TemplateProvider,
   useTemplateContext,
 } from './shared';
@@ -31,12 +33,17 @@ function extractMonogram(rawName?: string): string {
 }
 
 const ElegantTemplateContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
   const realMonogram = extractMonogram(basics.name);
   const monogram = realMonogram || (readOnly ? '' : 'YN');
+  const showPhoto = shouldRenderProfilePhoto(
+    resume,
+    resume.themeConfig?.photo,
+    atsMode
+  );
   const summaryValue = basics.summary ?? resume.summary ?? '';
   const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
@@ -65,12 +72,18 @@ const ElegantTemplateContent: React.FC = () => {
     >
       {/* Editorial Monogram & Thin-Ruled Header */}
       <header
-        className="text-center break-inside-avoid"
+        className={`${atsMode ? 'text-left pb-3 border-b border-slate-300' : 'text-center'} break-inside-avoid`}
         style={{
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        {monogram && (
+        {!atsMode && showPhoto && (
+          <div className="flex justify-center mb-3">
+            <ProfilePhoto />
+          </div>
+        )}
+
+        {!atsMode && !showPhoto && monogram && (
           <div
             className={`flex items-center justify-center gap-3 mb-3 ${!realMonogram ? 'print:hidden' : ''}`}
             aria-hidden="true"
@@ -130,40 +143,42 @@ const ElegantTemplateContent: React.FC = () => {
         />
 
         <ContactRow
-          variant="inline-center"
+          variant={atsMode ? 'inline-left' : 'inline-center'}
           showIcons={false}
           className="mt-3"
         />
 
         {/* Thin Accent Rule with Subtle Center Mark */}
-        <div
-          className="flex items-center justify-center gap-2.5 mt-4"
-          aria-hidden="true"
-        >
-          <span
-            className="h-px flex-1"
-            style={{
-              backgroundColor:
-                'var(--theme-accent, var(--theme-primary, #b45309))',
-              opacity: 0.45,
-            }}
-          />
-          <span
-            className="w-1.5 h-1.5 rotate-45 border"
-            style={{
-              borderColor:
-                'var(--theme-accent, var(--theme-primary, #b45309))',
-            }}
-          />
-          <span
-            className="h-px flex-1"
-            style={{
-              backgroundColor:
-                'var(--theme-accent, var(--theme-primary, #b45309))',
-              opacity: 0.45,
-            }}
-          />
-        </div>
+        {!atsMode && (
+          <div
+            className="flex items-center justify-center gap-2.5 mt-4"
+            aria-hidden="true"
+          >
+            <span
+              className="h-px flex-1"
+              style={{
+                backgroundColor:
+                  'var(--theme-accent, var(--theme-primary, #b45309))',
+                opacity: 0.45,
+              }}
+            />
+            <span
+              className="w-1.5 h-1.5 rotate-45 border"
+              style={{
+                borderColor:
+                  'var(--theme-accent, var(--theme-primary, #b45309))',
+              }}
+            />
+            <span
+              className="h-px flex-1"
+              style={{
+                backgroundColor:
+                  'var(--theme-accent, var(--theme-primary, #b45309))',
+                opacity: 0.45,
+              }}
+            />
+          </div>
+        )}
       </header>
 
       {showSummary && (
@@ -178,10 +193,10 @@ const ElegantTemplateContent: React.FC = () => {
         >
           <SectionHeading
             title="Profile"
-            accentBorder
-            className="text-center tracking-[0.2em]"
+            accentBorder={!atsMode}
+            className={atsMode ? '' : 'text-center tracking-[0.2em]'}
           />
-          <div className="max-w-[92%] mx-auto text-center">
+          <div className={atsMode ? '' : 'max-w-[92%] mx-auto text-center'}>
             <Description
               value={summaryValue}
               onChange={
@@ -197,9 +212,13 @@ const ElegantTemplateContent: React.FC = () => {
 
       <div
         data-testid="elegant-sections"
-        className="[&_h2[data-heading-variant='underline']]:text-center [&_h2[data-heading-variant='underline']]:tracking-[0.2em] [&_h2[data-heading-variant='caps']]:text-center [&_h2[data-heading-variant='caps']]:tracking-[0.24em]"
+        className={
+          atsMode
+            ? undefined
+            : "[&_h2[data-heading-variant='underline']]:text-center [&_h2[data-heading-variant='underline']]:tracking-[0.2em] [&_h2[data-heading-variant='caps']]:text-center [&_h2[data-heading-variant='caps']]:tracking-[0.24em]"
+        }
       >
-        <SectionRenderer tone="classic" accentHeadingBorder />
+        <SectionRenderer tone="classic" accentHeadingBorder={!atsMode} />
       </div>
     </div>
   );

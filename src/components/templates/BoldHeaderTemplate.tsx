@@ -5,8 +5,10 @@ import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
   Description,
+  ProfilePhoto,
   SectionHeading,
   SectionRenderer,
+  shouldRenderProfilePhoto,
   TemplateProvider,
   useTemplateContext,
 } from './shared';
@@ -31,12 +33,17 @@ function extractInitials(rawName?: string): string {
 }
 
 const BoldHeaderTemplateContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
   const realInitials = extractInitials(basics.name);
   const initials = realInitials || (readOnly ? '' : 'YN');
+  const showPhoto = shouldRenderProfilePhoto(
+    resume,
+    resume.themeConfig?.photo,
+    atsMode
+  );
   const summaryValue = basics.summary ?? resume.summary ?? '';
   const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
@@ -48,10 +55,75 @@ const BoldHeaderTemplateContent: React.FC = () => {
     resume.content?.sectionOrder || []
   );
 
+  if (atsMode) {
+    return (
+      <div
+        className="bg-white"
+        style={{
+          padding: 'var(--theme-page-margin, 1.25cm)',
+          fontFamily: 'var(--theme-body-font, inherit)',
+          color: 'var(--theme-text-color, #111827)',
+          fontSize: 'var(--theme-base-font-size, 13.5px)',
+          lineHeight: 'var(--theme-line-height, 1.5)',
+        }}
+      >
+        <header
+          className="pb-4 border-b border-slate-300 break-inside-avoid"
+          style={{ marginBottom: 'var(--theme-section-spacing, 1rem)' }}
+        >
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-2xl sm:text-3xl font-bold tracking-tight leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #000000)',
+            }}
+            placeholder="Your Name"
+          />
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-sm sm:text-base font-medium mt-0.5 block"
+            style={{ color: 'var(--theme-heading-color, #000000)' }}
+            placeholder="Brand & Creative Director"
+          />
+          <ContactRow variant="inline-left" className="mt-2.5" />
+        </header>
+
+        {showSummary && (
+          <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
+            style={{
+              marginBottom:
+                orderedSections.length > 0
+                  ? 'var(--theme-section-spacing, 1rem)'
+                  : undefined,
+            }}
+          >
+            <SectionHeading title="Profile" />
+            <Description
+              value={summaryValue}
+              onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+              readOnly={readOnly}
+              placeholder="Highlight your creative leadership and core impact..."
+              textClassName="text-[0.96em] block whitespace-pre-wrap break-words"
+            />
+          </section>
+        )}
+
+        <SectionRenderer tone="modern" />
+      </div>
+    );
+  }
+
   return (
     <div
-      className="bg-white min-h-[1123px] print:min-h-0"
+      className="bg-white print:!min-h-0"
       style={{
+        minHeight: 'var(--theme-page-height, 1123px)',
         fontFamily: 'var(--theme-body-font, inherit)',
         color: 'var(--theme-text-color, #374151)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
@@ -76,15 +148,21 @@ const BoldHeaderTemplateContent: React.FC = () => {
         }}
       >
         <div className="flex items-center gap-4 sm:gap-5">
-          {initials && (
-            <div
-              data-testid="bold-header-initials"
-              aria-hidden="true"
-              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none ${!realInitials ? 'print:hidden' : ''}`}
-              style={{ fontFamily: 'var(--theme-heading-font)' }}
-            >
-              {initials}
-            </div>
+          {showPhoto ? (
+            <ProfilePhoto className="!border-2 !border-white/85" />
+          ) : (
+            initials && (
+              <div
+                data-testid="bold-header-initials"
+                aria-hidden="true"
+                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none ${
+                  !realInitials ? 'print:hidden' : ''
+                }`}
+                style={{ fontFamily: 'var(--theme-heading-font)' }}
+              >
+                {initials}
+              </div>
+            )
           )}
 
           <div className="min-w-0 flex-1">

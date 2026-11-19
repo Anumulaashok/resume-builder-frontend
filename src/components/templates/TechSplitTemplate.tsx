@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { CanonicalSectionKind } from './templateHelpers';
 import {
   ContactRow,
+  ProfilePhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -26,7 +27,7 @@ const SIDEBAR_KINDS = new Set<CanonicalSectionKind>([
 ]);
 
 const TechSplitContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
@@ -54,8 +55,14 @@ const TechSplitContent: React.FC = () => {
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-          <div>
+        <div
+          className={
+            atsMode
+              ? 'flex flex-col gap-2'
+              : 'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2'
+          }
+        >
+          <div className="min-w-0 flex-1">
             <InlineEdit
               value={basics.name || ''}
               onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
@@ -76,12 +83,15 @@ const TechSplitContent: React.FC = () => {
               placeholder="Systems / Software Engineer"
             />
           </div>
-          <ContactRow variant="stacked-right" />
+          <div className="flex items-center gap-3 sm:justify-end min-w-0 max-w-full sm:max-w-[55%]">
+            <ContactRow variant={atsMode ? 'inline-left' : 'stacked-right'} />
+            <ProfilePhoto />
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-col sm:flex-row print:flex-row gap-7 items-start min-w-0">
-        <div className="flex-1 min-w-0 w-full [overflow-wrap:anywhere]">
+      {atsMode ? (
+        <div>
           {showSummary && (
             <section
               className={!hasSummaryText ? 'print:hidden' : undefined}
@@ -102,27 +112,53 @@ const TechSplitContent: React.FC = () => {
               />
             </section>
           )}
-          <SectionRenderer
-            filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
-            tone="modern"
-          />
+          <SectionRenderer tone="modern" />
         </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row print:flex-row gap-7 items-start min-w-0">
+          <div className="flex-1 min-w-0 w-full [overflow-wrap:anywhere]">
+            {showSummary && (
+              <section
+                className={!hasSummaryText ? 'print:hidden' : undefined}
+                style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
+              >
+                <SectionHeading title="Overview" />
+                <InlineEdit
+                  value={summaryValue}
+                  onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+                  multiline
+                  textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
+                  style={{
+                    color: 'var(--theme-text-color, #374151)',
+                    lineHeight: 'var(--theme-line-height, 1.5)',
+                  }}
+                  placeholder="Technical focus and impact..."
+                  readOnly={readOnly}
+                />
+              </section>
+            )}
+            <SectionRenderer
+              filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
+              tone="modern"
+            />
+          </div>
 
-        <aside
-          data-testid="tech-split-sidebar"
-          className="shrink-0 min-w-0 max-w-full w-full sm:pl-5 print:pl-5 sm:border-l print:border-l border-slate-200 [overflow-wrap:anywhere]"
-          style={{
-            width: 'var(--theme-sidebar-width, 32%)',
-            overflowWrap: 'anywhere',
-          }}
-        >
-          <SectionRenderer
-            filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
-            tone="modern"
-            narrow
-          />
-        </aside>
-      </div>
+          <aside
+            data-testid="tech-split-sidebar"
+            className="shrink-0 min-w-0 max-w-full w-full sm:pl-5 print:pl-5 sm:border-l print:border-l border-slate-200 [overflow-wrap:anywhere]"
+            style={{
+              width: 'var(--theme-sidebar-width, 32%)',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            <SectionRenderer
+              filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
+              tone="modern"
+              narrow
+            />
+          </aside>
+        </div>
+      )}
     </div>
   );
 };
