@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
 import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
+import ImportResumeModal from './ImportResumeModal';
 import JobMatch from './jobMatch/JobMatch';
 import ResumeEditor from './ResumeEditor';
 import ResumeList from './ResumeList';
@@ -49,6 +50,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [resumeCount, setResumeCount] = useState<number | null>(null);
 
   const handleResumesLoad = useCallback((resumes: Resume[]) => {
@@ -139,7 +141,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
                 </div>
 
                 {hasResumes && (
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                     <button
                       type="button"
                       onClick={handleNewResume}
@@ -147,6 +149,15 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
                     >
                       <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       New Resume
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="import-resume-btn"
+                      onClick={() => setShowImportModal(true)}
+                      className="inline-flex items-center justify-center h-10 px-4 border border-neutral-300 rounded-control shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 hover:text-neutral-900 transition-colors focus-ring"
+                    >
+                      <ArrowUpTrayIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+                      Import
                     </button>
                     <button
                       type="button"
@@ -163,6 +174,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
               <ResumeList
                 onEditResume={handleEditResume}
                 onNewResume={handleNewResume}
+                onImportResume={() => setShowImportModal(true)}
                 onAIGenerate={() => setShowPromptModal(true)}
                 onResumesLoad={handleResumesLoad}
               />
@@ -275,6 +287,18 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
           </div>
         </div>
       )}
+
+      {/* Import Resume Modal */}
+      <ImportResumeModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        user={user}
+        onImported={(createdResume) => {
+          setShowImportModal(false);
+          setSelectedResume(createdResume);
+          setActiveView('editor');
+        }}
+      />
     </div>
   );
 }

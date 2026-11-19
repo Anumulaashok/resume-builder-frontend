@@ -184,7 +184,8 @@ describe("ResumeEditor light theme, layout, and bindings", () => {
     expect(screen.queryByRole("menuitem", { name: /clone/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
     expect(screen.getByRole("menuitem", { name: /clone/i })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /export/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^export$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^export json$/i })).toBeInTheDocument();
   });
 
   it("renders section cards with drag handles, accessible action labels, primary + secondary item lines, and resizer", () => {
@@ -750,12 +751,12 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const exportBtn = screen.getByRole("menuitem", { name: /export/i });
+    const exportBtn = screen.getByRole("menuitem", { name: /^export$/i });
     fireEvent.click(exportBtn);
 
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(
-      screen.queryByRole("menuitem", { name: /export/i })
+      screen.queryByRole("menuitem", { name: /^export$/i })
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
   });
@@ -781,7 +782,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByLabelText("Full Name")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^export$/i }));
 
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(previewMountedDuringPrint).toBe(true);
@@ -800,7 +801,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^export$/i }));
 
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
@@ -814,7 +815,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     );
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const firstExportBtn = screen.getByRole("menuitem", { name: /export/i });
+    const firstExportBtn = screen.getByRole("menuitem", { name: /^export$/i });
 
     // Rapid double-click on the same button instance
     fireEvent.click(firstExportBtn);
@@ -823,7 +824,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
 
     // Re-opening overflow menu during cooldown shows Export disabled and blocks click
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const cooldownExportBtn = screen.getByRole("menuitem", { name: /export/i });
+    const cooldownExportBtn = screen.getByRole("menuitem", { name: /^export$/i });
     expect(cooldownExportBtn).toBeDisabled();
     fireEvent.click(cooldownExportBtn);
     expect(printSpy).toHaveBeenCalledTimes(1);

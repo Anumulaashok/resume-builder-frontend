@@ -30,6 +30,7 @@ import {
   TrashIcon,
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
+  CodeBracketIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -73,6 +74,7 @@ import {
   isUnauthorizedError,
 } from "../utils/authEventBus";
 import { getStoredUser } from "../utils/token";
+import { downloadResumeAsJson } from "../utils/importers";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -1396,6 +1398,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   }, [activeView, isDesktop, loading]);
 
+  const handleExportJson = useCallback(() => {
+    setShowOverflowMenu(false);
+    try {
+      downloadResumeAsJson(latestResumeRef.current);
+      toast.success("Resume exported as JSON");
+    } catch {
+      toast.error("Failed to export JSON Resume");
+    }
+  }, []);
+
   const handleOpenShare = async () => {
     if (!effectiveResumeId) {
       toast("Saving resume before opening share settings...", { icon: "ℹ️" });
@@ -1896,7 +1908,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <div
                   role="menu"
                   aria-label="Secondary resume actions"
-                  className="absolute right-0 mt-1.5 w-44 rounded-lg bg-white border border-gray-200 shadow-lg py-1 z-30"
+                  className="absolute right-0 mt-1.5 w-48 rounded-lg bg-white border border-gray-200 shadow-lg py-1 z-30"
                 >
                   <button
                     type="button"
@@ -1924,6 +1936,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   >
                     <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
                     <span>Export</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="export-json-resume-btn"
+                    onClick={handleExportJson}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                  >
+                    <CodeBracketIcon className="h-4 w-4 text-gray-500" />
+                    <span>Export JSON</span>
                   </button>
                 </div>
               )}
