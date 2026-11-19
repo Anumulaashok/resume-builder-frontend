@@ -1,250 +1,310 @@
-import { ISection, SectionType } from '../../types/resume';
+import { dateFields, IResume, ISection, SectionType } from '../../types/resume';
 import { formatResumeDate } from '../../utils/date';
 
 export type CanonicalSectionKind =
   | 'work'
   | 'education'
+  | 'projects'
   | 'skills'
-  | 'technical_skills'
-  | 'soft_skills'
   | 'languages'
   | 'certificates'
-  | 'interests'
-  | 'projects'
-  | 'courses'
   | 'awards'
+  | 'courses'
   | 'organizations'
   | 'publications'
   | 'references'
+  | 'interests'
   | 'achievements'
   | 'custom';
 
-const SECTION_KIND_ALIASES: Array<[CanonicalSectionKind, string[]]> = [
-  [
-    'work',
-    [
-      SectionType.WORK.toLowerCase(),
-      'work',
-      'experience',
-      'workexperience',
-      'work_experience',
-      'professional_experience',
-      'employment',
-    ],
-  ],
-  [
-    'education',
-    [
-      SectionType.EDUCATION.toLowerCase(),
-      'education',
-      'academics',
-      'academic',
-    ],
-  ],
-  [
-    'technical_skills',
-    [
-      SectionType.TECK_SKILLS.toLowerCase(),
-      'technicalskills',
-      'technical_skills',
-      'techskills',
-      'tech_skills',
-      'teck_skills',
-    ],
-  ],
-  [
-    'soft_skills',
-    [
-      SectionType.SOFTSKILSS.toLowerCase(),
-      'softskills',
-      'soft_skills',
-      'softskilss',
-      'interpersonal_skills',
-    ],
-  ],
-  [
-    'skills',
-    [
-      SectionType.SKILLS.toLowerCase(),
-      'skill',
-      'skills',
-      'competencies',
-    ],
-  ],
-  [
-    'languages',
-    [
-      SectionType.LANGUAGES.toLowerCase(),
-      'language',
-      'languages',
-    ],
-  ],
-  [
-    'certificates',
-    [
-      SectionType.CERTIFICATES.toLowerCase(),
-      'certificate',
-      'certificates',
-      'certification',
-      'certifications',
-      'licenses',
-    ],
-  ],
-  [
-    'interests',
-    [
-      SectionType.INTERESTS.toLowerCase(),
-      'interest',
-      'interests',
-      'hobbies',
-    ],
-  ],
-  [
-    'projects',
-    [
-      SectionType.PROJECTS.toLowerCase(),
-      'project',
-      'projects',
-    ],
-  ],
-  [
-    'courses',
-    [
-      SectionType.COURSES.toLowerCase(),
-      'course',
-      'courses',
-      'coursework',
-      'training',
-    ],
-  ],
-  [
-    'awards',
-    [
-      SectionType.AWARDS.toLowerCase(),
-      'award',
-      'awards',
-      'honors',
-      'honours',
-    ],
-  ],
-  [
-    'organizations',
-    [
-      SectionType.ORGANIZATIONS.toLowerCase(),
-      'organization',
-      'organizations',
-      'organisation',
-      'organisations',
-      'volunteer',
-      'volunteering',
-      'affiliations',
-    ],
-  ],
-  [
-    'publications',
-    [
-      SectionType.PUBLICATIONS.toLowerCase(),
-      'publication',
-      'publications',
-      'papers',
-    ],
-  ],
-  [
-    'references',
-    [
-      SectionType.REFERENCES.toLowerCase(),
-      'reference',
-      'references',
-    ],
-  ],
-  [
-    'achievements',
-    [
-      SectionType.ACHIVEMENTS.toLowerCase(),
-      'achievement',
-      'achievements',
-      'achivements',
-      'accomplishments',
-    ],
-  ],
-  [
-    'custom',
-    [
-      SectionType.CUSTOM.toLowerCase(),
-      'custom',
-      'other',
-    ],
-  ],
-];
+export type DateFormatPattern = 'MMM YYYY' | 'MM/YYYY' | 'YYYY';
 
-const KIND_LOOKUP = new Map<string, CanonicalSectionKind>();
-SECTION_KIND_ALIASES.forEach(([kind, aliases]) => {
-  aliases.forEach((alias) => {
-    KIND_LOOKUP.set(alias, kind);
-  });
-});
+const WORK_TYPES = new Set([
+  SectionType.WORK.toLowerCase(),
+  'work',
+  'experience',
+  'workexperience',
+  'work_experience',
+  'professional_experience',
+  'employment',
+]);
+
+const EDUCATION_TYPES = new Set([
+  SectionType.EDUCATION.toLowerCase(),
+  'education',
+  'academics',
+]);
+
+const PROJECT_TYPES = new Set([
+  SectionType.PROJECTS.toLowerCase(),
+  'project',
+  'projects',
+]);
+
+const SKILL_TYPES = new Set([
+  SectionType.SKILLS.toLowerCase(),
+  SectionType.TECK_SKILLS.toLowerCase(),
+  SectionType.SOFTSKILSS.toLowerCase(),
+  'skill',
+  'skills',
+  'technicalskills',
+  'technical_skills',
+  'softskills',
+  'soft_skills',
+]);
+
+const LANGUAGE_TYPES = new Set([
+  SectionType.LANGUAGES.toLowerCase(),
+  'language',
+  'languages',
+]);
+
+const CERTIFICATE_TYPES = new Set([
+  SectionType.CERTIFICATES.toLowerCase(),
+  'certificate',
+  'certificates',
+  'certification',
+  'certifications',
+]);
+
+const AWARD_TYPES = new Set([
+  SectionType.AWARDS.toLowerCase(),
+  'award',
+  'awards',
+  'honors',
+]);
+
+const COURSE_TYPES = new Set([
+  SectionType.COURSES.toLowerCase(),
+  'course',
+  'courses',
+  'coursework',
+]);
+
+const ORGANIZATION_TYPES = new Set([
+  SectionType.ORGANIZATIONS.toLowerCase(),
+  'organization',
+  'organizations',
+  'volunteer',
+  'volunteering',
+  'affiliations',
+]);
+
+const PUBLICATION_TYPES = new Set([
+  SectionType.PUBLICATIONS.toLowerCase(),
+  'publication',
+  'publications',
+]);
+
+const REFERENCE_TYPES = new Set([
+  SectionType.REFERENCES.toLowerCase(),
+  'reference',
+  'references',
+]);
+
+const INTEREST_TYPES = new Set([
+  SectionType.INTERESTS.toLowerCase(),
+  'interest',
+  'interests',
+  'hobbies',
+]);
+
+const ACHIEVEMENT_TYPES = new Set([
+  SectionType.ACHIVEMENTS.toLowerCase(),
+  'achievement',
+  'achievements',
+  'accomplishments',
+]);
+
+const CUSTOM_TYPES = new Set([
+  SectionType.CUSTOM.toLowerCase(),
+  'custom',
+]);
+
+function matchKindToken(token: string): CanonicalSectionKind | null {
+  if (!token) return null;
+  if (WORK_TYPES.has(token)) return 'work';
+  if (EDUCATION_TYPES.has(token)) return 'education';
+  if (PROJECT_TYPES.has(token)) return 'projects';
+  if (SKILL_TYPES.has(token)) return 'skills';
+  if (LANGUAGE_TYPES.has(token)) return 'languages';
+  if (CERTIFICATE_TYPES.has(token)) return 'certificates';
+  if (AWARD_TYPES.has(token)) return 'awards';
+  if (COURSE_TYPES.has(token)) return 'courses';
+  if (ORGANIZATION_TYPES.has(token)) return 'organizations';
+  if (PUBLICATION_TYPES.has(token)) return 'publications';
+  if (REFERENCE_TYPES.has(token)) return 'references';
+  if (INTEREST_TYPES.has(token)) return 'interests';
+  if (ACHIEVEMENT_TYPES.has(token)) return 'achievements';
+  if (CUSTOM_TYPES.has(token)) return 'custom';
+  return null;
+}
 
 export function resolveSectionKind(section: ISection): CanonicalSectionKind {
-  if (!section) return 'custom';
-
-  const rawType = safeString(section.type).trim().toLowerCase();
-  const matchedByType = KIND_LOOKUP.get(rawType);
-  if (matchedByType && matchedByType !== 'custom') {
-    return matchedByType;
-  }
+  const rawType = (section.type ?? '').toString().trim().toLowerCase();
+  const byType = matchKindToken(rawType);
+  if (byType) return byType;
 
   // Fallback inference when generic/custom type strings come from external/AI payloads
-  const rawId = safeString(section.id).trim().toLowerCase();
-  const matchedById = KIND_LOOKUP.get(rawId);
-  if (matchedById) {
-    return matchedById;
-  }
+  const rawId = (section.id ?? '').toString().trim().toLowerCase();
+  const byId = matchKindToken(rawId);
+  if (byId) return byId;
 
-  if (matchedByType) {
-    return matchedByType;
-  }
+  const rawTitle = (section.title ?? '').toString().trim().toLowerCase();
+  const byTitle = matchKindToken(rawTitle);
+  if (byTitle) return byTitle;
 
   return 'custom';
 }
 
-export function safeString(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  return '';
+const MONTH_INDEX_MAP: Record<string, number> = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+};
+
+const SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+function parseMonthToken(rawMonth: string): number | null {
+  const trimmed = rawMonth.trim().toLowerCase().replace(/\.$/, '');
+  if (!trimmed) return null;
+  if (MONTH_INDEX_MAP[trimmed]) return MONTH_INDEX_MAP[trimmed];
+  const numeric = Number(trimmed);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 12) {
+    return numeric;
+  }
+  return null;
 }
 
-export function formatSkillLevel(level: unknown): string {
-  if (level === null || level === undefined) return '';
-  if (typeof level === 'string') {
-    return level.trim();
+function parseMonthYear(
+  value?: string | Partial<dateFields>
+): { month: number | null; year: string | null; raw: string } {
+  const base = formatResumeDate(value);
+  if (!base) {
+    return { month: null, year: null, raw: '' };
   }
-  if (typeof level === 'number' && Number.isFinite(level) && level > 0) {
-    if (level <= 5) {
-      return `Level ${level}/5`;
-    }
-    return `${Math.min(100, Math.round(level))}%`;
+
+  if (typeof value === 'object' && value !== null) {
+    const rawYear = (value.year ?? '').toString().trim();
+    const rawMonth = (value.month ?? '').toString().trim();
+    return {
+      month: parseMonthToken(rawMonth),
+      year: /^\d{4}$/.test(rawYear) ? rawYear : rawYear || null,
+      raw: base,
+    };
   }
-  return '';
+
+  const trimmed = base.trim();
+  if (/^present|current|now$/i.test(trimmed)) {
+    return { month: null, year: null, raw: 'Present' };
+  }
+
+  // YYYY-MM or YYYY-MM-DD
+  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})(?:[-/]\d{1,2})?$/);
+  if (isoMatch) {
+    const year = isoMatch[1];
+    const month = parseMonthToken(isoMatch[2]);
+    return { month, year, raw: trimmed };
+  }
+
+  // MM/YYYY or MM-YYYY
+  const slashMatch = trimmed.match(/^(\d{1,2})[-/](\d{4})$/);
+  if (slashMatch) {
+    const month = parseMonthToken(slashMatch[1]);
+    const year = slashMatch[2];
+    return { month, year, raw: trimmed };
+  }
+
+  // Month YYYY (e.g. "Jun 2021", "September 2023")
+  const namedMatch = trimmed.match(/^([A-Za-z.]+)\s+(\d{4})$/);
+  if (namedMatch) {
+    const month = parseMonthToken(namedMatch[1]);
+    const year = namedMatch[2];
+    return { month, year, raw: trimmed };
+  }
+
+  // Year only
+  const yearOnly = trimmed.match(/^(\d{4})$/);
+  if (yearOnly) {
+    return { month: null, year: yearOnly[1], raw: trimmed };
+  }
+
+  return { month: null, year: null, raw: trimmed };
 }
 
-export function parseSkillLevelInput(rawValue: string): string | number {
-  const trimmed = rawValue.trim();
-  if (!trimmed) return '';
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    return Number(trimmed);
+export function formatDateWithPattern(
+  value?: string | Partial<dateFields>,
+  dateFormat?: DateFormatPattern
+): string {
+  const base = formatResumeDate(value);
+  if (!base) return '';
+  if (!dateFormat) return base;
+
+  const { month, year, raw } = parseMonthYear(value);
+  if (!year) return raw;
+
+  if (dateFormat === 'YYYY') {
+    return year;
   }
-  return trimmed;
+
+  if (!month) {
+    return year;
+  }
+
+  if (dateFormat === 'MM/YYYY') {
+    return `${String(month).padStart(2, '0')}/${year}`;
+  }
+
+  return `${SHORT_MONTHS[month - 1]} ${year}`;
 }
 
-export function formatItemDateRange(item: Record<string, any> | null | undefined): string {
-  if (!item || typeof item !== 'object') return '';
+export function formatItemDateRange(
+  item: Record<string, any>,
+  dateFormat?: DateFormatPattern
+): string {
+  if (!item) return '';
 
-  const start = formatResumeDate(item.startDate);
-  const end = formatResumeDate(item.endDate);
-  const singleDate = formatResumeDate(item.date);
+  const start = formatDateWithPattern(item.startDate, dateFormat);
+  const end = formatDateWithPattern(item.endDate, dateFormat);
+  const singleDate = formatDateWithPattern(item.date, dateFormat);
 
   if (start) {
-    const displayEnd = item.current || item.isCurrent || !end ? 'Present' : end;
+    const rawEnd = formatResumeDate(item.endDate);
+    const displayEnd = item.current || item.isCurrent || !rawEnd ? 'Present' : end;
     return `${start} - ${displayEnd}`;
   }
 
@@ -271,60 +331,6 @@ export function formatItemDateRange(item: Record<string, any> | null | undefined
   return '';
 }
 
-export function parseDateRangePatch(
-  rawValue: string,
-  currentItem?: Record<string, any>
-): Record<string, any> {
-  const trimmed = rawValue.trim();
-  if (!trimmed) {
-    if (currentItem && currentItem.date !== undefined && currentItem.startDate === undefined) {
-      return { date: '' };
-    }
-    return { startDate: '', endDate: '', current: false };
-  }
-
-  const separatorMatch = trimmed.match(/\s+(?:-|–|—|to)\s+/i);
-  if (separatorMatch && separatorMatch.index !== undefined) {
-    const startPart = trimmed.slice(0, separatorMatch.index).trim();
-    const endPart = trimmed
-      .slice(separatorMatch.index + separatorMatch[0].length)
-      .trim();
-    const isPresent = /^present|current|now|ongoing$/i.test(endPart);
-    return {
-      startDate: startPart,
-      endDate: isPresent ? '' : endPart,
-      current: isPresent,
-    };
-  }
-
-  if (currentItem && currentItem.date !== undefined && currentItem.startDate === undefined) {
-    return { date: trimmed };
-  }
-
-  return {
-    startDate: trimmed,
-    endDate: '',
-    current: false,
-  };
-}
-
-export function buildSyncedFieldPatch(
-  item: Record<string, any> | null | undefined,
-  primaryField: string,
-  value: any,
-  aliasFields: string[] = []
-): Record<string, any> {
-  const patch: Record<string, any> = { [primaryField]: value };
-  if (item && typeof item === 'object') {
-    aliasFields.forEach((alias) => {
-      if (alias !== primaryField && item[alias] !== undefined) {
-        patch[alias] = value;
-      }
-    });
-  }
-  return patch;
-}
-
 export function formatItemLocation(location: unknown): string {
   if (!location) return '';
   if (typeof location === 'string') return location.trim();
@@ -338,8 +344,8 @@ export function formatItemLocation(location: unknown): string {
   return '';
 }
 
-export function extractKeywords(item: Record<string, any> | null | undefined): string[] {
-  if (!item || typeof item !== 'object') return [];
+export function extractKeywords(item: Record<string, any>): string[] {
+  if (!item) return [];
   const raw =
     item.keywords ??
     item.subSkills ??
@@ -369,15 +375,15 @@ export function extractKeywords(item: Record<string, any> | null | undefined): s
   return [];
 }
 
-export function extractHighlights(item: Record<string, any> | null | undefined): string[] {
-  if (!item || typeof item !== 'object' || !Array.isArray(item.highlights)) return [];
+export function extractHighlights(item: Record<string, any>): string[] {
+  if (!item || !Array.isArray(item.highlights)) return [];
   return item.highlights
     .map((h: unknown) => (typeof h === 'string' ? h.trim() : ''))
     .filter(Boolean);
 }
 
 export function normalizeHref(rawUrl?: string): string {
-  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  if (!rawUrl) return '';
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
   if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) {
@@ -387,7 +393,7 @@ export function normalizeHref(rawUrl?: string): string {
 }
 
 export function formatLinkLabel(rawUrl?: string): string {
-  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  if (!rawUrl) return '';
   return rawUrl
     .trim()
     .replace(/^https?:\/\/(www\.)?/i, '')
@@ -401,7 +407,7 @@ export interface ContactLinkItem {
 }
 
 export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLinkItem[] {
-  if (!basics || typeof basics !== 'object') return [];
+  if (!basics) return [];
   const links: ContactLinkItem[] = [];
 
   const directUrl = basics.url || basics.website || basics.portfolioUrl;
@@ -456,7 +462,36 @@ export function getOrderedSections(
   if (!Array.isArray(sectionOrder) || sectionOrder.length === 0) {
     return sections.filter((s) => s && s.enabled !== false);
   }
-  return sectionOrder
-    .map((id) => sections.find((s) => s && s.id === id))
+  const orderedIds = new Set(sectionOrder);
+  const fromOrder = sectionOrder
+    .map((id) => sections.find((s) => s.id === id))
     .filter((s): s is ISection => Boolean(s) && s!.enabled !== false);
+  const remaining = sections.filter(
+    (s) => s && s.enabled !== false && !orderedIds.has(s.id)
+  );
+  return [...fromOrder, ...remaining];
+}
+
+export function isResumeEmpty(resume?: IResume | null): boolean {
+  if (!resume) return true;
+  const basics = resume.content?.basics || {};
+  if (
+    (basics.name && basics.name.trim()) ||
+    (basics.label && basics.label.trim()) ||
+    (basics.email && basics.email.trim()) ||
+    (basics.phone && basics.phone.trim()) ||
+    (basics.summary && basics.summary.trim()) ||
+    (resume.summary && resume.summary.trim())
+  ) {
+    return false;
+  }
+
+  const sections = resume.content?.sections || [];
+  return !sections.some(
+    (sec) =>
+      sec &&
+      sec.enabled !== false &&
+      Array.isArray(sec.content) &&
+      sec.content.some((item: any) => item && item.enabled !== false)
+  );
 }

@@ -64,14 +64,14 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
 
   return (
     <div className={`relative group ${className}`}>
-      <AnimatePresence initial={false}>
+      <AnimatePresence mode="wait">
         {!isEditing ? (
           <motion.div
             key="text"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`cursor-pointer hover:bg-neutral-100 hover:ring-2 hover:ring-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-neutral-400 italic print:hidden' : ''}`}
+            className={`cursor-pointer hover:bg-neutral-100 hover:ring-2 hover:ring-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-neutral-400 italic' : ''}`}
             style={style}
             tabIndex={0}
             onClick={() => setIsEditing(true)}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { IResume } from "../types/resume";
+import { IResume, ThemeConfig } from "../types/resume";
 import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
@@ -7,11 +7,15 @@ import {
   PaintBrushIcon,
   PrinterIcon,
 } from "@heroicons/react/24/outline";
-import { ModernTemplate } from "./templates/ModernTemplate";
-import { ProfessionalTemplate } from "./templates/ProfessionalTemplate";
 import { motion } from "framer-motion";
 import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
 import { getThemeStyles } from "../constants/themeConstants";
+import {
+  getTemplate,
+  mergeTemplateTheme,
+  TemplateDefinition,
+} from "./templates/registry";
+import { TemplateGalleryModal } from "./templates/TemplateGalleryModal";
 
 interface ResumePreviewProps {
   resume: IResume;
@@ -21,11 +25,6 @@ interface ResumePreviewProps {
 
 export const A4_WIDTH_PX = 794; // 21cm at 96dpi
 export const A4_HEIGHT_PX = 1123; // 29.7cm at 96dpi
-
-const templates = [
-  { id: "modern", name: "Modern", component: ModernTemplate },
-  { id: "professional", name: "Professional", component: ProfessionalTemplate },
-];
 
 function computeFitScale(availableWidth: number): number {
   if (!availableWidth || availableWidth <= 0) {
@@ -57,20 +56,21 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const externalTemplateId =
     resume.templateId || (resume as any).template;
   const [activeTemplateId, setActiveTemplateId] = useState(
-    externalTemplateId || "modern"
+    getTemplate(externalTemplateId).id
   );
   const [fitScale, setFitScale] = useState<number>(1);
   const [manualScale, setManualScale] = useState<number | null>(null);
   const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
-  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const customisedKeysRef = useRef<Set<keyof ThemeConfig>>(new Set());
 
   useEffect(() => {
     if (externalTemplateId) {
-      setActiveTemplateId(externalTemplateId);
+      setActiveTemplateId(getTemplate(externalTemplateId).id);
     }
   }, [externalTemplateId]);
 
@@ -153,10 +153,33 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     setManualScale(null);
   };
 
-  const ActiveTemplateComponent =
-    templates.find((t) => t.id === activeTemplateId)?.component ||
-    ModernTemplate;
-  const themeStyles = getThemeStyles(resume.themeConfig);
+  const activeTemplate = getTemplate(activeTemplateId);
+  const ActiveTemplateComponent = activeTemplate.component;
+  const themeStyles = getThemeStyles(
+    resume.themeConfig,
+    activeTemplate.defaultTheme
+  );
+
+  const handleTemplateSelect = (nextTemplate: TemplateDefinition) => {
+    const prevTemplate = getTemplate(activeTemplateId);
+    const nextThemeConfig = mergeTemplateTheme(
+      resume.themeConfig,
+      prevTemplate.defaultTheme,
+      nextTemplate.defaultTheme,
+      customisedKeysRef.current
+    );
+
+    setActiveTemplateId(nextTemplate.id);
+    setShowTemplateGallery(false);
+
+    if (onChange) {
+      onChange({
+        ...resume,
+        templateId: nextTemplate.id,
+        themeConfig: nextThemeConfig,
+      });
+    }
+  };
 
   const scaledWidth = Math.round(A4_WIDTH_PX * effectiveScale);
   const scaledHeight = Math.round(pageHeight * effectiveScale);
@@ -170,70 +193,28 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
       >
         {/* Left: Template & Theme Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setShowTemplateSelector((prev) => !prev);
-                setShowThemePanel(false);
-              }}
-              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
-                showTemplateSelector
-                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                  : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
-              }`}
-            >
-              <SwatchIcon className="h-4 w-4" />
-              <span>Templates</span>
-            </button>
-
-            {/* Template Selector Dropdown */}
-            {showTemplateSelector && (
-              <div className="absolute top-full left-0 mt-1.5 z-30 bg-white border border-neutral-200 rounded-lg shadow-xl p-2 w-52 print:hidden">
-                <div className="flex justify-between items-center px-2 py-1 mb-1 border-b border-neutral-100">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                    Select Template
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowTemplateSelector(false)}
-                    className="text-neutral-400 hover:text-neutral-700 text-xs px-1"
-                    aria-label="Close template selector"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="space-y-1">
-                  {templates.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTemplateId(t.id);
-                        setShowTemplateSelector(false);
-                        if (onChange) {
-                          onChange({ ...resume, templateId: t.id });
-                        }
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        activeTemplateId === t.id
-                          ? "bg-blue-600 text-white font-medium"
-                          : "text-neutral-700 hover:bg-neutral-100"
-                      }`}
-                    >
-                      {t.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            type="button"
+            data-testid="open-template-gallery-btn"
+            onClick={() => {
+              setShowTemplateGallery((prev) => !prev);
+              setShowThemePanel(false);
+            }}
+            className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
+              showTemplateGallery
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
+            }`}
+          >
+            <SwatchIcon className="h-4 w-4" />
+            <span>Templates</span>
+          </button>
 
           <button
             type="button"
             onClick={() => {
               setShowThemePanel((prev) => !prev);
-              setShowTemplateSelector(false);
+              setShowTemplateGallery(false);
             }}
             data-testid="theme-customization-btn"
             className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
@@ -304,16 +285,39 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
         </div>
       </div>
 
+      {/* Template Gallery Modal */}
+      <TemplateGalleryModal
+        isOpen={showTemplateGallery}
+        activeTemplateId={activeTemplate.id}
+        resume={resume}
+        onSelect={handleTemplateSelect}
+        onClose={() => setShowTemplateGallery(false)}
+      />
+
       {/* Relative Canvas Area (anchors ThemeCustomizationPanel below toolbar) */}
       <div className="relative flex-1 min-h-0 flex flex-col print:!block print:!min-h-0">
         {showThemePanel && (
           <ThemeCustomizationPanel
             themeConfig={resume.themeConfig}
+            templateDefaultTheme={activeTemplate.defaultTheme}
+            templateLayout={activeTemplate.layout}
+            onKeysCustomised={(changedKeys) => {
+              changedKeys.forEach((k) => customisedKeysRef.current.add(k));
+            }}
             onChange={(newTheme) => {
               if (onChange) {
                 onChange({
                   ...resume,
                   themeConfig: newTheme,
+                });
+              }
+            }}
+            onReset={(resetTheme) => {
+              customisedKeysRef.current.clear();
+              if (onChange) {
+                onChange({
+                  ...resume,
+                  themeConfig: resetTheme,
                 });
               }
             }}
@@ -337,7 +341,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
               height: `${scaledHeight}px`,
             }}
           >
-            {/* A4 Sheet */}
+            {/* A4 Sheet (page root carrying theme CSS variables) */}
             <div
               ref={pageRef}
               data-testid="resume-preview-page"
@@ -347,15 +351,15 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
                 minHeight: `${A4_HEIGHT_PX}px`,
                 transform: `scale(${effectiveScale})`,
                 transformOrigin: "top left",
+                ...themeStyles,
               }}
             >
               <motion.div
-                key={activeTemplateId}
+                key={activeTemplate.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
                 className="min-h-full print:!opacity-100 print:!transform-none"
-                style={themeStyles}
               >
                 <ActiveTemplateComponent
                   resume={resume}
