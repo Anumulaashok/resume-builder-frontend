@@ -577,4 +577,76 @@ describe("ResumeEditor autosave, toolbar status indicator, flush, and serializat
     });
     expect(resumeService.updateResume).toHaveBeenCalledTimes(2);
   });
+
+  it("renders the document toolbar full-width above the split-pane panels so long resume titles are not constrained to the left panel", () => {
+    const longTitle = "Senior Staff Frontend & Design Systems Engineer Resume";
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = jest.fn().mockImplementation((query: string) => ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+
+    try {
+      const { unmount } = render(
+        <ResumeEditor
+          initialResume={buildSampleResume({ title: longTitle })}
+          onBack={jest.fn()}
+        />
+      );
+
+      const toolbar = screen.getByTestId("resume-editor-toolbar");
+      const resizeHandle = screen.getByTestId("panel-resize-handle");
+      const splitPanelGroup = resizeHandle.parentElement!;
+
+      // Toolbar sits outside and above the split-pane PanelGroup rather than inside the 55% left panel
+      expect(splitPanelGroup.contains(toolbar)).toBe(false);
+      expect(
+        toolbar.compareDocumentPosition(splitPanelGroup) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+
+      const heading = within(toolbar).getByRole("heading", { level: 1 });
+      expect(heading).toHaveTextContent(longTitle);
+      expect(heading).toHaveAttribute("title", longTitle);
+      expect(within(toolbar).getByTestId("save-status-indicator")).toHaveTextContent(
+        "All changes saved"
+      );
+
+      unmount();
+
+      // On narrow/mobile viewports, switching to Preview keeps the document toolbar visible
+      (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      }));
+
+      render(
+        <ResumeEditor
+          initialResume={buildSampleResume({ title: longTitle })}
+          onBack={jest.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /^preview$/i }));
+      expect(screen.getByTestId("resume-editor-toolbar")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: longTitle })).toBeInTheDocument();
+      expect(screen.getByTestId("save-status-indicator")).toHaveTextContent(
+        "All changes saved"
+      );
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
 });
