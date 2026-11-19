@@ -11,6 +11,7 @@ import { PortfolioList } from './portfolio/PortfolioList';
 import { PortfolioEditor } from './portfolio/PortfolioEditor';
 import { removeToken } from '../utils/token';
 import { Container } from './ui/container';
+import { MAX_PROMPT_LENGTH } from '../utils/piiMasker';
 
 interface HomePageProps {
   onLogout?: () => void;
@@ -47,6 +48,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [selectedPortfolio, setSelectedPortfolio] = useState<IPortfolio | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const [targetRole, setTargetRole] = useState('');
   const [prompt, setPrompt] = useState('');
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [resumeCount, setResumeCount] = useState<number | null>(null);
@@ -60,19 +62,33 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
     onLogout?.();
   };
 
+  const combinedPrompt = targetRole.trim()
+    ? `Target Role: ${targetRole.trim()}\n\n${prompt}`
+    : prompt;
+
   const handleAIGeneration = async () => {
+    if (!prompt.trim() && !targetRole.trim()) {
+      toast.error('Please enter a prompt');
+      return;
+    }
     if (!prompt.trim()) {
       toast.error('Please enter a prompt');
       return;
     }
+    if (combinedPrompt.length > MAX_PROMPT_LENGTH) {
+      toast.error(`Prompt cannot exceed ${MAX_PROMPT_LENGTH} characters`);
+      return;
+    }
     setLoading(true);
     try {
-      const resume = await resumeService.generateFromPrompt(prompt, {
+      const resume = await resumeService.generateFromPrompt(combinedPrompt, {
         name: user?.name?.trim() || 'Your Name',
         email: user?.email?.trim() || 'you@example.com',
       });
       toast.success('Resume generated successfully!');
       setShowPromptModal(false);
+      setTargetRole('');
+      setPrompt('');
       setSelectedResume(resume);
       setActiveView('editor');
     } catch (error) {
@@ -241,16 +257,44 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
 
               <div className="space-y-5">
                 <div>
-                  <label htmlFor="prompt" className="block text-sm font-medium text-neutral-700 mb-2">
-                    Enter your requirements
+                  <label htmlFor="target-role" className="block text-sm font-medium text-neutral-700 mb-2">
+                    Target role (optional)
                   </label>
+                  <input
+                    id="target-role"
+                    type="text"
+                    className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm sm:text-base"
+                    placeholder="e.g. Senior Backend Engineer"
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label htmlFor="prompt" className="block text-sm font-medium text-neutral-700">
+                      Enter your requirements
+                    </label>
+                    <span
+                      className={`text-xs tabular-nums ${
+                        combinedPrompt.length > MAX_PROMPT_LENGTH
+                          ? 'text-red-600 font-semibold'
+                          : 'text-neutral-400'
+                      }`}
+                    >
+                      {combinedPrompt.length} / {MAX_PROMPT_LENGTH}
+                    </span>
+                  </div>
                   <textarea
                     id="prompt"
-                    className="w-full h-40 p-3.5 border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm sm:text-base"
+                    className="w-full h-36 p-3.5 border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm sm:text-base"
                     placeholder="Describe your experience, skills, and the type of resume you want..."
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                   />
+                  <p className="mt-1.5 text-xs text-neutral-500">
+                    Sensitive personal identifiers (email, phone, SSN) are masked before AI generation.
+                  </p>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
@@ -264,7 +308,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
                   <button
                     type="button"
                     onClick={handleAIGeneration}
-                    disabled={loading}
+                    disabled={loading || combinedPrompt.length > MAX_PROMPT_LENGTH}
                     className="w-full sm:w-auto h-10 px-5 bg-accent-600 hover:bg-accent-700 text-white rounded-control shadow-sm disabled:opacity-50 text-sm font-medium transition-colors focus-ring"
                   >
                     {loading ? 'Generating...' : 'Generate Resume'}
