@@ -1,4 +1,4 @@
-import { setToken} from "../utils/token";
+import { setToken, setStoredUser } from "../utils/token";
 import axiosInstance from "./axios";
 
 interface LoginPayload {
@@ -12,15 +12,17 @@ interface SignupPayload {
   password: string;
 }
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
 interface AuthResponse {
   success: boolean;
   message: string;
   token?: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  user?: AuthUser;
 }
 
 
@@ -34,6 +36,9 @@ class AuthService {
     if (data.token) {
       setToken(data.token);
     }
+    if (data.user) {
+      setStoredUser(data.user);
+    }
     return data;
   }
 
@@ -45,6 +50,9 @@ class AuthService {
     const { data } = response;
     if (data.token) {
       setToken(data.token);
+    }
+    if (data.user) {
+      setStoredUser(data.user);
     }
     return data;
   }

@@ -4,7 +4,9 @@ import toast from 'react-hot-toast';
 import axiosInstance from '../services/axios';
 import { resumeService, ResumeWithMeta } from '../services/resume.service';
 import HomePage from '../components/HomePage';
+import App from '../App';
 import { SectionType } from '../types/resume';
+import { getStoredUser, setStoredUser, setToken } from '../utils/token';
 
 jest.mock('../services/axios', () => ({
   __esModule: true,
@@ -26,6 +28,7 @@ jest.mock('react-resizable-panels', () => ({
 
 jest.mock('react-hot-toast', () => ({
   __esModule: true,
+  Toaster: () => null,
   default: {
     success: jest.fn(),
     error: jest.fn(),
@@ -39,6 +42,7 @@ describe('AI Resume Generation Flow', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
     (window as any).ResizeObserver = class MockResizeObserver {
       observe() {}
       unobserve() {}
@@ -132,6 +136,7 @@ describe('AI Resume Generation Flow', () => {
         '/api/resumes/665f1a2b3c4d5e6f7a8b9c0d/generate',
         { prompt }
       );
+      expect(mockedAxios.delete).not.toHaveBeenCalled();
       expect(result).toEqual(sampleGeneratedResume);
     });
 
@@ -175,7 +180,7 @@ describe('AI Resume Generation Flow', () => {
       expect(result.id).toBe('draft-id-only-99');
     });
 
-    it('rejects when creating the draft resume (POST /api/resumes) fails', async () => {
+    it('rejects when creating the draft resume (POST /api/resumes) fails without calling delete', async () => {
       mockedAxios.post.mockRejectedValueOnce(new Error('Validation failed'));
 
       await expect(
@@ -186,9 +191,10 @@ describe('AI Resume Generation Flow', () => {
       ).rejects.toThrow('Validation failed');
 
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.delete).not.toHaveBeenCalled();
     });
 
-    it('rejects when generating resume content (POST /api/resumes/:id/generate) fails', async () => {
+    it('deletes the empty AI Draft resume and rejects when POST /api/resumes/:id/generate fails', async () => {
       mockedAxios.post
         .mockResolvedValueOnce({
           data: {
@@ -205,6 +211,7 @@ describe('AI Resume Generation Flow', () => {
           },
         } as any)
         .mockRejectedValueOnce(new Error('AI Service Error: Upstream timeout'));
+      mockedAxios.delete.mockResolvedValueOnce({ data: { success: true, data: null } } as any);
 
       await expect(
         resumeService.generateFromPrompt('Build me a resume', {
@@ -214,6 +221,37 @@ describe('AI Resume Generation Flow', () => {
       ).rejects.toThrow('AI Service Error: Upstream timeout');
 
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(mockedAxios.delete).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.delete).toHaveBeenCalledWith('/api/resumes/draft-502');
+    });
+
+    it('preserves the original generation error even if draft cleanup DELETE fails', async () => {
+      mockedAxios.post
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            data: {
+              _id: 'draft-cleanup-err',
+              title: 'AI Draft',
+              content: {
+                basics: { name: 'Your Name', email: 'you@example.com' },
+                sections: [],
+                sectionOrder: [],
+              },
+            },
+          },
+        } as any)
+        .mockRejectedValueOnce(new Error('AI Service Error: Rate limit exceeded'));
+      mockedAxios.delete.mockRejectedValueOnce(new Error('Network error during delete'));
+
+      await expect(
+        resumeService.generateFromPrompt('Build me a resume', {
+          name: 'Your Name',
+          email: 'you@example.com',
+        })
+      ).rejects.toThrow('AI Service Error: Rate limit exceeded');
+
+      expect(mockedAxios.delete).toHaveBeenCalledWith('/api/resumes/draft-cleanup-err');
     });
   });
 
@@ -359,6 +397,144 @@ describe('AI Resume Generation Flow', () => {
       });
 
       expect(screen.getByText('Generate AI Resume')).toBeInTheDocument();
+    });
+  });
+
+  describe('App -> HomePage user prop wiring', () => {
+    const generatedResume: ResumeWithMeta = {
+      _id: 'gen-res-303',
+      id: 'gen-res-303',
+      userId: 'user-303',
+      title: 'Principal Systems Engineer',
+      summary: 'Cloud architecture leader.',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:05.000Z',
+      content: {
+        basics: {
+          name: 'Margaret Hamilton',
+          email: 'margaret@apollo.org',
+          label: 'Principal Systems Engineer',
+        },
+        sections: [],
+        sectionOrder: [],
+      },
+    };
+
+    it('stores user on login and passes user prop from App to HomePage for AI draft creation', async () => {
+      mockedAxios.post
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            message: 'Login successful',
+            token: 'jwt-apollo-token',
+            user: {
+              id: 'user-303',
+              name: 'Margaret Hamilton',
+              email: 'margaret@apollo.org',
+            },
+          },
+        } as any)
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            data: { _id: 'gen-res-303', title: 'AI Draft' },
+          },
+        } as any)
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            data: generatedResume,
+          },
+        } as any);
+      mockedAxios.get.mockResolvedValueOnce({ data: { success: true, data: [] } } as any);
+
+      render(<App />);
+
+      fireEvent.change(screen.getByLabelText(/Email address/i), {
+        target: { value: 'margaret@apollo.org' },
+      });
+      fireEvent.change(screen.getByLabelText(/^Password$/i), {
+        target: { value: 'Secret123!' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /^Sign in$/i }));
+
+      const aiGenerateBtn = await screen.findByRole('button', { name: /AI Generate/i });
+      expect(getStoredUser()).toEqual({
+        id: 'user-303',
+        name: 'Margaret Hamilton',
+        email: 'margaret@apollo.org',
+      });
+
+      fireEvent.click(aiGenerateBtn);
+      fireEvent.change(screen.getByLabelText(/Enter your requirements/i), {
+        target: { value: 'Flight software director resume' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Generate Resume/i }));
+
+      await waitFor(() => {
+        expect(mockedAxios.post).toHaveBeenNthCalledWith(2, '/api/resumes', {
+          title: 'AI Draft',
+          content: {
+            basics: {
+              name: 'Margaret Hamilton',
+              email: 'margaret@apollo.org',
+            },
+            sections: [],
+            sectionOrder: [],
+          },
+        });
+      });
+    });
+
+    it('hydrates stored user in App across reloads and clears stored user on logout', async () => {
+      setToken('persisted-jwt');
+      setStoredUser({
+        id: 'user-404',
+        name: 'Katherine Johnson',
+        email: 'katherine@nasa.gov',
+      });
+      mockedAxios.get.mockResolvedValueOnce({ data: { success: true, data: [] } } as any);
+      mockedAxios.post
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            data: { _id: 'gen-res-404', title: 'AI Draft' },
+          },
+        } as any)
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            data: generatedResume,
+          },
+        } as any);
+
+      render(<App />);
+
+      const aiGenerateBtn = await screen.findByRole('button', { name: /AI Generate/i });
+      fireEvent.click(aiGenerateBtn);
+
+      fireEvent.change(screen.getByLabelText(/Enter your requirements/i), {
+        target: { value: 'Orbital mechanics mathematician resume' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Generate Resume/i }));
+
+      await waitFor(() => {
+        expect(mockedAxios.post).toHaveBeenNthCalledWith(1, '/api/resumes', {
+          title: 'AI Draft',
+          content: {
+            basics: {
+              name: 'Katherine Johnson',
+              email: 'katherine@nasa.gov',
+            },
+            sections: [],
+            sectionOrder: [],
+          },
+        });
+      });
+
+      // Return to list view and log out to verify stored user cleanup
+      fireEvent.click(screen.getByRole('button', { name: /Logout/i }));
+      expect(getStoredUser()).toBeNull();
     });
   });
 });
