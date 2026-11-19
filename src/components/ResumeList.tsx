@@ -8,17 +8,14 @@ import {
   SparklesIcon,
   ShareIcon,
 } from "@heroicons/react/24/outline";
-import { Resume, resumeService } from "../services/resume.service";
+import {
+  Resume,
+  ResumeWithMeta,
+  resumeService,
+} from "../services/resume.service";
 import toast from "react-hot-toast";
 import ShareModal from "./ShareModal";
 import { Skeleton } from "./ui/skeleton";
-
-interface ResumeWithMeta extends Resume {
-  id: string;
-  updatedAt: string;
-  createdAt: string;
-  userId: string;
-}
 
 interface ResumeListProps {
   onEditResume: (resume: Resume) => void;
@@ -119,11 +116,24 @@ export default function ResumeList({
 
   const handleClone = async (resume: ResumeWithMeta) => {
     try {
-      const { id: _, updatedAt: __, ...cloneData } = resume;
-      const clonedResume = await resumeService.createResume({
+      const {
+        _id: _mongoId,
+        id: _,
+        createdAt: _createdAt,
+        updatedAt: __,
+        sharing: _sharing,
+        ...cloneData
+      } = resume;
+      const created = await resumeService.createResume({
         ...cloneData,
-        title: `${cloneData.title} (Copy)`,
+        title: `${cloneData.title || "Untitled Resume"} (Copy)`,
       });
+      const resolvedId = created?.id || created?._id || "";
+      const clonedResume: ResumeWithMeta = {
+        ...created,
+        id: created?.id || resolvedId,
+        ...(resolvedId ? { _id: created?._id || resolvedId } : {}),
+      };
       toast.success("Resume cloned successfully");
       const next = [...resumes, clonedResume];
       setResumes(next);
@@ -337,13 +347,14 @@ export default function ResumeList({
         <ShareModal
           isOpen={!!sharingResume}
           onClose={() => setSharingResume(null)}
-          resumeId={sharingResume.id || (sharingResume as any)._id || ""}
+          resumeId={sharingResume.id || sharingResume._id || ""}
           resumeTitle={sharingResume.title}
           initialSharing={sharingResume.sharing}
           onSharingUpdated={(sharing) => {
+            const targetId = sharingResume.id || sharingResume._id;
             setResumes((prev) =>
               prev.map((r) =>
-                (r.id === sharingResume.id || (r as any)._id === sharingResume.id)
+                targetId && (r.id || r._id) === targetId
                   ? { ...r, sharing }
                   : r
               )

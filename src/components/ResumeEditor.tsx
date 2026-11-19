@@ -260,10 +260,17 @@ export function normalizeResume(input?: IResume): IResume {
   const missingIds = sections
     .map((s) => s.id)
     .filter((id) => !rawOrder.includes(id));
+  const resolvedId = source._id || source.id;
 
   return {
     ...defaultResume,
     ...source,
+    ...(resolvedId
+      ? {
+          _id: source._id || resolvedId,
+          id: source.id || resolvedId,
+        }
+      : {}),
     title: source.title ?? defaultResume.title ?? "Untitled Resume",
     summary: resolvedSummary,
     content: {
@@ -703,12 +710,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     normalizeResume(initialResume)
   );
   const isDesktop = useIsDesktop();
+  const initialResumeId = initialResume?._id || initialResume?.id;
   const [loading, setLoading] = useState(false);
   const [persistedId, setPersistedId] = useState<string | undefined>(
-    () => initialResume?._id
+    () => initialResumeId
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(() =>
-    initialResume?._id ? "saved" : "unsaved_new"
+    initialResumeId ? "saved" : "unsaved_new"
   );
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
@@ -740,7 +748,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     serializeResumeSnapshot(resume)
   );
   const lastSavedSnapshotRef = useRef<string | null>(
-    initialResume?._id ? serializeResumeSnapshot(resume) : null
+    initialResumeId ? serializeResumeSnapshot(resume) : null
   );
   const hasShownAutoSaveErrorToastRef = useRef(false);
   const isSavingRef = useRef(false);
@@ -753,7 +761,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
 
-  const effectiveResumeId = resume._id || persistedId;
+  const effectiveResumeId = resume._id || resume.id || persistedId;
 
   const updateSaveStatus = useCallback((next: SaveStatus) => {
     saveStatusRef.current = next;
@@ -810,7 +818,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           let currentResolvers = firstResolvers;
 
           while (true) {
-            const activeId = currentResume._id || persistedIdRef.current;
+            const activeId =
+              currentResume._id || currentResume.id || persistedIdRef.current;
 
             if (!activeId && currentOrigin === "autosave") {
               for (let i = 0; i < currentResolvers.length; i += 1) {
@@ -894,7 +903,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const debouncedAutoSave = useMemo(
     () =>
       createDebouncedCallback((resumeToSave: IResume) => {
-        const activeId = resumeToSave._id || persistedIdRef.current;
+        const activeId =
+          resumeToSave._id || resumeToSave.id || persistedIdRef.current;
         if (!activeId) return;
         void enqueueSave(resumeToSave, "autosave");
       }, 2000),
@@ -917,7 +927,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       prevInitialResumeRef.current = initialResume;
       debouncedAutoSave.cancel();
       const normalized = normalizeResume(initialResume);
-      const nextId = normalized._id;
+      const nextId = normalized._id || normalized.id;
       persistedIdRef.current = nextId;
       setPersistedId(nextId);
       const snap = serializeResumeSnapshot(normalized);
@@ -1088,7 +1098,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       return;
     }
 
-    const activeId = resume._id || persistedIdRef.current;
+    const activeId = resume._id || resume.id || persistedIdRef.current;
     if (!activeId) {
       return;
     }
@@ -1163,7 +1173,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       if (isMountedRef.current) {
         setLoading(false);
       }
-      if (result.ok) {
+      const savedId = result.ok
+        ? extractCreatedResumeId(result.data) || persistedIdRef.current
+        : undefined;
+      if (result.ok && savedId) {
         if (isMountedRef.current) {
           setShowShareModal(true);
         }
