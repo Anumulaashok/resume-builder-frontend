@@ -1463,12 +1463,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const summaryValue =
     resume.content?.basics?.summary ?? resume.summary ?? "";
 
-  const editorPanelContent = (
-    <div className="h-full min-h-0 flex flex-col bg-neutral-50 text-gray-900">
-      {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 shrink-0 z-20">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <div className="flex items-center gap-2 min-w-[180px] flex-1">
+  const editorToolbar = (
+    <div
+      data-testid="resume-editor-toolbar"
+      className="bg-white border-b border-gray-200 px-4 sm:px-6 py-2.5 shrink-0 relative z-30 print:hidden"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2 min-w-[220px] sm:min-w-[260px] flex-1">
             <button
               type="button"
               onClick={onBack}
@@ -1508,7 +1509,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                     }
                   }}
                   placeholder="Resume Title"
-                  className="w-full text-base sm:text-lg font-semibold text-gray-900 bg-transparent border-b-2 border-blue-600 focus:outline-none px-1 py-0.5"
+                  className="w-full max-w-xl text-base sm:text-lg font-semibold text-gray-900 bg-transparent border-b-2 border-blue-600 focus:outline-none px-1 py-0.5"
                 />
               ) : (
                 <button
@@ -1522,7 +1523,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   aria-label="Edit resume title"
                   className="group inline-flex items-center gap-1.5 max-w-full text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 >
-                  <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                  <h1
+                    title={resume.title || "Untitled Resume"}
+                    className="text-base sm:text-lg font-semibold text-gray-900 truncate"
+                  >
                     {resume.title || "Untitled Resume"}
                   </h1>
                   <PencilSquareIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-600 shrink-0 transition-colors" />
@@ -1682,8 +1686,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             </div>
           </div>
         </div>
-      </div>
+    </div>
+  );
 
+  const editorPanelContent = (
+    <div className="h-full min-h-0 flex flex-col bg-neutral-50 text-gray-900 print:hidden">
       {/* Scrollable Editor Content */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-5 pb-10 space-y-4">
         {/* Basic Information Card */}
@@ -1854,10 +1861,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
 
   return (
-    <div className="h-screen pt-16 bg-neutral-50 flex flex-col overflow-hidden">
+    <div className="h-screen pt-16 bg-neutral-50 flex flex-col overflow-hidden print:!h-auto print:!pt-0 print:!bg-white print:!overflow-visible">
+      {/* Full-Width Document Toolbar */}
+      {editorToolbar}
+
       {/* Mobile View Switcher */}
       {!isDesktop && (
-        <div className="flex justify-center gap-3 py-2 px-4 bg-white border-b border-gray-200 shrink-0">
+        <div className="flex justify-center gap-3 py-2 px-4 bg-white border-b border-gray-200 shrink-0 print:hidden">
           <button
             type="button"
             onClick={() => setActiveView("editor")}
