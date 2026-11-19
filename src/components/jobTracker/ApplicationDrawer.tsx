@@ -16,6 +16,7 @@ import {
   UpsertApplicationPayload,
 } from '../../types/application';
 import { ResumeWithMeta } from '../../services/resume.service';
+import { ICoverLetter } from '../../types/coverLetter';
 
 export interface CheckMatchPrefill {
   resumeId: string;
@@ -29,6 +30,7 @@ interface ApplicationDrawerProps {
   initialStatus?: ApplicationStatus;
   application?: IJobApplication | null;
   resumes: ResumeWithMeta[];
+  coverLetters?: ICoverLetter[];
   saving: boolean;
   deleting?: boolean;
   onClose: () => void;
@@ -60,6 +62,7 @@ export const ApplicationDrawer: React.FC<ApplicationDrawerProps> = ({
   initialStatus = 'wishlist',
   application,
   resumes,
+  coverLetters = [],
   saving,
   deleting = false,
   onClose,
@@ -172,10 +175,6 @@ export const ApplicationDrawer: React.FC<ApplicationDrawerProps> = ({
     }
 
     const trimmedCoverLetter = coverLetterId.trim();
-    if (trimmedCoverLetter && !/^[a-fA-F0-9]{24}$/.test(trimmedCoverLetter)) {
-      toast.error('Cover letter ID must be a 24-character hex ID or left empty');
-      return null;
-    }
 
     return {
       company: company.trim(),
@@ -477,16 +476,28 @@ export const ApplicationDrawer: React.FC<ApplicationDrawerProps> = ({
                   htmlFor="jt-cover-letter"
                   className="block text-sm font-medium text-neutral-800 mb-1.5"
                 >
-                  Cover letter ID <span className="text-xs font-normal text-neutral-500">(optional)</span>
+                  Linked cover letter
                 </label>
-                <input
+                <select
                   id="jt-cover-letter"
-                  type="text"
                   value={coverLetterId}
                   onChange={(e) => setCoverLetterId(e.target.value)}
-                  placeholder="Optional reference ID"
-                  className="w-full h-10 px-3 rounded-control border border-neutral-300 bg-white text-sm text-neutral-900 placeholder-neutral-400 focus:border-primary-500 focus-ring"
-                />
+                  className="w-full h-10 px-3 rounded-control border border-neutral-300 bg-white text-sm text-neutral-900 focus:border-primary-500 focus-ring"
+                >
+                  <option value="">None</option>
+                  {coverLetters.map((cl) => {
+                    const id = cl.id || cl._id || '';
+                    return (
+                      <option key={id} value={id}>
+                        {cl.title || cl.jobTitle || 'Untitled Cover Letter'}
+                      </option>
+                    );
+                  })}
+                  {coverLetterId &&
+                    !coverLetters.some((cl) => (cl.id || cl._id) === coverLetterId) && (
+                      <option value={coverLetterId}>Linked cover letter</option>
+                    )}
+                </select>
               </div>
             </div>
 

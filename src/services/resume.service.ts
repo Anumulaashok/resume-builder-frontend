@@ -13,6 +13,10 @@ import {
   buildFallbackExportFilename,
   parseContentDispositionFilename,
 } from "../utils/download";
+import {
+  markResumeOmittedSummary,
+  normalizeResume,
+} from "../utils/resumeNormalizer";
 
 export interface ExportedDocument {
   blob: Blob;
@@ -274,8 +278,17 @@ class ResumeService {
         ? payload.previousSnapshotIndex
         : fallbackPrevIndex;
 
+    const unwrapped = unwrapResumeResponse(payload);
+    const omittedSummary =
+      rawResume?.summary === undefined &&
+      rawResume?.content?.basics?.summary === undefined;
+    const normalizedRestored = normalizeResume(unwrapped) as ResumeWithMeta;
+    if (omittedSummary) {
+      markResumeOmittedSummary(normalizedRestored);
+    }
+
     return {
-      resume: unwrapResumeResponse(payload),
+      resume: normalizedRestored,
       previousSnapshotIndex,
     };
   }

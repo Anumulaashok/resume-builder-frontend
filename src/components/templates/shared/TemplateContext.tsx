@@ -17,6 +17,11 @@ export interface TemplateContextValue {
     field: string,
     value: string
   ) => void;
+  updateSectionItemPatch: (
+    sectionId: string,
+    itemId: string,
+    patch: Record<string, any>
+  ) => void;
   headingStyle: HeadingStyleVariant;
   skillStyle: SkillStyleVariant;
   dateFormat?: DateFormatPattern;
@@ -32,6 +37,7 @@ const defaultContextValue: TemplateContextValue = {
   onChange: undefined,
   updateBasics: noop,
   updateSectionItem: noop,
+  updateSectionItemPatch: noop,
   headingStyle: 'underline',
   skillStyle: 'chips',
   dateFormat: undefined,
@@ -74,11 +80,10 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
     });
   };
 
-  const updateSectionItem = (
+  const updateSectionItemPatch = (
     sectionId: string,
     itemId: string,
-    field: string,
-    value: string
+    patch: Record<string, any>
   ) => {
     if (effectiveReadOnly || !onChange) return;
     onChange({
@@ -91,7 +96,7 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
                 ...sec,
                 content: Array.isArray(sec.content)
                   ? sec.content.map((item) =>
-                      item.id === itemId ? { ...item, [field]: value } : item
+                      item && item.id === itemId ? { ...item, ...patch } : item
                     )
                   : sec.content,
               }
@@ -99,6 +104,15 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
         ),
       },
     });
+  };
+
+  const updateSectionItem = (
+    sectionId: string,
+    itemId: string,
+    field: string,
+    value: string
+  ) => {
+    updateSectionItemPatch(sectionId, itemId, { [field]: value });
   };
 
   const atsMode = Boolean(resume.themeConfig?.atsMode);
@@ -119,6 +133,7 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
         onChange,
         updateBasics,
         updateSectionItem,
+        updateSectionItemPatch,
         headingStyle,
         skillStyle,
         dateFormat,

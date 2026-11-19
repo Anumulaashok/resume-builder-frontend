@@ -20,6 +20,7 @@ import { getTemplate } from "./templates/registry";
 import { A4_HEIGHT_PX, A4_WIDTH_PX } from "./ResumePreview";
 import { Skeleton } from "./ui/skeleton";
 import { formatRelativeTime, formatSnapshotTimestamp } from "../utils/date";
+import { normalizeResume } from "../utils/resumeNormalizer";
 
 export interface VersionHistoryDrawerProps {
   isOpen: boolean;
@@ -54,57 +55,28 @@ function measureContentWidth(
   return 0;
 }
 
-function buildSnapshotPreviewResume(
+export function buildSnapshotPreviewResume(
   snapshot: IResumeHistorySnapshot,
   currentResume: IResume
 ): IResume {
-  const basics = snapshot.content?.basics || defaultResume.content.basics;
-  const resolvedSummary =
-    typeof basics?.summary === "string" && basics.summary.length > 0
-      ? basics.summary
-      : typeof snapshot.summary === "string" && snapshot.summary.length > 0
-      ? snapshot.summary
-      : basics?.summary ?? snapshot.summary ?? "";
-
-  const sections = Array.isArray(snapshot.content?.sections)
-    ? snapshot.content.sections
-    : [];
-  const rawOrder = Array.isArray(snapshot.content?.sectionOrder)
-    ? snapshot.content.sectionOrder
-    : [];
-  const missingIds = sections
-    .map((s) => s.id)
-    .filter((id) => !rawOrder.includes(id));
-
   const currentTemplateId =
     currentResume.templateId || (currentResume as any).template;
 
-  return {
+  // Snapshots often persist `content` without top-level `summary` while the
+  // Professional Summary lives in top-level `currentResume.summary`.
+  const fallbackTopSummary =
+    snapshot.summary !== undefined
+      ? snapshot.summary
+      : currentResume.summary ?? currentResume.content?.basics?.summary;
+
+  return normalizeResume({
     ...defaultResume,
     title: snapshot.title || currentResume.title || "Untitled Resume",
-    summary: resolvedSummary,
+    summary: fallbackTopSummary,
     templateId: currentTemplateId,
     themeConfig: snapshot.themeConfig ?? currentResume.themeConfig,
-    content: {
-      ...defaultResume.content,
-      ...snapshot.content,
-      basics: {
-        ...defaultResume.content.basics,
-        ...basics,
-        name: basics?.name ?? "",
-        label: basics?.label ?? "",
-        email: basics?.email ?? "",
-        phone: basics?.phone ?? "",
-        summary: resolvedSummary,
-        location: {
-          ...defaultResume.content.basics.location,
-          ...(basics?.location || {}),
-        },
-      },
-      sections,
-      sectionOrder: [...rawOrder, ...missingIds],
-    },
-  };
+    content: snapshot.content || defaultResume.content,
+  });
 }
 
 export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({

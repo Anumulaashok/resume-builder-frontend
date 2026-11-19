@@ -50,6 +50,8 @@ export const DateRange: React.FC<DateRangeProps> = ({
       const rawEnd = formatResumeDate(endDate);
       const displayEnd = current || !rawEnd ? 'Present' : end;
       formatted = `${start} - ${displayEnd}`;
+    } else if (current) {
+      formatted = 'Present';
     } else if (end) {
       formatted = end;
     } else if (single) {

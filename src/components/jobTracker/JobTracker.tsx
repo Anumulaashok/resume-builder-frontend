@@ -9,6 +9,7 @@ import {
   ChevronUpIcon,
   ClockIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
   ExclamationCircleIcon,
   MapPinIcon,
   PlusIcon,
@@ -22,7 +23,9 @@ import {
   IJobApplication,
   UpsertApplicationPayload,
 } from '../../types/application';
+import { ICoverLetter } from '../../types/coverLetter';
 import { applicationService } from '../../services/application.service';
+import { coverLetterService } from '../../services/coverLetter.service';
 import { ResumeWithMeta, resumeService } from '../../services/resume.service';
 import { Skeleton } from '../ui/skeleton';
 import { ApplicationDrawer, CheckMatchPrefill } from './ApplicationDrawer';
@@ -239,6 +242,7 @@ function JobTrackerSkeleton() {
 export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
   const [applications, setApplications] = useState<IJobApplication[]>([]);
   const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
+  const [coverLetters, setCoverLetters] = useState<ICoverLetter[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -260,12 +264,18 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [appsResult, resumesResult] = await Promise.all([
+      const [appsResult, resumesResult, coverLettersResult] = await Promise.all([
         applicationService.getApplications(),
-        resumeService.getResumes().catch(() => [] as ResumeWithMeta[]),
+        Promise.resolve(resumeService.getResumes())
+          .then((list) => (Array.isArray(list) ? list : []))
+          .catch(() => [] as ResumeWithMeta[]),
+        Promise.resolve(coverLetterService.getCoverLetters())
+          .then((list) => (Array.isArray(list) ? list : []))
+          .catch(() => [] as ICoverLetter[]),
       ]);
       setApplications(appsResult);
       setResumes(resumesResult);
+      setCoverLetters(coverLettersResult);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load job applications');
     } finally {
@@ -285,6 +295,15 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
     }
     return map;
   }, [resumes]);
+
+  const coverLettersById = useMemo(() => {
+    const map = new Map<string, ICoverLetter>();
+    for (const cl of coverLetters) {
+      if (cl.id) map.set(cl.id, cl);
+      if (cl._id) map.set(cl._id, cl);
+    }
+    return map;
+  }, [coverLetters]);
 
   const groupedColumns = useMemo(
     () => groupApplicationsByStatus(applications),
@@ -816,6 +835,14 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
                             linkedResume?.content?.basics?.name ||
                             'Linked resume'
                           : null;
+                        const linkedCoverLetter = app.coverLetterId
+                          ? coverLettersById.get(app.coverLetterId)
+                          : undefined;
+                        const linkedCoverLetterTitle = app.coverLetterId
+                          ? linkedCoverLetter?.title ||
+                            linkedCoverLetter?.jobTitle ||
+                            'Linked cover letter'
+                          : null;
                         const isDraggingThis = draggedId === appId;
                         const isCardDropTarget = dragOverCardId === appId && draggedId !== appId;
 
@@ -898,6 +925,21 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
                                     {linkedResumeTitle || 'No resume linked'}
                                   </span>
                                 </div>
+
+                                {linkedCoverLetterTitle && (
+                                  <div
+                                    data-testid={`application-card-cover-letter-${appId}`}
+                                    className="flex items-center gap-1.5 text-[11px]"
+                                  >
+                                    <EnvelopeIcon
+                                      className="h-3.5 w-3.5 shrink-0 text-primary-600"
+                                      aria-hidden="true"
+                                    />
+                                    <span className="truncate font-medium text-primary-700">
+                                      {linkedCoverLetterTitle}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </button>
 
@@ -987,6 +1029,7 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
         initialStatus={drawerInitialStatus}
         application={activeApplication}
         resumes={resumes}
+        coverLetters={coverLetters}
         saving={savingDrawer}
         deleting={deletingDrawer}
         onClose={() => setDrawerOpen(false)}

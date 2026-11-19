@@ -954,4 +954,283 @@ Jan 2021 - Present
   it('throws a friendly error when pasted text is empty', () => {
     expect(() => parseResumeText('   ')).toThrow(/paste resume/i);
   });
+
+  describe('international phone numbers & contact-line isolation', () => {
+    it('extracts +91 spaced phone from pipe-separated contact line and never leaks it into Professional Summary', () => {
+      const arjunFixture = `
+Arjun Mehta
+Senior Backend Engineer
+arjun.mehta@example.com | +91 90000 11111 | github.com/arjunm
+
+Professional Summary
+Distributed systems engineer building high-throughput payment rails in Go and Rust.
+      `.trim();
+
+      const parsed = parseResumeText(arjunFixture);
+
+      expect(parsed.content.basics.name).toBe('Arjun Mehta');
+      expect(parsed.content.basics.label).toBe('Senior Backend Engineer');
+      expect(parsed.content.basics.email).toBe('arjun.mehta@example.com');
+      expect(parsed.content.basics.phone).toBe('+91 90000 11111');
+      expect(parsed.content.basics.profiles).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            network: 'GitHub',
+            username: 'arjunm',
+            url: 'https://github.com/arjunm',
+          }),
+        ])
+      );
+      expect(parsed.summary).toBe(
+        'Distributed systems engineer building high-throughput payment rails in Go and Rust.'
+      );
+      expect(parsed.content.basics.summary).toBe(parsed.summary);
+      expect(parsed.summary).not.toContain('+91');
+      expect(parsed.summary).not.toContain('90000');
+      expect(parsed.summary).not.toContain('arjun.mehta');
+      expect(parsed.summary).not.toContain('github.com');
+    });
+
+    it('detects diverse international +CC phone formats across pipe, bullet, and comma contact lines without leaking contact tokens', () => {
+      const fixtures: Array<{
+        label: string;
+        text: string;
+        expectedPhone: string;
+        expectedEmail: string;
+        expectedCity?: string;
+      }> = [
+        {
+          label: 'UK +44 with trunk (0) and bullet separators',
+          text: [
+            'Clara Vance',
+            'Principal Platform Architect',
+            'clara.vance@example.co.uk • +44 (0) 20 7946 0958 • linkedin.com/in/claravance • London, United Kingdom',
+            '',
+            'Summary',
+            'Cloud infrastructure architect leading multi-region Kubernetes migrations.',
+          ].join('\n'),
+          expectedPhone: '+44 (0) 20 7946 0958',
+          expectedEmail: 'clara.vance@example.co.uk',
+          expectedCity: 'London',
+        },
+        {
+          label: 'France +33 two-digit groups with middle-dot separators',
+          text: [
+            'Luc Moreau',
+            'Staff ML Engineer',
+            'luc.moreau@example.fr · +33 1 42 68 53 00 · github.com/lucmoreau',
+            '',
+            'Profile',
+            'Applied ML engineer scaling real-time recommendation models.',
+          ].join('\n'),
+          expectedPhone: '+33 1 42 68 53 00',
+          expectedEmail: 'luc.moreau@example.fr',
+        },
+        {
+          label: 'India +91 dashed format with comma-separated contact line and labeled fields',
+          text: [
+            'Priya Nair',
+            'Data Platform Lead',
+            'Email: priya.nair@example.in, Phone: +91-98765-43210, linkedin.com/in/priyanair, Bengaluru, India',
+            '',
+            'Summary',
+            'Leads petabyte-scale lakehouse governance and streaming pipelines.',
+          ].join('\n'),
+          expectedPhone: '+91-98765-43210',
+          expectedEmail: 'priya.nair@example.in',
+          expectedCity: 'Bengaluru',
+        },
+        {
+          label: 'US/Canada +1 dotted format and Singapore +65 8-digit format',
+          text: [
+            'Wei Tan',
+            'Security Engineer',
+            '+65 9123 4567 | +1.415.555.0199 | wei.tan@example.sg | @weitansec',
+            '',
+            'Summary',
+            'Application security lead specializing in zero-trust identity.',
+          ].join('\n'),
+          expectedPhone: '+65 9123 4567',
+          expectedEmail: 'wei.tan@example.sg',
+        },
+      ];
+
+      fixtures.forEach(({ text, expectedPhone, expectedEmail, expectedCity }) => {
+        const parsed = parseResumeText(text);
+        expect(parsed.content.basics.phone).toBe(expectedPhone);
+        expect(parsed.content.basics.email).toBe(expectedEmail);
+        if (expectedCity) {
+          expect(parsed.content.basics.location?.city).toBe(expectedCity);
+        }
+        expect(parsed.summary).not.toContain(expectedPhone);
+        expect(parsed.summary).not.toContain(expectedEmail);
+        expect(parsed.summary).not.toMatch(/@weitansec|Phone:|Email:/i);
+      });
+    });
+  });
+
+  describe('education degree, field, and institution parsing', () => {
+    it("assigns institution='IIT Delhi', degree='B.Tech', and field='Computer Science' for 'B.Tech Computer Science, IIT Delhi' regardless of order", () => {
+      const degreeFirst = parseResumeText(
+        [
+          'Arjun Mehta',
+          'arjun@example.com',
+          '',
+          'Education',
+          'B.Tech Computer Science, IIT Delhi',
+          '2018 - 2022',
+        ].join('\n')
+      );
+      const edu1 = degreeFirst.content.sections.find(
+        (s) => s.type === SectionType.EDUCATION
+      )!.content[0];
+      expect(edu1).toMatchObject({
+        institution: 'IIT Delhi',
+        degree: 'B.Tech',
+        field: 'Computer Science',
+        startDate: { year: '2018' },
+        endDate: { year: '2022' },
+      });
+
+      const institutionFirst = parseResumeText(
+        [
+          'Arjun Mehta',
+          'arjun@example.com',
+          '',
+          'Education',
+          'IIT Delhi, B.Tech Computer Science',
+          '2018 - 2022',
+        ].join('\n')
+      );
+      const edu2 = institutionFirst.content.sections.find(
+        (s) => s.type === SectionType.EDUCATION
+      )!.content[0];
+      expect(edu2).toMatchObject({
+        institution: 'IIT Delhi',
+        degree: 'B.Tech',
+        field: 'Computer Science',
+      });
+    });
+
+    it("recognises B.Tech, B.E., B.Sc, BS, BA, M.Tech, MS, M.Sc, MBA, PhD, and Bachelor/Master of ... and splits 'Degree in Field'", () => {
+      const cases: Array<{
+        lines: string[];
+        expected: {
+          institution: string;
+          degree: string;
+          field: string;
+          location?: string;
+        };
+      }> = [
+        {
+          lines: ['B.E. in Electronics and Communication, BITS Pilani', '2016 - 2020'],
+          expected: {
+            institution: 'BITS Pilani',
+            degree: 'B.E.',
+            field: 'Electronics and Communication',
+          },
+        },
+        {
+          lines: ['NIT Trichy | B.Sc in Mathematics', '2017 - 2020'],
+          expected: {
+            institution: 'NIT Trichy',
+            degree: 'B.Sc',
+            field: 'Mathematics',
+          },
+        },
+        {
+          lines: ['BS in Computer Science, Georgia Tech', '2015 - 2019'],
+          expected: {
+            institution: 'Georgia Tech',
+            degree: 'BS',
+            field: 'Computer Science',
+          },
+        },
+        {
+          lines: ['Yale University — BA in Economics', '2014 - 2018'],
+          expected: {
+            institution: 'Yale University',
+            degree: 'BA',
+            field: 'Economics',
+          },
+        },
+        {
+          lines: ['M.Tech in Artificial Intelligence', 'IISc', '2020 - 2022'],
+          expected: {
+            institution: 'IISc',
+            degree: 'M.Tech',
+            field: 'Artificial Intelligence',
+          },
+        },
+        {
+          lines: ['MIT', 'MS in Distributed Systems', 'Cambridge, MA', '2019 - 2021'],
+          expected: {
+            institution: 'MIT',
+            degree: 'MS',
+            field: 'Distributed Systems',
+            location: 'Cambridge, MA',
+          },
+        },
+        {
+          lines: ['M.Sc Data Science, ETH Zurich', '2021 - 2023'],
+          expected: {
+            institution: 'ETH Zurich',
+            degree: 'M.Sc',
+            field: 'Data Science',
+          },
+        },
+        {
+          lines: ['MBA in Finance, IIM Ahmedabad', '2019 - 2021'],
+          expected: {
+            institution: 'IIM Ahmedabad',
+            degree: 'MBA',
+            field: 'Finance',
+          },
+        },
+        {
+          lines: ['Caltech, PhD in Quantum Computing', '2018 - 2023'],
+          expected: {
+            institution: 'Caltech',
+            degree: 'PhD',
+            field: 'Quantum Computing',
+          },
+        },
+        {
+          lines: [
+            'Bachelor of Technology in Computer Science, Indian Institute of Technology Bombay',
+            '2015 - 2019',
+          ],
+          expected: {
+            institution: 'Indian Institute of Technology Bombay',
+            degree: 'Bachelor of Technology',
+            field: 'Computer Science',
+          },
+        },
+        {
+          lines: [
+            'Columbia University',
+            'Master of Science in Machine Learning',
+            '2019 - 2021',
+          ],
+          expected: {
+            institution: 'Columbia University',
+            degree: 'Master of Science',
+            field: 'Machine Learning',
+          },
+        },
+      ];
+
+      cases.forEach(({ lines, expected }) => {
+        const resumeText = ['Test Candidate', 'test@example.com', '', 'Education', ...lines].join(
+          '\n'
+        );
+        const parsed = parseResumeText(resumeText);
+        const eduSec = parsed.content.sections.find(
+          (s) => s.type === SectionType.EDUCATION
+        )!;
+        expect(eduSec).toBeDefined();
+        expect(eduSec.content[0]).toMatchObject(expected);
+      });
+    });
+  });
 });
