@@ -1,5 +1,6 @@
 import React from 'react';
 import { DocumentTextIcon, GlobeAltIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { Container } from '../ui/container';
 
 export type AppTab = 'resumes' | 'job-match' | 'portfolios';
 
@@ -16,50 +17,74 @@ const Header: React.FC<HeaderProps> = ({
   activeTab = 'resumes',
   onTabChange
 }) => {
+  const brandContent = (
+    <>
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-control bg-primary-50 text-primary-600 ring-1 ring-inset ring-primary-100">
+        <DocumentTextIcon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="text-base sm:text-lg font-bold tracking-tight text-neutral-900">
+        Smart CV &amp; Portfolio
+      </span>
+    </>
+  );
+
   return (
-    <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-6 sm:space-x-8">
-            <div className="flex items-center cursor-pointer" onClick={() => onTabChange?.('resumes')}>
-              <DocumentTextIcon className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-              <span className="ml-2 text-lg sm:text-xl font-bold text-gray-900">Smart CV & Portfolio</span>
-            </div>
+    <header className="bg-white/95 backdrop-blur-sm border-b border-neutral-200/80 shadow-header fixed top-0 left-0 right-0 z-20">
+      <Container>
+        <div className="flex justify-between items-center h-16 gap-3">
+          <div className="flex items-center gap-4 sm:gap-8 min-w-0">
+            {onTabChange ? (
+              <button
+                type="button"
+                onClick={() => onTabChange('resumes')}
+                className="flex items-center gap-2.5 rounded-control px-1.5 py-1 -ml-1.5 text-left transition-colors hover:bg-neutral-50 focus-ring"
+              >
+                {brandContent}
+              </button>
+            ) : (
+              <div className="flex items-center gap-2.5">{brandContent}</div>
+            )}
 
             {/* Navigation Tabs */}
             {onTabChange && (
-              <nav className="flex items-center space-x-1 sm:space-x-2">
+              <nav aria-label="Main navigation" className="flex items-center gap-1 sm:gap-1.5">
                 <button
+                  type="button"
                   onClick={() => onTabChange('resumes')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center space-x-1.5 ${
+                  aria-current={activeTab === 'resumes' ? 'page' : undefined}
+                  className={`h-9 px-3 rounded-control text-sm font-medium transition-colors flex items-center gap-1.5 focus-ring ${
                     activeTab === 'resumes'
-                      ? 'bg-blue-50 text-blue-700 font-semibold'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'bg-primary-50 text-primary-700 font-semibold ring-1 ring-inset ring-primary-200/70'
+                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
                   }`}
                 >
-                  <DocumentTextIcon className="w-4 h-4" />
+                  <DocumentTextIcon className="w-4 h-4 shrink-0" aria-hidden="true" />
                   <span>Resumes</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => onTabChange('job-match')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center space-x-1.5 ${
+                  aria-current={activeTab === 'job-match' ? 'page' : undefined}
+                  className={`h-9 px-3 rounded-control text-sm font-medium transition-colors flex items-center gap-1.5 focus-ring ${
                     activeTab === 'job-match'
-                      ? 'bg-blue-50 text-blue-700 font-semibold'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'bg-primary-50 text-primary-700 font-semibold ring-1 ring-inset ring-primary-200/70'
+                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
                   }`}
                 >
-                  <SparklesIcon className="w-4 h-4" />
+                  <SparklesIcon className="w-4 h-4 shrink-0" aria-hidden="true" />
                   <span>Job Match</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => onTabChange('portfolios')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center space-x-1.5 ${
+                  aria-current={activeTab === 'portfolios' ? 'page' : undefined}
+                  className={`h-9 px-3 rounded-control text-sm font-medium transition-colors flex items-center gap-1.5 focus-ring ${
                     activeTab === 'portfolios'
-                      ? 'bg-blue-50 text-blue-700 font-semibold'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'bg-primary-50 text-primary-700 font-semibold ring-1 ring-inset ring-primary-200/70'
+                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
                   }`}
                 >
-                  <GlobeAltIcon className="w-4 h-4" />
+                  <GlobeAltIcon className="w-4 h-4 shrink-0" aria-hidden="true" />
                   <span>Portfolios</span>
                 </button>
               </nav>
@@ -68,14 +93,15 @@ const Header: React.FC<HeaderProps> = ({
 
           {showLogout && (
             <button
+              type="button"
               onClick={onLogout}
-              className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition"
+              className="inline-flex items-center justify-center h-9 px-3.5 border border-neutral-200 text-sm font-medium rounded-control text-neutral-700 bg-white hover:bg-neutral-50 hover:text-neutral-900 transition-colors focus-ring shrink-0"
             >
               Logout
             </button>
           )}
         </div>
-      </div>
+      </Container>
     </header>
   );
 };
