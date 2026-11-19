@@ -13,6 +13,8 @@ import { CompactTemplate } from './CompactTemplate';
 import { TimelineTemplate } from './TimelineTemplate';
 import { BoldHeaderTemplate } from './BoldHeaderTemplate';
 import { ElegantTemplate } from './ElegantTemplate';
+import { AccentSidebarTemplate } from './AccentSidebarTemplate';
+import { BandedTemplate } from './BandedTemplate';
 
 export type TemplateCategory =
   | 'simple'
@@ -322,6 +324,53 @@ export const templateRegistry: TemplateDefinition[] = [
       lineHeight: 1.52,
     },
     component: ElegantTemplate,
+  },
+  {
+    id: 'accent-sidebar',
+    name: 'Accent Sidebar',
+    description:
+      'Full-height solid accent sidebar with monogram badge and white typography paired with a crisp main column.',
+    category: 'modern',
+    layout: 'sidebar-left',
+    atsFriendly: false,
+    defaultTheme: {
+      fontPairingId: 'modern-sans',
+      primaryColor: '#1e293b',
+      accentColor: '#2563eb',
+      textColor: '#334155',
+      headingColor: '#0f172a',
+      sectionSpacing: 'normal',
+      pageMargins: 'narrow',
+      headingStyle: 'underline',
+      skillStyle: 'chips',
+      sidebarWidth: 33,
+      fontScale: 0.98,
+      lineHeight: 1.5,
+    },
+    component: AccentSidebarTemplate,
+  },
+  {
+    id: 'banded',
+    name: 'Banded',
+    description:
+      'Structured horizontal section bands with a narrow side-rule label rail and subtle alternating row tints.',
+    category: 'professional',
+    layout: 'single',
+    atsFriendly: true,
+    defaultTheme: {
+      fontPairingId: 'modern-sans',
+      primaryColor: '#1e293b',
+      accentColor: '#0f766e',
+      textColor: '#334155',
+      headingColor: '#0f172a',
+      sectionSpacing: 'normal',
+      pageMargins: 'narrow',
+      headingStyle: 'side-label',
+      skillStyle: 'columns',
+      fontScale: 0.97,
+      lineHeight: 1.48,
+    },
+    component: BandedTemplate,
   },
 ];
 
