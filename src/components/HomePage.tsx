@@ -14,6 +14,10 @@ import { Container } from './ui/container';
 
 interface HomePageProps {
   onLogout?: () => void;
+  user?: {
+    name?: string;
+    email?: string;
+  } | null;
 }
 
 const formatResumeCountSubtitle = (count: number | null): string => {
@@ -29,7 +33,7 @@ const formatResumeCountSubtitle = (count: number | null): string => {
   return `${count} resumes · Manage, customize, and share your CVs`;
 };
 
-export default function HomePage({ onLogout }: HomePageProps) {
+export default function HomePage({ onLogout, user }: HomePageProps) {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const tabParam = urlParams?.get('tab');
   const initialTab: AppTab = tabParam === 'portfolios' || tabParam === 'job-match' ? tabParam : 'resumes';
@@ -63,10 +67,13 @@ export default function HomePage({ onLogout }: HomePageProps) {
     }
     setLoading(true);
     try {
-      const result = await resumeService.generateFromPrompt(prompt);
+      const resume = await resumeService.generateFromPrompt(prompt, {
+        name: user?.name?.trim() || 'Your Name',
+        email: user?.email?.trim() || 'you@example.com',
+      });
       toast.success('Resume generated successfully!');
       setShowPromptModal(false);
-      setSelectedResume(result.resume);
+      setSelectedResume(resume);
       setActiveView('editor');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to generate resume');
