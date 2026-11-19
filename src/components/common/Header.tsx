@@ -132,7 +132,7 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <header
       ref={headerRef}
-      className="bg-white/95 backdrop-blur-sm border-b border-neutral-200/80 shadow-header fixed top-0 left-0 right-0 z-20"
+      className="bg-white/95 backdrop-blur-sm border-b border-neutral-200/80 shadow-header fixed top-0 left-0 right-0 z-20 print:hidden"
     >
       <Container>
         <div className="flex justify-between items-center h-16 gap-2 sm:gap-3">

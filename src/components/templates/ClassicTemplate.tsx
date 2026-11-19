@@ -32,8 +32,9 @@ const ClassicTemplateContent: React.FC = () => {
 
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
 
   const hasEnabledSections = (resume.content?.sections || []).some(
@@ -102,6 +103,7 @@ const ClassicTemplateContent: React.FC = () => {
 
       {showSummary && (
         <section
+          className={!hasSummaryText ? 'print:hidden' : undefined}
           style={{
             marginBottom: hasEnabledSections
               ? 'var(--theme-section-spacing, 1.5rem)'

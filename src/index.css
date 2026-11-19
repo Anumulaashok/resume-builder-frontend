@@ -30,6 +30,20 @@
 
   /* Print styles for the resume preview */
   @media print {
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    html,
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
     .resume-preview {
       width: 21cm !important;
       min-height: 29.7cm !important;
