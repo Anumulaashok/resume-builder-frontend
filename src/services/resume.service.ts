@@ -4,26 +4,56 @@ import { JobMatchResult } from "../types/jobMatch";
 
 export type Resume = BaseResume;
 
-interface ResumeWithMeta extends Resume {
+export interface ResumeWithMeta extends Resume {
   id: string;
   userId: string;
   createdAt: string;
   updatedAt: string;
 }
 
-interface AIGenerateResponse {
+export interface AIGenerateResponse {
   success: boolean;
-  resume: ResumeWithMeta;
+  data: ResumeWithMeta;
 }
 
 // Removed mock sections and defaultLocation as they are no longer needed
 
 class ResumeService {
-  async generateFromPrompt(prompt: string): Promise<AIGenerateResponse> {
-    const response = await axiosInstance.post("/api/resumes/generate", {
-      prompt,
+  async generateFromPrompt(
+    prompt: string,
+    basics: { name: string; email: string }
+  ): Promise<ResumeWithMeta> {
+    const createResponse = await axiosInstance.post<{
+      success: boolean;
+      data: ResumeWithMeta;
+    }>("/api/resumes", {
+      title: "AI Draft",
+      content: {
+        basics: {
+          name: basics.name,
+          email: basics.email,
+        },
+        sections: [],
+        sectionOrder: [],
+      },
     });
-    return response.data;
+
+    const createdResume =
+      createResponse.data?.data ??
+      (createResponse.data as unknown as Partial<ResumeWithMeta>);
+    const newId = createdResume?._id || createdResume?.id;
+
+    if (!newId) {
+      throw new Error("Failed to create draft resume");
+    }
+
+    const response = await axiosInstance.post<AIGenerateResponse>(
+      `/api/resumes/${newId}/generate`,
+      {
+        prompt,
+      }
+    );
+    return response.data.data;
   }
 
   async createResume(resumeData: Partial<Resume>): Promise<ResumeWithMeta> {
