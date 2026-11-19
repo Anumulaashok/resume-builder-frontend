@@ -129,8 +129,9 @@ const SINGLE_DATE_REGEX = new RegExp(
 );
 
 const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+const EMAIL_GLOBAL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const URL_REGEX =
-  /(?:https?:\/\/[^\s|,;)]+|(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s|,;)]*)?)/gi;
+  /(?:https?:\/\/[^\s|,;•·)]+|(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s|,;•·)]*)?)/gi;
 
 const BULLET_PREFIX_REGEX = /^\s*(?:[•●◦▪▸►✓✔*–—-]|(?:\d+\.))\s+/;
 const LINKEDIN_DURATION_SUFFIX_REGEX =
@@ -148,11 +149,56 @@ const ROLE_KEYWORDS_REGEX =
 const COMPANY_KEYWORDS_REGEX =
   /\b(?:inc\.?|llc|corp\.?|corporation|ltd\.?|limited|gmbh|plc|technologies|technology|labs|systems|solutions|group|studio|studios|ventures|partners|consulting|cloud|networks|software|health|bank|capital|media|global|enterprises)\b/i;
 
-const DEGREE_KEYWORDS_REGEX =
-  /\b(?:b\.?s\.?|b\.?a\.?|m\.?s\.?|m\.?a\.?|ph\.?d\.?|m\.?b\.?a\.?|b\.?tech|m\.?tech|b\.?sc|m\.?sc|b\.?eng|m\.?eng|bachelor(?:'s)?|master(?:'s)?|doctor(?:ate)?|associate(?:'s)?|diploma|certificate\s+in|jd|md)\b/i;
+const DEGREE_KEYWORDS_CI_REGEX =
+  /\b(?:b\.?\s*tech\.?|m\.?\s*tech\.?|b\.?\s*sc\.?|m\.?\s*sc\.?|b\.?\s*eng\.?|m\.?\s*eng\.?|b\.?\s*com\.?|m\.?\s*com\.?|b\.?\s*arch\.?|m\.?\s*arch\.?|b\.?\s*pharm\.?|m\.?\s*pharm\.?|b\.?b\.?a\.?|m\.?b\.?a\.?|b\.?c\.?a\.?|m\.?c\.?a\.?|b\.?f\.?a\.?|m\.?f\.?a\.?|ph\.?\s*d\.?|d\.?\s*phil\.?|ed\.?\s*d\.?|j\.?d\.?|m\.?d\.|ll\.?b\.?|ll\.?m\.?|bachelor(?:'s)?|master(?:'s)?|doctor(?:ate)?|associate(?:'s)?|post\s*-?\s*graduate\s+diploma|pgdm|diploma|certificate\s+in)(?=$|[\s,.:;()/|-])/i;
+
+const DEGREE_DOTTED_SHORT_REGEX =
+  /(?:^|[\s,(|/])(?:b\.e\.?|m\.e\.?|b\.s\.?|b\.a\.?|m\.s\.?|m\.a\.?|a\.s\.?|a\.a\.?|m\.d\.?)(?=$|[\s,.:;()/|-])/i;
+
+const DEGREE_UPPER_SHORT_REGEX =
+  /(?:^|[\s,(|/])(?:BE|ME|BS|BA|MS|MA|AS|AA|MD)(?=$|[\s,.:;()/|-])/;
+
+const EXPLICIT_INSTITUTION_NOUN_REGEX =
+  /\b(?:university|universit[aäeé]t?|universidad|college|institute|institution|school|academy|polytechnic|polytechnique|conservatory|seminary|faculty|iit|nit|iiit|bits|iim|iisc|aiims|isi|tifr|mit|caltech|ucla|ucsd|ucsb|uci|ucd|nyu|usc|cmu|gatech|georgia\s+tech|virginia\s+tech|texas\s+tech|eth|epfl|insead|lse|ucl|imperial|tsinghua|peking|nus|ntu|hkust|cuny|suny)\b/i;
 
 const INSTITUTION_KEYWORDS_REGEX =
-  /\b(?:university|college|institute|school|academy|polytechnic|conservatory)\b/i;
+  /\b(?:university|universit[aäeé]t?|universidad|college|institute|institution|school|academy|polytechnic|polytechnique|conservatory|seminary|faculty|iit|nit|iiit|bits|iim|iisc|aiims|isi|tifr|mit|caltech|stanford|harvard|berkeley|ucla|ucsd|ucsb|uci|ucd|nyu|usc|cmu|gatech|georgia\s+tech|virginia\s+tech|texas\s+tech|eth|epfl|insead|lse|ucl|imperial|oxford|cambridge|tsinghua|peking|nus|ntu|hkust|cuny|suny)\b/i;
+
+function isCityStateAbbreviation(text: string): boolean {
+  const trimmed = text.trim();
+  const match = trimmed.match(
+    /^([A-Z][A-Za-z .'-]+),\s*([A-Z]{2})(?:,\s*(?:USA?|United States))?$/
+  );
+  if (!match) return false;
+  const beforeComma = match[1].trim();
+  return (
+    !EXPLICIT_INSTITUTION_NOUN_REGEX.test(beforeComma) &&
+    !DEGREE_KEYWORDS_CI_REGEX.test(beforeComma) &&
+    !DEGREE_DOTTED_SHORT_REGEX.test(beforeComma)
+  );
+}
+
+function hasDegreeKeyword(text: string): boolean {
+  if (!text) return false;
+  if (DEGREE_KEYWORDS_CI_REGEX.test(text) || DEGREE_DOTTED_SHORT_REGEX.test(text)) {
+    return true;
+  }
+  if (isCityStateAbbreviation(text)) {
+    return false;
+  }
+  return DEGREE_UPPER_SHORT_REGEX.test(text);
+}
+
+function hasInstitutionKeyword(text: string): boolean {
+  if (!text) return false;
+  if (EXPLICIT_INSTITUTION_NOUN_REGEX.test(text)) {
+    return true;
+  }
+  if (isCityStateAbbreviation(text) || looksLikeLocationLine(text)) {
+    return false;
+  }
+  return INSTITUTION_KEYWORDS_REGEX.test(text);
+}
 
 const LINKEDIN_UI_NOISE_REGEX =
   /^(?:contact|500\+\s+connections|\d+\s+connections|\d+\s+followers|connect|message|more|page\s+\d+\s+of\s+\d+|show\s+all\s+.+)$/i;
@@ -263,23 +309,68 @@ function detectHeading(rawLine: string): { kind: ParsedBlockKind; title: string 
   return null;
 }
 
-function extractPhone(text: string): string {
-  // Match phone numbers while avoiding 4-digit year ranges like 2020 - 2024
-  const candidates = text.match(
-    /(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)[\s.-]?|\d{2,4}[\s.-])\d{3,4}[\s.-]\d{3,4}\b/g
-  );
-  if (!candidates) return '';
-  for (let i = 0; i < candidates.length; i += 1) {
-    const raw = candidates[i].trim();
-    if (/^(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)\d{2}$/.test(raw)) {
-      continue;
+function extractAllPhones(text: string): string[] {
+  // Strip emails and URLs first so numeric segments inside links/handles are never matched as phones
+  const sanitized = text
+    .replace(EMAIL_GLOBAL_REGEX, ' ')
+    .replace(URL_REGEX, ' ');
+
+  const results: string[] = [];
+  const seen = new Set<string>();
+
+  const addCandidate = (rawCandidate: string, isInternational: boolean) => {
+    const cleaned = rawCandidate
+      .replace(/^[^\d+(]+/, '')
+      .replace(/[.,;:\s-]+$/, '')
+      .trim();
+    if (!cleaned) return;
+    // Reject 4-digit year ranges like 2020 - 2024 or ISO dates like 2022-05-01
+    if (/^(?:19|20)\d{2}\s*[-–—.]\s*(?:19|20)\d{2}$/.test(cleaned)) {
+      return;
     }
-    const digitsOnly = raw.replace(/\D/g, '');
-    if (digitsOnly.length >= 7 && digitsOnly.length <= 15) {
-      return raw;
+    if (!isInternational && /^(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(cleaned)) {
+      return;
+    }
+    const digitsOnly = cleaned.replace(/\D/g, '');
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      return;
+    }
+    if (!seen.has(cleaned)) {
+      seen.add(cleaned);
+      results.push(cleaned);
+    }
+  };
+
+  // Process line-by-line using horizontal separators only so phone matches never span newlines
+  const lines = sanitized.split(/\r?\n/);
+  const intlRegex =
+    /(?:^|[^\w+])((?:\(\+\d{1,4}\)|\+\d{1,4})(?:[ \t.–—-]*\(\d{1,5}\)|[ \t.–—-]*\d+)+)/g;
+  const domesticRegex =
+    /(?:\b\d{1,3}[ \t.-])?(?:\(\d{2,5}\)[ \t.-]*\d{3,5}(?:[ \t.-]*\d{2,5})+|\b\d{2,5}[ \t.-]\d{3,5}(?:[ \t.-]\d{2,5})+\b|\b0\d{4,5}[ \t.-]\d{5,6}\b)/g;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    let remainingLine = line;
+
+    let match: RegExpExecArray | null;
+    intlRegex.lastIndex = 0;
+    while ((match = intlRegex.exec(line)) !== null) {
+      const candidate = match[1];
+      addCandidate(candidate, true);
+      remainingLine = remainingLine.replace(candidate, ' ');
+    }
+
+    domesticRegex.lastIndex = 0;
+    while ((match = domesticRegex.exec(remainingLine)) !== null) {
+      addCandidate(match[0], false);
     }
   }
-  return '';
+
+  return results;
+}
+
+function extractPhone(text: string): string {
+  return extractAllPhones(text)[0] || '';
 }
 
 function extractLinks(text: string): {
@@ -344,7 +435,7 @@ function looksLikeLocationLine(line: string): boolean {
   const trimmed = stripLinkedInAnnotations(line);
   if (!trimmed || trimmed.length > 65) return false;
   if (EMAIL_REGEX.test(trimmed) || /https?:\/\//i.test(trimmed)) return false;
-  if (ROLE_KEYWORDS_REGEX.test(trimmed) || DEGREE_KEYWORDS_REGEX.test(trimmed)) {
+  if (ROLE_KEYWORDS_REGEX.test(trimmed) || hasDegreeKeyword(trimmed)) {
     return false;
   }
   // e.g. "San Francisco, CA", "Seattle, WA, USA", "London, United Kingdom", "Greater Boston Area"
@@ -650,6 +741,101 @@ function parseWorkOrVolunteerItems(
     .filter((it): it is WorkItem | OrganizationItem => it !== null);
 }
 
+const ABBREV_DEGREE_TOKEN_SOURCE =
+  '(?:b\\.?\\s*tech\\.?|m\\.?\\s*tech\\.?|b\\.?\\s*sc\\.?|m\\.?\\s*sc\\.?|b\\.?\\s*eng\\.?|m\\.?\\s*eng\\.?|b\\.?\\s*com\\.?|m\\.?\\s*com\\.?|b\\.?\\s*arch\\.?|m\\.?\\s*arch\\.?|b\\.?\\s*pharm\\.?|m\\.?\\s*pharm\\.?|b\\.?b\\.?a\\.?|m\\.?b\\.?a\\.?|b\\.?c\\.?a\\.?|m\\.?c\\.?a\\.?|b\\.?f\\.?a\\.?|m\\.?f\\.?a\\.?|ph\\.?\\s*d\\.?|d\\.?\\s*phil\\.?|ed\\.?\\s*d\\.?|j\\.?d\\.?|m\\.?d\\.|ll\\.?b\\.?|ll\\.?m\\.?|b\\.e\\.?|m\\.e\\.?|b\\.s\\.?|b\\.a\\.?|m\\.s\\.?|m\\.a\\.?|a\\.s\\.?|a\\.a\\.?|pgdm)(?:\\s*\\((?:hons\\.?|honors|honours)\\))?';
+
+const ABBREV_DEGREE_CI_EXACT_REGEX = new RegExp(`^${ABBREV_DEGREE_TOKEN_SOURCE}$`, 'i');
+const ABBREV_DEGREE_CS_EXACT_REGEX =
+  /^(?:BE|ME|BS|BA|MS|MA|AS|AA|MD)(?:\s*\((?:Hons\.?|Honors|Honours)\))?$/;
+
+const ABBREV_DEGREE_CI_PREFIX_REGEX = new RegExp(
+  `^(${ABBREV_DEGREE_TOKEN_SOURCE})(?:\\s*[,:-]\\s*|\\s+)(.+)$`,
+  'i'
+);
+const ABBREV_DEGREE_CS_PREFIX_REGEX =
+  /^((?:BE|ME|BS|BA|MS|MA|AS|AA|MD)(?:\s*\((?:Hons\.?|Honors|Honours)\))?)(?:\s*[,:-]\s*|\s+)(.+)$/;
+
+const WORD_DEGREE_EXACT_REGEX =
+  /^(?:bachelor(?:'s)?|master(?:'s)?|doctor(?:ate)?|associate(?:'s)?|post\s*-?\s*graduate\s+diploma|diploma|certificate)(?:\s+of\s+[A-Za-z][A-Za-z\s&.'-]*)?$/i;
+
+function isBareDegreeToken(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return (
+    ABBREV_DEGREE_CI_EXACT_REGEX.test(trimmed) ||
+    ABBREV_DEGREE_CS_EXACT_REGEX.test(trimmed) ||
+    WORD_DEGREE_EXACT_REGEX.test(trimmed)
+  );
+}
+
+function parseDegreeSegment(raw: string): { degree: string; field: string } {
+  const cleaned = raw.trim().replace(/^[,;:\s]+|[,;:\s]+$/g, '');
+  if (!cleaned) return { degree: '', field: '' };
+
+  // 1. "Bachelor of Technology in Computer Science" / "Master of Science in AI"
+  const ofInMatch = cleaned.match(
+    /^(bachelor(?:'s)?|master(?:'s)?|doctor(?:ate)?|associate(?:'s)?)\s+of\s+([A-Za-z][A-Za-z\s&.'-]*?)\s+in\s+(.+)$/i
+  );
+  if (ofInMatch) {
+    return {
+      degree: `${ofInMatch[1]} of ${ofInMatch[2].trim()}`,
+      field: ofInMatch[3].trim(),
+    };
+  }
+
+  // 2. "Bachelor of Science: Computer Science" / "Bachelor of Arts - Economics"
+  const ofDelimMatch = cleaned.match(
+    /^(bachelor(?:'s)?|master(?:'s)?|doctor(?:ate)?|associate(?:'s)?)\s+of\s+([A-Za-z][A-Za-z\s&.'-]*?)\s*[,:-]\s*(.+)$/i
+  );
+  if (ofDelimMatch) {
+    return {
+      degree: `${ofDelimMatch[1]} of ${ofDelimMatch[2].trim()}`,
+      field: ofDelimMatch[3].trim(),
+    };
+  }
+
+  // 3. "Degree in Field" for any recognised degree prefix (e.g. "B.Tech in Computer Science", "BS in CS", "MBA in Finance")
+  const inMatch = cleaned.match(/^(.+?)\s+in\s+(.+)$/i);
+  if (inMatch && isBareDegreeToken(inMatch[1])) {
+    return {
+      degree: inMatch[1].trim(),
+      field: inMatch[2].trim(),
+    };
+  }
+
+  // 4. Parenthetical field: "B.Tech (Computer Science)" / "Bachelor of Engineering (ECE)"
+  const parenMatch = cleaned.match(/^(.+?)\s*\(([^()]+)\)\s*$/);
+  if (
+    parenMatch &&
+    isBareDegreeToken(parenMatch[1]) &&
+    !/^(?:hons\.?|honors|honours|\d.*)$/i.test(parenMatch[2].trim())
+  ) {
+    return {
+      degree: parenMatch[1].trim(),
+      field: parenMatch[2].trim(),
+    };
+  }
+
+  // 5. Abbreviated degree followed directly by field: "B.Tech Computer Science", "B.E. Mechanical Engineering", "BFA, Industrial Design"
+  const csPrefix = cleaned.match(ABBREV_DEGREE_CS_PREFIX_REGEX);
+  if (csPrefix && !/^of\b/i.test(csPrefix[2].trim())) {
+    return {
+      degree: csPrefix[1].trim(),
+      field: csPrefix[2].trim(),
+    };
+  }
+
+  const ciPrefix = cleaned.match(ABBREV_DEGREE_CI_PREFIX_REGEX);
+  if (ciPrefix && !/^of\b/i.test(ciPrefix[2].trim())) {
+    return {
+      degree: ciPrefix[1].trim(),
+      field: ciPrefix[2].trim(),
+    };
+  }
+
+  return { degree: cleaned, field: '' };
+}
+
 function parseEducationItems(lines: string[]): EducationItem[] {
   interface EduDraft {
     lines: string[];
@@ -665,6 +851,26 @@ function parseEducationItems(lines: string[]): EducationItem[] {
     const draft: EduDraft = { lines: [], dateInfo: null, singleYear: '', bullets: [] };
     drafts.push(draft);
     return draft;
+  };
+
+  const draftHasBothInstitutionAndDegree = (draft: EduDraft): boolean => {
+    let hasInst = false;
+    let hasDeg = false;
+    for (let j = 0; j < draft.lines.length; j += 1) {
+      const dl = draft.lines[j];
+      if (hasInstitutionKeyword(dl)) hasInst = true;
+      if (hasDegreeKeyword(dl)) hasDeg = true;
+      if (!hasInst && hasDegreeKeyword(dl) && dl.includes(',')) {
+        const commaParts = dl
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean);
+        if (commaParts.some((p) => !hasDegreeKeyword(p) && !looksLikeLocationLine(p))) {
+          hasInst = true;
+        }
+      }
+    }
+    return hasInst && hasDeg;
   };
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -697,21 +903,18 @@ function parseEducationItems(lines: string[]): EducationItem[] {
       continue;
     }
 
-    // If current already has both an institution line and a degree line, start a new education entry when another institution/degree header appears
+    // If current already has both an institution and a degree, start a new education entry when another institution/degree header appears
     if (
       current &&
-      current.lines.length >= 2 &&
-      (INSTITUTION_KEYWORDS_REGEX.test(trimmed) || DEGREE_KEYWORDS_REGEX.test(trimmed))
+      current.lines.length >= 1 &&
+      (hasInstitutionKeyword(trimmed) || hasDegreeKeyword(trimmed)) &&
+      draftHasBothInstitutionAndDegree(current)
     ) {
-      const hasExistingInst = current.lines.some((l) => INSTITUTION_KEYWORDS_REGEX.test(l));
-      const hasExistingDeg = current.lines.some((l) => DEGREE_KEYWORDS_REGEX.test(l));
-      if (hasExistingInst && hasExistingDeg) {
-        current = null;
-      }
+      current = null;
     }
 
     const singleDate = extractSingleDateFromLine(trimmed);
-    if (singleDate && !trimmed.includes('GPA')) {
+    if (singleDate && !/\b(?:GPA|CGPA)\b/i.test(trimmed)) {
       if (!current) {
         current = createEduDraft();
       }
@@ -739,47 +942,154 @@ function parseEducationItems(lines: string[]): EducationItem[] {
       let score = '';
       const extraDesc: string[] = [];
 
-      // Split pipe/dash combined single-line education headers
-      const expandedLines: string[] = [];
-      draft.lines.forEach((l) => {
-        const parts = l.split(/\s*(?:\||—|–|\s-\s)\s*/).filter(Boolean);
-        if (parts.length > 1) {
-          parts.forEach((p) => expandedLines.push(p.trim()));
+      // Split pipe/dash combined single-line education headers and extract GPA tokens cleanly
+      const clauses: string[] = [];
+      draft.lines.forEach((rawLine) => {
+        const parts = rawLine.split(/\s*(?:\||—|–|\s-\s)\s*/).filter(Boolean);
+        parts.forEach((part) => {
+          let working = part.trim();
+          const gpaMatch = working.match(
+            /\b(?:CGPA|GPA)\s*[:=-]?\s*([\d.]+(?:\s*\/\s*[\d.]+)?)/i
+          );
+          if (gpaMatch) {
+            if (!score) {
+              score = gpaMatch[1].trim();
+            }
+            working = working
+              .replace(gpaMatch[0], '')
+              .replace(/^[\s,·•-]+|[\s,·•-]+$/g, '')
+              .trim();
+          }
+          if (working) {
+            clauses.push(working);
+          }
+        });
+      });
+
+      const hasSeparateInstitutionClause = clauses.some(
+        (c) => hasInstitutionKeyword(c) && !hasDegreeKeyword(c)
+      );
+
+      // Expand comma-separated degree + institution lines regardless of order
+      const normalizedClauses: string[] = [];
+      clauses.forEach((clause) => {
+        if (!clause.includes(',') || !hasDegreeKeyword(clause)) {
+          normalizedClauses.push(clause);
+          return;
+        }
+
+        const commaParts = clause
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean);
+
+        if (commaParts.length === 2) {
+          const [first, second] = commaParts;
+          const firstHasDeg = hasDegreeKeyword(first);
+          const secondHasDeg = hasDegreeKeyword(second);
+
+          if (firstHasDeg && !secondHasDeg) {
+            const parsedFirst = parseDegreeSegment(first);
+            const secondHasInst = hasInstitutionKeyword(second);
+            // If first already includes a field (e.g. "B.Tech Computer Science, IIT Delhi")
+            // or second clearly names an institution (e.g. "MBA, Harvard Business School"),
+            // split into separate degree and institution clauses.
+            // Otherwise (e.g. "BFA, Industrial Design" alongside a separate school line), keep as Degree + Field.
+            if (parsedFirst.field || secondHasInst || (!hasSeparateInstitutionClause && isCityStateAbbreviation(clause) === false && /^[A-Z]/.test(second) && /\b(?:tech|state|national|central|indian|american|british|royal|imperial)\b/i.test(second))) {
+              normalizedClauses.push(first, second);
+            } else {
+              normalizedClauses.push(clause);
+            }
+            return;
+          }
+
+          if (!firstHasDeg && secondHasDeg) {
+            normalizedClauses.push(first, second);
+            return;
+          }
+        }
+
+        if (commaParts.length >= 3) {
+          const degIdx = commaParts.findIndex((p) => hasDegreeKeyword(p));
+          if (degIdx === 0) {
+            const parsedFirst = parseDegreeSegment(commaParts[0]);
+            const tail = commaParts.slice(1);
+            if (!parsedFirst.field && !hasInstitutionKeyword(tail[0])) {
+              // e.g. "B.S., Computer Science, Stanford University"
+              normalizedClauses.push(`${commaParts[0]}, ${tail[0]}`);
+              const restTail = tail.slice(1).join(', ');
+              if (restTail) normalizedClauses.push(restTail);
+            } else {
+              normalizedClauses.push(commaParts[0]);
+              if (
+                tail.length === 2 &&
+                /\buniversity\s+of\b|\bstate\s+university\b|\binstitute\s+of\s+technology\b/i.test(
+                  tail[0]
+                )
+              ) {
+                normalizedClauses.push(`${tail[0]}, ${tail[1]}`);
+              } else if (tail.length === 2 && looksLikeLocationLine(`${tail[1]}`)) {
+                normalizedClauses.push(tail[0], tail[1]);
+              } else {
+                normalizedClauses.push(tail.join(', '));
+              }
+            }
+            return;
+          }
+          if (degIdx > 0) {
+            const beforeDeg = commaParts.slice(0, degIdx).join(', ');
+            const degAndAfter = commaParts.slice(degIdx);
+            normalizedClauses.push(beforeDeg);
+            if (
+              degAndAfter.length >= 2 &&
+              isBareDegreeToken(degAndAfter[0]) &&
+              !hasInstitutionKeyword(degAndAfter[1]) &&
+              !looksLikeLocationLine(degAndAfter.slice(1).join(', '))
+            ) {
+              normalizedClauses.push(`${degAndAfter[0]}, ${degAndAfter[1]}`);
+              const trailing = degAndAfter.slice(2).join(', ');
+              if (trailing) normalizedClauses.push(trailing);
+            } else {
+              normalizedClauses.push(degAndAfter[0]);
+              const trailing = degAndAfter.slice(1).join(', ');
+              if (trailing) normalizedClauses.push(trailing);
+            }
+            return;
+          }
+        }
+
+        normalizedClauses.push(clause);
+      });
+
+      const unclassified: string[] = [];
+
+      normalizedClauses.forEach((line) => {
+        if (!degree && hasDegreeKeyword(line)) {
+          const parsedDeg = parseDegreeSegment(line);
+          degree = parsedDeg.degree;
+          if (parsedDeg.field && !field) {
+            field = parsedDeg.field;
+          }
+        } else if (!institution && hasInstitutionKeyword(line)) {
+          institution = line;
+        } else if (!location && looksLikeLocationLine(line)) {
+          location = line;
         } else {
-          expandedLines.push(l);
+          unclassified.push(line);
         }
       });
 
-      expandedLines.forEach((line) => {
-        const gpaMatch = line.match(/\bGPA\s*[:=-]?\s*([\d.]+(?:\s*\/\s*[\d.]+)?)/i);
-        if (gpaMatch && !score) {
-          score = gpaMatch[1].trim();
-          const rest = line.replace(gpaMatch[0], '').replace(/^[\s,·•-]+|[\s,·•-]+$/g, '');
-          if (!rest) return;
-        }
-
-        if (!institution && INSTITUTION_KEYWORDS_REGEX.test(line)) {
-          institution = line;
-        } else if (!degree && DEGREE_KEYWORDS_REGEX.test(line)) {
-          const inSplit = line.match(/^(.+?)\s+(?:in|of)\s+(.+)$/i);
-          if (inSplit && /^(?:b\.?[sa]\.?|m\.?[sa]\.?|ph\.?d\.?|bachelor(?:'s)?|master(?:'s)?|associate(?:'s)?|doctor(?:ate)?)$/i.test(inSplit[1].trim())) {
-            degree = inSplit[1].trim();
-            field = inSplit[2].trim();
-          } else {
-            const commaSplit = line.split(',').map((s) => s.trim());
-            if (commaSplit.length === 2 && DEGREE_KEYWORDS_REGEX.test(commaSplit[0])) {
-              degree = commaSplit[0];
-              field = commaSplit[1];
-            } else {
-              degree = line;
-            }
-          }
-        } else if (!location && looksLikeLocationLine(line)) {
-          location = line;
-        } else if (!institution) {
+      unclassified.forEach((line) => {
+        if (!institution) {
           institution = line;
         } else if (!degree) {
-          degree = line;
+          const parsedDeg = parseDegreeSegment(line);
+          degree = parsedDeg.degree;
+          if (parsedDeg.field && !field) {
+            field = parsedDeg.field;
+          }
+        } else if (!field && isBareDegreeToken(degree) && line.length <= 60) {
+          field = line;
         } else {
           extraDesc.push(line);
         }
@@ -1243,8 +1553,28 @@ export function parseResumeText(rawText: string): IResume {
   // Extract contact details primarily from header, falling back to full text for email/phone
   const emailMatch = headerText.match(EMAIL_REGEX) || rawText.match(EMAIL_REGEX);
   const email = emailMatch ? emailMatch[0].trim() : '';
-  const phone = extractPhone(headerText) || extractPhone(rawText);
+  const headerPhones = extractAllPhones(headerText);
+  const phone = headerPhones[0] || extractPhone(rawText);
   const { website, profiles, matchedTokens } = extractLinks(headerText);
+
+  const contactLabelOnlyRegex =
+    /^(?:e-?mail|phone|mobile|cell|tel(?:ephone)?|whatsapp|telegram|skype|linkedin|github|gitlab|portfolio|website|web|twitter|x)\s*[:=-]?$/i;
+  const contactLabelPrefixRegex =
+    /^(?:e-?mail|phone|mobile|cell|tel(?:ephone)?|whatsapp|telegram|skype|linkedin|github|gitlab|portfolio|website|web|twitter|x)\s*[:=-]\s*(.+)$/i;
+  const looksLikeResidualContactFragment = (seg: string): boolean => {
+    const t = seg.trim();
+    if (!t) return true;
+    if (contactLabelOnlyRegex.test(t)) return true;
+    if (EMAIL_REGEX.test(t)) return true;
+    if (/^@[a-z0-9_.-]{2,39}$/i.test(t)) return true;
+    if (/^(?:https?:\/\/|www\.)/i.test(t)) return true;
+    if (extractAllPhones(t).length > 0) return true;
+    // Numeric/phone-like token (e.g. "+91 90000 11111" or dial fragments with >= 6 digits and no letters)
+    const digits = t.replace(/\D/g, '');
+    if (digits.length >= 6 && !/[A-Za-z]{2,}/.test(t)) return true;
+    if (contactLabelPrefixRegex.test(t)) return true;
+    return false;
+  };
 
   let name = '';
   let label = '';
@@ -1255,19 +1585,92 @@ export function parseResumeText(rawText: string): IResume {
     const trimmed = rawLine.trim();
     if (!trimmed || LINKEDIN_UI_NOISE_REGEX.test(trimmed)) return;
 
-    // Remove email, phone, and URLs from header line to see if name/title/location remains
-    let stripped = trimmed;
-    if (email) stripped = stripped.replace(email, '');
-    if (phone) stripped = stripped.replace(phone, '');
-    matchedTokens.forEach((tok) => {
-      stripped = stripped.replace(tok, '');
-    });
-    stripped = stripped
+    const linePhones = extractAllPhones(trimmed);
+    const lineLinks = extractLinks(trimmed).matchedTokens;
+    const lineHasEmail = EMAIL_REGEX.test(trimmed);
+    const lineHasHandle = /(?:^|[\s|,;•·])@[a-z0-9_.-]{2,39}(?=$|[\s|,;•·])/i.test(trimmed);
+    const lineHasContactLabel =
+      /\b(?:e-?mail|phone|mobile|cell|tel(?:ephone)?|whatsapp|linkedin|github|gitlab|portfolio|website)\s*[:=-]/i.test(
+        trimmed
+      );
+    const isContactLine =
+      lineHasEmail ||
+      linePhones.length > 0 ||
+      lineLinks.length > 0 ||
+      lineHasHandle ||
+      lineHasContactLabel;
+
+    if (isContactLine) {
+      // Replace contact tokens with pipe delimiters so internal commas inside locations ("San Francisco, CA") stay intact
+      let working = trimmed.replace(EMAIL_GLOBAL_REGEX, ' | ');
+      const phonesToStrip = Array.from(new Set([...headerPhones, ...linePhones])).sort(
+        (a, b) => b.length - a.length
+      );
+      phonesToStrip.forEach((ph) => {
+        if (ph) working = working.split(ph).join(' | ');
+      });
+      const linksToStrip = Array.from(new Set([...matchedTokens, ...lineLinks])).sort(
+        (a, b) => b.length - a.length
+      );
+      linksToStrip.forEach((tok) => {
+        if (tok) working = working.split(tok).join(' | ');
+      });
+      working = working.replace(
+        /(?:^|[\s|,;•·])@[a-z0-9_.-]{2,39}(?=$|[\s|,;•·])/gi,
+        ' | '
+      );
+
+      const nonContactSegments = working
+        .split(/\s*(?:\||•|·|;)\s*/)
+        .map((seg) =>
+          seg
+            .replace(/^[\s,–—-]+|[\s,–—-]+$/g, '')
+            .replace(
+              /^(?:e-?mail|phone|mobile|cell|tel(?:ephone)?|whatsapp|telegram|skype|linkedin|github|gitlab|portfolio|website|web|twitter|x)\s*[:=-]\s*$/i,
+              ''
+            )
+            .trim()
+        )
+        .filter((seg) => seg.length > 0 && !looksLikeResidualContactFragment(seg));
+
+      if (nonContactSegments.length === 0) return;
+
+      if (!name) {
+        name = nonContactSegments[0];
+        for (let sIdx = 1; sIdx < nonContactSegments.length; sIdx += 1) {
+          const seg = nonContactSegments[sIdx];
+          if (!locationRaw && looksLikeLocationLine(seg)) {
+            locationRaw = seg;
+          } else if (!label && seg.length <= 85 && !/[.!]$/.test(seg)) {
+            label = seg;
+          }
+        }
+        return;
+      }
+
+      // On subsequent contact lines, allow extracting location or a clear role title,
+      // and NEVER leak leftover contact-line segments into summaryParts.
+      nonContactSegments.forEach((seg) => {
+        if (!locationRaw && looksLikeLocationLine(seg)) {
+          locationRaw = seg;
+        } else if (
+          !label &&
+          ROLE_KEYWORDS_REGEX.test(seg) &&
+          seg.length <= 85 &&
+          !/[.!]$/.test(seg)
+        ) {
+          label = seg;
+        }
+      });
+      return;
+    }
+
+    const stripped = trimmed
       .replace(/^[\s|•·,–—-]+|[\s|•·,–—-]+$/g, '')
       .replace(/(?:\s*[|•·]\s*){2,}/g, ' | ')
       .trim();
 
-    if (!stripped) return;
+    if (!stripped || looksLikeResidualContactFragment(stripped)) return;
 
     if (!name) {
       const pipeParts = stripped

@@ -4,8 +4,10 @@ import '@testing-library/jest-dom';
 import JobTracker, { computeBoardMove, formatDaysSinceApplied } from '../JobTracker';
 import HomePage from '../../HomePage';
 import { applicationService } from '../../../services/application.service';
+import { coverLetterService } from '../../../services/coverLetter.service';
 import { resumeService } from '../../../services/resume.service';
 import { IJobApplication } from '../../../types/application';
+import { ICoverLetter } from '../../../types/coverLetter';
 
 jest.mock('react-resizable-panels', () => ({
   PanelGroup: ({ children }: any) => <div>{children}</div>,
@@ -33,6 +35,39 @@ jest.mock('../../../services/resume.service', () => ({
     generateFromPrompt: jest.fn(),
   },
 }));
+
+jest.mock('../../../services/coverLetter.service', () => ({
+  coverLetterService: {
+    getCoverLetters: jest.fn(),
+    getCoverLetterById: jest.fn(),
+    createCoverLetter: jest.fn(),
+    updateCoverLetter: jest.fn(),
+    deleteCoverLetter: jest.fn(),
+    generateCoverLetter: jest.fn(),
+    exportCoverLetterTxt: jest.fn(),
+  },
+}));
+
+const mockCoverLetters: ICoverLetter[] = [
+  {
+    id: '507f1f77bcf86cd7994390a1',
+    _id: '507f1f77bcf86cd7994390a1',
+    title: 'Stripe Senior Frontend Cover Letter',
+    company: 'Stripe',
+    jobTitle: 'Senior Frontend Engineer',
+    tone: 'formal',
+    body: 'Dear Stripe Hiring Team...',
+  },
+  {
+    id: '507f1f77bcf86cd7994390a2',
+    _id: '507f1f77bcf86cd7994390a2',
+    title: 'Vercel Design Systems Cover Letter',
+    company: 'Vercel',
+    jobTitle: 'Design Engineer',
+    tone: 'conversational',
+    body: 'Hello Vercel Team...',
+  },
+];
 
 const mockResumes: any[] = [
   {
@@ -150,6 +185,7 @@ describe('<JobTracker />', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (resumeService.getResumes as jest.Mock).mockResolvedValue(mockResumes);
+    (coverLetterService.getCoverLetters as jest.Mock).mockResolvedValue(mockCoverLetters);
     (applicationService.getApplications as jest.Mock).mockResolvedValue(sampleApplications());
     (applicationService.reorderApplications as jest.Mock).mockResolvedValue(undefined);
   });
@@ -381,5 +417,104 @@ describe('<JobTracker />', () => {
     });
 
     confirmSpy.mockRestore();
+  });
+
+  it("populates Linked cover letter select from GET /api/cover-letters with 'None' option and shows linked cover letter title on the card", async () => {
+    const appsWithCoverLetter = sampleApplications().map((app) =>
+      app.id === 'app-1'
+        ? { ...app, coverLetterId: '507f1f77bcf86cd7994390a1' }
+        : app
+    );
+    (applicationService.getApplications as jest.Mock).mockResolvedValueOnce(
+      appsWithCoverLetter
+    );
+    (applicationService.updateApplication as jest.Mock).mockImplementation(
+      async (id: string, payload: any) => ({
+        ...appsWithCoverLetter.find((a) => a.id === id),
+        id,
+        _id: id,
+        ...payload,
+      })
+    );
+
+    render(<JobTracker onCheckMatch={jest.fn()} />);
+    await screen.findByText('Stripe');
+
+    expect(coverLetterService.getCoverLetters).toHaveBeenCalledTimes(1);
+
+    // Linked cover letter title renders directly on the Stripe card
+    const stripeCard = screen.getByTestId('application-card-app-1');
+    expect(
+      within(stripeCard).getByText('Stripe Senior Frontend Cover Letter')
+    ).toBeInTheDocument();
+
+    // Unlinked card does not show cover letter badge
+    const vercelCard = screen.getByTestId('application-card-app-2');
+    expect(
+      within(vercelCard).queryByTestId('application-card-cover-letter-app-2')
+    ).not.toBeInTheDocument();
+
+    // Open Vercel card drawer -> verify <select> with 'None' and user's cover letters (no free-text ObjectId input)
+    fireEvent.click(screen.getByRole('button', { name: /open details for vercel/i }));
+    const drawer = screen.getByTestId('application-detail-drawer');
+    expect(within(drawer).queryByText(/cover letter id/i)).not.toBeInTheDocument();
+
+    const coverLetterSelect = within(drawer).getByLabelText(
+      /linked cover letter/i
+    ) as HTMLSelectElement;
+    expect(coverLetterSelect.tagName).toBe('SELECT');
+    expect(coverLetterSelect.value).toBe('');
+
+    const optionLabels = Array.from(coverLetterSelect.options).map((o) => o.textContent);
+    expect(optionLabels).toEqual([
+      'None',
+      'Stripe Senior Frontend Cover Letter',
+      'Vercel Design Systems Cover Letter',
+    ]);
+
+    // Link Vercel cover letter and save -> card now displays linked cover letter title
+    fireEvent.change(coverLetterSelect, {
+      target: { value: '507f1f77bcf86cd7994390a2' },
+    });
+    fireEvent.click(within(drawer).getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(applicationService.updateApplication).toHaveBeenCalledWith(
+        'app-2',
+        expect.objectContaining({
+          coverLetterId: '507f1f77bcf86cd7994390a2',
+        })
+      );
+    });
+    expect(
+      within(screen.getByTestId('application-card-app-2')).getByText(
+        'Vercel Design Systems Cover Letter'
+      )
+    ).toBeInTheDocument();
+
+    // Re-open Stripe card and switch Linked cover letter to 'None' -> clears coverLetterId to null
+    fireEvent.click(screen.getByRole('button', { name: /open details for stripe/i }));
+    const stripeDrawer = screen.getByTestId('application-detail-drawer');
+    const stripeClSelect = within(stripeDrawer).getByLabelText(
+      /linked cover letter/i
+    ) as HTMLSelectElement;
+    expect(stripeClSelect.value).toBe('507f1f77bcf86cd7994390a1');
+
+    fireEvent.change(stripeClSelect, { target: { value: '' } });
+    fireEvent.click(within(stripeDrawer).getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(applicationService.updateApplication).toHaveBeenCalledWith(
+        'app-1',
+        expect.objectContaining({
+          coverLetterId: null,
+        })
+      );
+    });
+    expect(
+      within(screen.getByTestId('application-card-app-1')).queryByText(
+        'Stripe Senior Frontend Cover Letter'
+      )
+    ).not.toBeInTheDocument();
   });
 });

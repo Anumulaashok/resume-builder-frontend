@@ -11,7 +11,8 @@ import "@testing-library/jest-dom";
 import { Toaster } from "react-hot-toast";
 import axiosInstance from "../services/axios";
 import { resumeService } from "../services/resume.service";
-import ResumeEditor from "../components/ResumeEditor";
+import ResumeEditor, { normalizeResume } from "../components/ResumeEditor";
+import { buildSnapshotPreviewResume } from "../components/VersionHistoryDrawer";
 import { IResume, SectionType } from "../types/resume";
 import { formatRelativeTime } from "../utils/date";
 
@@ -500,6 +501,168 @@ describe("Version History service, drawer, preview, restore & Undo toast", () =>
           .value
       ).toBe("Current live summary in editor.");
       expect(mockedAxios.put).not.toHaveBeenCalled();
+    });
+
+    it("hydrates Professional Summary in read-only version preview and on restore when snapshots store content only and summary lives in top-level resume.summary", async () => {
+      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const topLevelSummary =
+        "Top-level executive summary stored on resume.summary while snapshot persisted content only.";
+
+      // Verify buildSnapshotPreviewResume matches normalizeResume hydration directly
+      const contentOnlySnapshot = {
+        index: 0,
+        title: "Content-Only Snapshot",
+        content: {
+          basics: {
+            name: "Jordan Snapshot",
+            label: "Staff Frontend Architect",
+            email: "jordan@example.com",
+            phone: "+1 415-555-0199",
+          },
+          sections: [],
+          sectionOrder: [],
+        },
+        updatedAt: tenMinsAgo,
+      };
+      const hydratedPreview = buildSnapshotPreviewResume(
+        contentOnlySnapshot,
+        {
+          _id: "res-vh-top",
+          title: "Principal Frontend Resume",
+          summary: topLevelSummary,
+          templateId: "modern",
+          content: {
+            basics: {
+              name: "Jordan Current",
+              email: "jordan@example.com",
+            },
+            sections: [],
+            sectionOrder: [],
+          },
+        }
+      );
+      expect(hydratedPreview.summary).toBe(topLevelSummary);
+      expect(hydratedPreview.content.basics.summary).toBe(topLevelSummary);
+
+      // 1. GET /api/resumes/res-vh-top/history
+      mockedAxios.get.mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: [
+            {
+              index: 0,
+              updatedAt: tenMinsAgo,
+              title: "Content-Only Snapshot",
+              summary: "0 sections · 24 words",
+              sectionCount: 0,
+              wordCount: 24,
+            },
+          ],
+        },
+      } as any);
+
+      // 2. GET /api/resumes/res-vh-top/history/0 (snapshot stores content only, omitting summary and basics.summary)
+      mockedAxios.get.mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: contentOnlySnapshot,
+        },
+      } as any);
+
+      // 3. POST /api/resumes/res-vh-top/history/0/restore (backend returns top-level summary with content-only basics)
+      mockedAxios.post.mockResolvedValueOnce({
+        data: {
+          success: true,
+          previousSnapshotIndex: 1,
+          data: {
+            _id: "res-vh-top",
+            userId: "u-1",
+            title: "Content-Only Snapshot",
+            summary: topLevelSummary,
+            templateId: "executive",
+            createdAt: tenMinsAgo,
+            updatedAt: new Date().toISOString(),
+            content: {
+              basics: {
+                name: "Jordan Snapshot",
+                label: "Staff Frontend Architect",
+                email: "jordan@example.com",
+              },
+              sections: [],
+              sectionOrder: [],
+            },
+          },
+        },
+      } as any);
+
+      const initialTopSummaryOnlyResume: IResume = {
+        _id: "res-vh-top",
+        title: "Principal Frontend Resume",
+        summary: topLevelSummary,
+        templateId: "executive",
+        content: {
+          basics: {
+            name: "Jordan Current",
+            label: "Principal Engineer",
+            email: "jordan@example.com",
+            summary: "",
+          },
+          sections: [],
+          sectionOrder: [],
+        },
+      };
+
+      expect(normalizeResume(initialTopSummaryOnlyResume).content.basics.summary).toBe(
+        topLevelSummary
+      );
+
+      render(
+        <>
+          <ResumeEditor
+            initialResume={initialTopSummaryOnlyResume}
+            onBack={jest.fn()}
+          />
+          <Toaster />
+        </>
+      );
+
+      // Open Version History drawer
+      fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: /version history/i })
+      );
+
+      const drawer = await screen.findByTestId("version-history-drawer");
+      const previewPage = await within(drawer).findByTestId(
+        "version-history-preview-page"
+      );
+
+      // Read-only preview renders the Professional Summary even though snapshot stored content only
+      expect(within(previewPage).getByText("Jordan Snapshot")).toBeInTheDocument();
+      expect(within(previewPage).getByText(topLevelSummary)).toBeInTheDocument();
+
+      // Restore version and confirm editor textarea + preview stay hydrated via normalizeResume
+      fireEvent.click(within(drawer).getByTestId("restore-version-btn"));
+      const confirmDialog = screen.getByTestId("restore-version-confirm-dialog");
+      await act(async () => {
+        fireEvent.click(
+          within(confirmDialog).getByTestId("confirm-restore-version-btn")
+        );
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("version-history-drawer")
+        ).not.toBeInTheDocument();
+      });
+
+      expect(
+        (screen.getByLabelText("Professional Summary") as HTMLTextAreaElement)
+          .value
+      ).toBe(topLevelSummary);
+      expect((screen.getByLabelText("Full Name") as HTMLInputElement).value).toBe(
+        "Jordan Snapshot"
+      );
     });
   });
 });
