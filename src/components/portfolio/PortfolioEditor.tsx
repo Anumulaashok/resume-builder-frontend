@@ -9,7 +9,8 @@ import {
   PhotoIcon,
   ArrowDownTrayIcon,
   CheckIcon,
-  ClipboardDocumentIcon
+  ClipboardDocumentIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import {
@@ -46,6 +47,14 @@ interface PortfolioEditorProps {
   onBack: () => void;
 }
 
+const INPUT_CLASS =
+  'w-full h-10 px-3 py-2 text-sm bg-white border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500';
+
+const TEXTAREA_CLASS =
+  'w-full px-3 py-2 text-sm bg-white border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 leading-relaxed transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500';
+
+const LABEL_CLASS = 'block text-xs font-medium text-neutral-700 mb-1.5';
+
 // Sortable item wrapper for workspace section ordering
 interface SortableSectionProps {
   id: string;
@@ -62,34 +71,37 @@ const SortableSectionItem: React.FC<SortableSectionProps> = ({ id, title, type, 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.6 : 1
+    opacity: isDragging ? 0.75 : 1
   };
 
   return (
-    <div
+    <section
       ref={setNodeRef}
       style={style}
-      className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4 transition-shadow hover:shadow"
+      className={`bg-white rounded-card border border-neutral-200/90 shadow-card hover:shadow-card-hover overflow-hidden mb-4 transition-shadow ${
+        isDragging ? 'ring-2 ring-primary-500 shadow-card-hover' : ''
+      }`}
     >
-      <div className="flex items-center justify-between px-5 py-3.5 bg-gray-50/80 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
+      <div className="flex items-center justify-between px-5 py-3.5 bg-neutral-50/80 border-b border-neutral-200/80">
+        <div className="flex items-center gap-2.5">
           <button
+            type="button"
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-700 rounded transition"
+            className="cursor-grab active:cursor-grabbing p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 rounded-control transition-colors focus-ring"
             title="Drag to reorder section"
             aria-label={`Drag to reorder ${title}`}
           >
-            <Bars3Icon className="w-5 h-5" />
+            <Bars3Icon className="w-5 h-5" aria-hidden="true" />
           </button>
-          <span className="font-semibold text-sm text-gray-800">{title}</span>
-          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+          <span className="font-semibold text-sm text-neutral-900">{title}</span>
+          <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200/80">
             {type}
           </span>
         </div>
       </div>
       <div className="p-5">{children}</div>
-    </div>
+    </section>
   );
 };
 
@@ -106,6 +118,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
   const [showImportModal, setShowImportModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [scale, setScale] = useState(1);
+  const [mobilePane, setMobilePane] = useState<'editor' | 'preview'>('editor');
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -286,9 +299,10 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
       } else {
         saved = await portfolioService.createPortfolio(portfolio);
       }
-      setPortfolio(saved);
+      const nextPortfolio = saved || portfolio;
+      setPortfolio(nextPortfolio);
       toast.success('Portfolio saved successfully!');
-      onSave?.(saved);
+      onSave?.(nextPortfolio);
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || 'Failed to save portfolio');
     } finally {
@@ -305,7 +319,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
           ...portfolio,
           isPublished: nextPublished
         });
-        setPortfolio(updated);
+        setPortfolio(updated || { ...portfolio, isPublished: nextPublished });
         toast.success(
           nextPublished
             ? 'Portfolio published to vanity URL!'
@@ -346,30 +360,38 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
     .filter((s): s is PortfolioSection => Boolean(s));
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
-      {/* Top Bar */}
-      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 z-20">
-        <div className="flex items-center space-x-3">
+    <div className="flex flex-col h-screen bg-neutral-50 text-neutral-900 overflow-hidden">
+      {/* Consistent Top Bar */}
+      <header className="bg-white/95 backdrop-blur-sm border-b border-neutral-200/80 shadow-header px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 z-20">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
           <button
+            type="button"
             onClick={onBack}
-            className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
+            className="inline-flex items-center gap-1.5 h-9 px-2.5 text-sm font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 rounded-control transition-colors focus-ring shrink-0"
             title="Back to portfolios list"
+            aria-label="Back to portfolios list"
           >
-            <ArrowLeftIcon className="w-5 h-5" />
+            <ArrowLeftIcon className="w-4 h-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Back</span>
           </button>
-          <div>
+
+          <div className="h-6 w-px bg-neutral-200 shrink-0" aria-hidden="true" />
+
+          <div className="min-w-0 flex-1 max-w-md">
             <input
               type="text"
+              aria-label="Portfolio Title"
               value={portfolio.title}
               onChange={(e) => setPortfolio((prev) => ({ ...prev, title: e.target.value }))}
               placeholder="Portfolio Title"
-              className="text-base sm:text-lg font-bold text-gray-900 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1"
+              className="w-full text-base sm:text-lg font-semibold text-neutral-900 bg-transparent border-b border-transparent hover:border-neutral-300 focus:border-primary-500 focus:outline-none px-1 py-0.5 rounded-t transition-colors"
             />
-            <div className="flex items-center text-xs text-gray-500 mt-0.5 space-x-1">
-              <span>Vanity URL:</span>
-              <span className="font-mono text-gray-700">/p/</span>
+            <div className="flex items-center text-xs text-neutral-500 mt-0.5 px-1 gap-1">
+              <span className="shrink-0">Vanity URL:</span>
+              <span className="font-mono text-neutral-700 shrink-0">/p/</span>
               <input
                 type="text"
+                aria-label="Vanity URL slug"
                 value={portfolio.slug}
                 onChange={(e) =>
                   setPortfolio((prev) => ({
@@ -381,23 +403,24 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                   }))
                 }
                 placeholder="my-portfolio-slug"
-                className="font-mono text-blue-600 border-b border-dashed border-gray-300 focus:border-blue-500 focus:outline-none px-1 text-xs"
+                className="min-w-0 flex-1 font-mono text-primary-600 bg-transparent border-b border-dashed border-neutral-300 focus:border-primary-500 focus:outline-none px-1 text-xs"
               />
             </div>
           </div>
         </div>
 
         {/* Publish & Action Controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
           {/* Status Badge */}
           <span
-            className={`px-2.5 py-1 text-xs font-semibold rounded-full flex items-center space-x-1 ${
+            className={`px-2.5 py-1 text-xs font-medium rounded-full inline-flex items-center gap-1.5 ring-1 ring-inset ${
               portfolio.isPublished
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-amber-100 text-amber-800'
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200/80'
+                : 'bg-amber-50 text-amber-800 ring-amber-200/80'
             }`}
           >
             <span
+              aria-hidden="true"
               className={`w-2 h-2 rounded-full ${
                 portfolio.isPublished ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
               }`}
@@ -407,11 +430,12 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
 
           {/* Toggle Publish */}
           <button
+            type="button"
             onClick={handleTogglePublish}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium border transition ${
+            className={`h-9 px-3 rounded-control text-xs sm:text-sm font-medium border transition-colors focus-ring ${
               portfolio.isPublished
-                ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
+                ? 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900'
+                : 'border-transparent bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
             }`}
           >
             {portfolio.isPublished ? 'Unpublish' : 'Publish to Web'}
@@ -420,18 +444,20 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
           {/* Copy Public Link */}
           {portfolio.isPublished && (
             <button
+              type="button"
               onClick={copyPublicLink}
-              className="p-1.5 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center space-x-1.5 transition"
+              className="h-9 px-2.5 sm:px-3 text-xs sm:text-sm font-medium text-neutral-700 bg-white border border-neutral-300 hover:bg-neutral-50 hover:text-neutral-900 rounded-control inline-flex items-center gap-1.5 transition-colors focus-ring"
               title="Copy public URL"
+              aria-label="Copy public URL"
             >
               {copiedLink ? (
                 <>
-                  <CheckIcon className="w-4 h-4 text-emerald-600" />
-                  <span className="hidden sm:inline text-emerald-600">Copied</span>
+                  <CheckIcon className="w-4 h-4 text-emerald-600" aria-hidden="true" />
+                  <span className="hidden sm:inline text-emerald-700">Copied</span>
                 </>
               ) : (
                 <>
-                  <ClipboardDocumentIcon className="w-4 h-4" />
+                  <ClipboardDocumentIcon className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Copy Link</span>
                 </>
               )}
@@ -444,134 +470,204 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
               href={`/p/${portfolio.slug}`}
               target="_blank"
               rel="noreferrer"
-              className="p-1.5 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center space-x-1.5 transition"
+              className="h-9 px-2.5 sm:px-3 text-xs sm:text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200/80 hover:bg-primary-100 rounded-control inline-flex items-center gap-1.5 transition-colors focus-ring"
             >
-              <EyeIcon className="w-4 h-4" />
+              <EyeIcon className="w-4 h-4" aria-hidden="true" />
               <span className="hidden sm:inline">View Public</span>
             </a>
           )}
 
           {/* Save Button */}
           <button
+            type="button"
             onClick={handleSavePortfolio}
             disabled={saving}
-            className="px-4 py-1.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow disabled:opacity-50 flex items-center space-x-1.5 transition"
+            className="h-9 px-4 text-xs sm:text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-control shadow-sm disabled:opacity-50 inline-flex items-center gap-1.5 transition-colors focus-ring"
           >
-            <CloudArrowUpIcon className="w-4 h-4" />
+            <CloudArrowUpIcon className="w-4 h-4" aria-hidden="true" />
             <span>{saving ? 'Saving...' : 'Save'}</span>
           </button>
         </div>
       </header>
 
+      {/* Mobile Pane Switcher (< lg) */}
+      <div className="lg:hidden bg-white border-b border-neutral-200 px-4 py-2 flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => setMobilePane('editor')}
+          aria-pressed={mobilePane === 'editor'}
+          className={`flex-1 h-9 rounded-control text-xs font-medium transition-colors focus-ring ${
+            mobilePane === 'editor'
+              ? 'bg-primary-50 text-primary-700 font-semibold ring-1 ring-inset ring-primary-200/80'
+              : 'text-neutral-600 hover:bg-neutral-100'
+          }`}
+        >
+          Workspace Form
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobilePane('preview')}
+          aria-pressed={mobilePane === 'preview'}
+          className={`flex-1 h-9 rounded-control text-xs font-medium transition-colors focus-ring ${
+            mobilePane === 'preview'
+              ? 'bg-primary-50 text-primary-700 font-semibold ring-1 ring-inset ring-primary-200/80'
+              : 'text-neutral-600 hover:bg-neutral-100'
+          }`}
+        >
+          Live Preview
+        </button>
+      </div>
+
       {/* Split-Screen Canvas Container */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left Panel: Workspace Controls */}
-        <div className="w-full lg:w-1/2 h-full overflow-y-auto border-r border-gray-200 bg-gray-50/70 p-4 sm:p-6 space-y-6">
-          {/* Workspace Instructions */}
-          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 text-xs text-blue-800 flex items-start space-x-3">
-            <Bars3Icon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+        {/* Left Panel: Readable Editor Form Layout with Section Cards */}
+        <div
+          className={`${
+            mobilePane === 'editor' ? 'flex' : 'hidden'
+          } lg:flex flex-col w-full lg:w-1/2 flex-1 min-h-0 overflow-y-auto border-r border-neutral-200 bg-neutral-50 p-4 sm:p-6 space-y-6`}
+        >
+          {/* Workspace Instructions Banner */}
+          <div className="bg-primary-50/70 border border-primary-200/80 rounded-card p-4 text-xs text-primary-900 flex items-start gap-3">
+            <Bars3Icon className="w-5 h-5 text-primary-600 mt-0.5 shrink-0" aria-hidden="true" />
             <div>
-              <p className="font-semibold text-blue-900">Workspace & Layout Controls</p>
-              <p className="mt-0.5">
+              <p className="font-semibold text-primary-900">Workspace &amp; Layout Controls</p>
+              <p className="mt-0.5 text-primary-800 leading-relaxed">
                 Drag section handles to reorder your portfolio blocks. Upload project images directly
-                into gallery cards. Inline edits made on the right canvas sync automatically!
+                into gallery cards. Inline edits made on the live canvas sync automatically!
               </p>
             </div>
           </div>
 
-          {/* Basics Section (Hero) */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-              <span>Basics & Hero Profile</span>
-            </h3>
+          {/* Basics & Hero Profile Section Card */}
+          <section className="bg-white rounded-card border border-neutral-200/90 shadow-card overflow-hidden">
+            <div className="px-5 py-3.5 bg-neutral-50/80 border-b border-neutral-200/80 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-neutral-900">
+                Basics &amp; Hero Profile
+              </h3>
+              <span className="text-[11px] font-medium text-neutral-500">
+                Hero &amp; Contact Info
+              </span>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Your Full Name</label>
-                <input
-                  type="text"
-                  value={portfolio.basics.name}
-                  onChange={(e) => handleBasicsChange('name', e.target.value)}
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g. Alex Morgan"
-                />
+            <div className="p-5 space-y-5">
+              {/* Identity Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="portfolio-basics-name" className={LABEL_CLASS}>
+                    Your Full Name
+                  </label>
+                  <input
+                    id="portfolio-basics-name"
+                    type="text"
+                    value={portfolio.basics.name}
+                    onChange={(e) => handleBasicsChange('name', e.target.value)}
+                    className={INPUT_CLASS}
+                    placeholder="e.g. Alex Morgan"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="portfolio-basics-title" className={LABEL_CLASS}>
+                    Professional Title
+                  </label>
+                  <input
+                    id="portfolio-basics-title"
+                    type="text"
+                    value={portfolio.basics.title || ''}
+                    onChange={(e) => handleBasicsChange('title', e.target.value)}
+                    className={INPUT_CLASS}
+                    placeholder="e.g. Staff Full Stack Engineer"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label htmlFor="portfolio-basics-bio" className={LABEL_CLASS}>
+                    Short Bio / Tagline
+                  </label>
+                  <textarea
+                    id="portfolio-basics-bio"
+                    rows={3}
+                    value={portfolio.basics.bio || ''}
+                    onChange={(e) => handleBasicsChange('bio', e.target.value)}
+                    className={TEXTAREA_CLASS}
+                    placeholder="Introduce yourself and highlight your passions..."
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Professional Title</label>
-                <input
-                  type="text"
-                  value={portfolio.basics.title || ''}
-                  onChange={(e) => handleBasicsChange('title', e.target.value)}
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g. Staff Full Stack Engineer"
-                />
-              </div>
+              {/* Contact & Social Links */}
+              <div className="pt-4 border-t border-neutral-100">
+                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">
+                  Contact &amp; Social Profiles
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="portfolio-basics-email" className={LABEL_CLASS}>
+                      Contact Email
+                    </label>
+                    <input
+                      id="portfolio-basics-email"
+                      type="email"
+                      value={portfolio.basics.email || ''}
+                      onChange={(e) => handleBasicsChange('email', e.target.value)}
+                      className={INPUT_CLASS}
+                      placeholder="name@example.com"
+                    />
+                  </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Short Bio / Tagline</label>
-                <textarea
-                  rows={3}
-                  value={portfolio.basics.bio || ''}
-                  onChange={(e) => handleBasicsChange('bio', e.target.value)}
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Introduce yourself and highlight your passions..."
-                />
-              </div>
+                  <div>
+                    <label htmlFor="portfolio-basics-location" className={LABEL_CLASS}>
+                      Location
+                    </label>
+                    <input
+                      id="portfolio-basics-location"
+                      type="text"
+                      value={portfolio.basics.location || ''}
+                      onChange={(e) => handleBasicsChange('location', e.target.value)}
+                      className={INPUT_CLASS}
+                      placeholder="e.g. New York, NY"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Contact Email</label>
-                <input
-                  type="email"
-                  value={portfolio.basics.email || ''}
-                  onChange={(e) => handleBasicsChange('email', e.target.value)}
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="name@example.com"
-                />
-              </div>
+                  <div>
+                    <label htmlFor="portfolio-social-github" className={LABEL_CLASS}>
+                      GitHub Profile
+                    </label>
+                    <input
+                      id="portfolio-social-github"
+                      type="url"
+                      value={portfolio.basics.socialLinks?.github || ''}
+                      onChange={(e) => handleSocialLinkChange('github', e.target.value)}
+                      className={INPUT_CLASS}
+                      placeholder="https://github.com/username"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
-                <input
-                  type="text"
-                  value={portfolio.basics.location || ''}
-                  onChange={(e) => handleBasicsChange('location', e.target.value)}
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g. New York, NY"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">GitHub Profile</label>
-                <input
-                  type="url"
-                  value={portfolio.basics.socialLinks?.github || ''}
-                  onChange={(e) => handleSocialLinkChange('github', e.target.value)}
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="https://github.com/username"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">LinkedIn Profile</label>
-                <input
-                  type="url"
-                  value={portfolio.basics.socialLinks?.linkedin || ''}
-                  onChange={(e) => handleSocialLinkChange('linkedin', e.target.value)}
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="https://linkedin.com/in/username"
-                />
+                  <div>
+                    <label htmlFor="portfolio-social-linkedin" className={LABEL_CLASS}>
+                      LinkedIn Profile
+                    </label>
+                    <input
+                      id="portfolio-social-linkedin"
+                      type="url"
+                      value={portfolio.basics.socialLinks?.linkedin || ''}
+                      onChange={(e) => handleSocialLinkChange('linkedin', e.target.value)}
+                      className={INPUT_CLASS}
+                      placeholder="https://linkedin.com/in/username"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* Drag & Drop Sortable Sections */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+            <div className="flex items-center justify-between mb-3 px-0.5">
+              <h3 className="text-sm font-semibold text-neutral-900">
                 Portfolio Sections Order
               </h3>
-              <span className="text-xs text-gray-500">Drag to reorder layout</span>
+              <span className="text-xs text-neutral-500">Drag handles to reorder</span>
             </div>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -587,28 +683,28 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                       title={section.title}
                       type={section.type}
                     >
-                      {/* Section Content Customizers */}
+                      {/* Projects Section */}
                       {section.type === 'projects' && (
-                        <div className="space-y-6">
-                          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-gray-200">
-                            <span className="text-xs text-gray-500">
-                              Showcase your top engineering & design projects with media galleries
+                        <div className="space-y-5">
+                          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-200/80">
+                            <span className="text-xs text-neutral-600">
+                              Showcase your top engineering &amp; design projects with media galleries
                             </span>
-                            <div className="flex items-center space-x-2">
-                              {/* Import from Resume Button */}
+                            <div className="flex flex-wrap items-center gap-2">
                               <button
+                                type="button"
                                 onClick={() => setShowImportModal(true)}
-                                className="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 flex items-center space-x-1.5 transition"
+                                className="h-9 px-3 text-xs font-medium text-accent-700 bg-accent-50 hover:bg-accent-100 rounded-control border border-accent-200 inline-flex items-center gap-1.5 transition-colors focus-ring"
                               >
-                                <ArrowDownTrayIcon className="w-4 h-4" />
+                                <ArrowDownTrayIcon className="w-4 h-4" aria-hidden="true" />
                                 <span>Import from Resume</span>
                               </button>
-                              {/* Add Project Card */}
                               <button
+                                type="button"
                                 onClick={handleAddProject}
-                                className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 flex items-center space-x-1.5 transition"
+                                className="h-9 px-3 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-control border border-primary-200 inline-flex items-center gap-1.5 transition-colors focus-ring"
                               >
-                                <PlusIcon className="w-4 h-4" />
+                                <PlusIcon className="w-4 h-4" aria-hidden="true" />
                                 <span>Add Project</span>
                               </button>
                             </div>
@@ -618,112 +714,136 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                           {(section.content as PortfolioProject[]).map((proj, pIdx) => (
                             <div
                               key={proj.id}
-                              className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 space-y-4"
+                              className="p-4 sm:p-5 rounded-card border border-neutral-200 bg-neutral-50/60 space-y-4"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-gray-500">
+                              <div className="flex items-center justify-between gap-2 pb-2 border-b border-neutral-200/70">
+                                <span className="text-xs font-semibold text-neutral-700">
                                   Project Card #{pIdx + 1}
                                 </span>
                                 <button
+                                  type="button"
                                   onClick={() => handleDeleteProject(proj.id)}
-                                  className="text-gray-400 hover:text-red-600 transition"
+                                  className="h-8 w-8 inline-flex items-center justify-center rounded-control text-neutral-400 hover:text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
                                   title="Delete Project Card"
+                                  aria-label={`Delete project ${pIdx + 1}`}
                                 >
-                                  <TrashIcon className="w-4 h-4" />
+                                  <TrashIcon className="w-4 h-4" aria-hidden="true" />
                                 </button>
                               </div>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  <label
+                                    htmlFor={`proj-title-${proj.id}`}
+                                    className={LABEL_CLASS}
+                                  >
                                     Project Title
                                   </label>
                                   <input
+                                    id={`proj-title-${proj.id}`}
                                     type="text"
                                     value={proj.title}
                                     onChange={(e) =>
                                       handleProjectUpdate(proj.id, 'title', e.target.value)
                                     }
-                                    className="w-full text-xs border border-gray-300 rounded px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                    className={INPUT_CLASS}
                                   />
                                 </div>
 
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  <label
+                                    htmlFor={`proj-tags-${proj.id}`}
+                                    className={LABEL_CLASS}
+                                  >
                                     Tags / Tech (comma-separated)
                                   </label>
                                   <input
+                                    id={`proj-tags-${proj.id}`}
                                     type="text"
                                     value={proj.tags?.join(', ') || ''}
                                     onChange={(e) =>
                                       handleProjectUpdate(
                                         proj.id,
                                         'tags',
-                                        e.target.value.split(',').map((t) => t.trim()).filter(Boolean)
+                                        e.target.value
+                                          .split(',')
+                                          .map((t) => t.trim())
+                                          .filter(Boolean)
                                       )
                                     }
                                     placeholder="React, Node.js, AWS"
-                                    className="w-full text-xs border border-gray-300 rounded px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                    className={INPUT_CLASS}
                                   />
                                 </div>
 
                                 <div className="sm:col-span-2">
-                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  <label
+                                    htmlFor={`proj-desc-${proj.id}`}
+                                    className={LABEL_CLASS}
+                                  >
                                     Project Description
                                   </label>
                                   <textarea
-                                    rows={2}
+                                    id={`proj-desc-${proj.id}`}
+                                    rows={3}
                                     value={proj.description}
                                     onChange={(e) =>
                                       handleProjectUpdate(proj.id, 'description', e.target.value)
                                     }
-                                    className="w-full text-xs border border-gray-300 rounded px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                    className={TEXTAREA_CLASS}
                                   />
                                 </div>
 
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  <label
+                                    htmlFor={`proj-demo-${proj.id}`}
+                                    className={LABEL_CLASS}
+                                  >
                                     Live Demo URL
                                   </label>
                                   <input
+                                    id={`proj-demo-${proj.id}`}
                                     type="url"
                                     value={proj.demoUrl || ''}
                                     onChange={(e) =>
                                       handleProjectUpdate(proj.id, 'demoUrl', e.target.value)
                                     }
                                     placeholder="https://..."
-                                    className="w-full text-xs border border-gray-300 rounded px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                    className={INPUT_CLASS}
                                   />
                                 </div>
 
                                 <div>
-                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  <label
+                                    htmlFor={`proj-github-${proj.id}`}
+                                    className={LABEL_CLASS}
+                                  >
                                     GitHub URL
                                   </label>
                                   <input
+                                    id={`proj-github-${proj.id}`}
                                     type="url"
                                     value={proj.githubUrl || ''}
                                     onChange={(e) =>
                                       handleProjectUpdate(proj.id, 'githubUrl', e.target.value)
                                     }
                                     placeholder="https://github.com/..."
-                                    className="w-full text-xs border border-gray-300 rounded px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                    className={INPUT_CLASS}
                                   />
                                 </div>
                               </div>
 
                               {/* Media Asset Gallery & Native Upload */}
-                              <div className="pt-2 border-t border-gray-200">
-                                <label className="block text-xs font-medium text-gray-700 mb-2">
+                              <div className="pt-3 border-t border-neutral-200/80">
+                                <span className={LABEL_CLASS}>
                                   Project Showcase Media Gallery (JPEG, PNG, WebP &lt; 5MB)
-                                </label>
+                                </span>
 
-                                <div className="flex flex-wrap gap-3 items-center">
-                                  {/* Uploaded Image Thumbnails */}
+                                <div className="flex flex-wrap gap-3 items-center mt-2">
                                   {proj.images?.map((imgUrl, idx) => (
                                     <div
                                       key={idx}
-                                      className="relative group w-16 h-16 rounded-lg overflow-hidden border border-gray-200"
+                                      className="relative group w-16 h-16 rounded-control overflow-hidden border border-neutral-200 bg-white shadow-sm"
                                     >
                                       <img
                                         src={resolveImageUrl(imgUrl)}
@@ -731,29 +851,30 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                                         className="w-full h-full object-cover"
                                       />
                                       <button
+                                        type="button"
                                         onClick={() => handleRemoveImage(proj.id, idx)}
-                                        className="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white rounded p-0.5 opacity-0 group-hover:opacity-100 transition"
+                                        className="absolute top-1 right-1 bg-neutral-900/75 hover:bg-red-600 text-white rounded p-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-red-500"
                                         title="Delete image"
+                                        aria-label={`Delete image ${idx + 1}`}
                                       >
-                                        <TrashIcon className="w-3 h-3" />
+                                        <TrashIcon className="w-3 h-3" aria-hidden="true" />
                                       </button>
                                     </div>
                                   ))}
 
-                                  {/* Native File Upload Input */}
                                   <label
-                                    className={`w-16 h-16 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg cursor-pointer bg-white transition ${
+                                    className={`w-16 h-16 flex flex-col items-center justify-center border-2 border-dashed border-neutral-300 hover:border-primary-500 rounded-control cursor-pointer bg-white transition-colors focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-2 ${
                                       uploadingImage === proj.id ? 'opacity-50 pointer-events-none' : ''
                                     }`}
                                   >
-                                    <PhotoIcon className="w-5 h-5 text-gray-400" />
-                                    <span className="text-[9px] text-gray-500 font-medium mt-0.5">
+                                    <PhotoIcon className="w-5 h-5 text-neutral-400" aria-hidden="true" />
+                                    <span className="text-[10px] text-neutral-600 font-medium mt-0.5">
                                       {uploadingImage === proj.id ? 'Uploading' : '+ Upload'}
                                     </span>
                                     <input
                                       type="file"
                                       accept="image/jpeg,image/png,image/webp"
-                                      className="hidden"
+                                      className="sr-only"
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) handleFileUpload(proj.id, file);
@@ -768,43 +889,53 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                         </div>
                       )}
 
+                      {/* Skills Section */}
                       {section.type === 'skills' && (
-                        <div className="space-y-3">
-                          <p className="text-xs text-gray-500">
+                        <div className="space-y-4">
+                          <p className="text-xs text-neutral-600">
                             Highlight your key skills and core technical competencies.
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            {section.content?.map((skill: any, sIdx: number) => (
-                              <div
-                                key={skill.id || sIdx}
-                                className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-xs"
-                              >
-                                <span>{typeof skill === 'string' ? skill : skill.name}</span>
-                                <button
-                                  onClick={() => {
-                                    const next = [...section.content];
-                                    next.splice(sIdx, 1);
-                                    setPortfolio((prev) => ({
-                                      ...prev,
-                                      sections: prev.sections.map((s) =>
-                                        s.id === section.id ? { ...s, content: next } : s
-                                      )
-                                    }));
-                                  }}
-                                  className="text-gray-400 hover:text-red-500 ml-1"
+                            {section.content?.map((skill: any, sIdx: number) => {
+                              const skillLabel = typeof skill === 'string' ? skill : skill.name;
+                              return (
+                                <span
+                                  key={skill.id || sIdx}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 text-neutral-800 ring-1 ring-inset ring-neutral-200/80 text-xs font-medium"
                                 >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
+                                  <span>{skillLabel}</span>
+                                  <button
+                                    type="button"
+                                    aria-label={`Remove ${skillLabel}`}
+                                    onClick={() => {
+                                      const next = [...section.content];
+                                      next.splice(sIdx, 1);
+                                      setPortfolio((prev) => ({
+                                        ...prev,
+                                        sections: prev.sections.map((s) =>
+                                          s.id === section.id ? { ...s, content: next } : s
+                                        )
+                                      }));
+                                    }}
+                                    className="text-neutral-400 hover:text-red-600 rounded-full p-0.5 transition-colors focus-ring"
+                                  >
+                                    <XMarkIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                                  </button>
+                                </span>
+                              );
+                            })}
                           </div>
+
                           {/* Add Skill Quick Input */}
-                          <div className="flex items-center space-x-2 pt-2">
+                          <div className="flex items-center gap-2 pt-1">
+                            <label htmlFor={`add-skill-${section.id}`} className="sr-only">
+                              Add skill
+                            </label>
                             <input
                               type="text"
                               id={`add-skill-${section.id}`}
                               placeholder="Add skill (e.g. Next.js, Docker)"
-                              className="text-xs border border-gray-300 rounded px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 focus:outline-none flex-1"
+                              className={INPUT_CLASS}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   const target = e.currentTarget;
@@ -830,6 +961,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                               }}
                             />
                             <button
+                              type="button"
                               onClick={() => {
                                 const input = document.getElementById(
                                   `add-skill-${section.id}`
@@ -853,7 +985,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                                   input.value = '';
                                 }
                               }}
-                              className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded font-medium text-gray-700"
+                              className="h-10 px-4 text-sm bg-white border border-neutral-300 hover:bg-neutral-50 rounded-control font-medium text-neutral-700 transition-colors focus-ring shrink-0"
                             >
                               Add
                             </button>
@@ -861,21 +993,24 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                         </div>
                       )}
 
+                      {/* Experience Section */}
                       {section.type === 'experience' && (
                         <div className="space-y-4">
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-neutral-600">
                             Summarize your relevant career highlights and roles.
                           </p>
                           {section.content?.map((exp: any, expIdx: number) => (
                             <div
                               key={exp.id || expIdx}
-                              className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs space-y-2"
+                              className="p-4 bg-neutral-50/70 rounded-card border border-neutral-200 space-y-3"
                             >
-                              <div className="flex justify-between items-center">
-                                <span className="font-semibold text-gray-800">
-                                  {exp.position} at {exp.company}
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-xs font-semibold text-neutral-800">
+                                  {exp.position || 'Role'} at {exp.company || 'Company'}
                                 </span>
                                 <button
+                                  type="button"
+                                  aria-label={`Remove experience ${expIdx + 1}`}
                                   onClick={() => {
                                     const next = [...section.content];
                                     next.splice(expIdx, 1);
@@ -886,15 +1021,141 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                                       )
                                     }));
                                   }}
-                                  className="text-gray-400 hover:text-red-500"
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-control text-neutral-400 hover:text-red-600 hover:bg-red-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
                                 >
-                                  <TrashIcon className="w-3.5 h-3.5" />
+                                  <TrashIcon className="w-4 h-4" aria-hidden="true" />
                                 </button>
                               </div>
-                              <p className="text-gray-600">{exp.description}</p>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                  <label
+                                    htmlFor={`exp-pos-${exp.id || expIdx}`}
+                                    className={LABEL_CLASS}
+                                  >
+                                    Role / Position
+                                  </label>
+                                  <input
+                                    id={`exp-pos-${exp.id || expIdx}`}
+                                    type="text"
+                                    value={exp.position || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPortfolio((prev) => ({
+                                        ...prev,
+                                        sections: prev.sections.map((s) =>
+                                          s.id === section.id
+                                            ? {
+                                                ...s,
+                                                content: s.content.map((item: any, idx: number) =>
+                                                  idx === expIdx ? { ...item, position: val } : item
+                                                )
+                                              }
+                                            : s
+                                        )
+                                      }));
+                                    }}
+                                    className={INPUT_CLASS}
+                                  />
+                                </div>
+                                <div>
+                                  <label
+                                    htmlFor={`exp-comp-${exp.id || expIdx}`}
+                                    className={LABEL_CLASS}
+                                  >
+                                    Company
+                                  </label>
+                                  <input
+                                    id={`exp-comp-${exp.id || expIdx}`}
+                                    type="text"
+                                    value={exp.company || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPortfolio((prev) => ({
+                                        ...prev,
+                                        sections: prev.sections.map((s) =>
+                                          s.id === section.id
+                                            ? {
+                                                ...s,
+                                                content: s.content.map((item: any, idx: number) =>
+                                                  idx === expIdx ? { ...item, company: val } : item
+                                                )
+                                              }
+                                            : s
+                                        )
+                                      }));
+                                    }}
+                                    className={INPUT_CLASS}
+                                  />
+                                </div>
+                                <div>
+                                  <label
+                                    htmlFor={`exp-period-${exp.id || expIdx}`}
+                                    className={LABEL_CLASS}
+                                  >
+                                    Period
+                                  </label>
+                                  <input
+                                    id={`exp-period-${exp.id || expIdx}`}
+                                    type="text"
+                                    value={exp.period || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPortfolio((prev) => ({
+                                        ...prev,
+                                        sections: prev.sections.map((s) =>
+                                          s.id === section.id
+                                            ? {
+                                                ...s,
+                                                content: s.content.map((item: any, idx: number) =>
+                                                  idx === expIdx ? { ...item, period: val } : item
+                                                )
+                                              }
+                                            : s
+                                        )
+                                      }));
+                                    }}
+                                    placeholder="2022 - Present"
+                                    className={INPUT_CLASS}
+                                  />
+                                </div>
+                                <div className="sm:col-span-3">
+                                  <label
+                                    htmlFor={`exp-desc-${exp.id || expIdx}`}
+                                    className={LABEL_CLASS}
+                                  >
+                                    Summary
+                                  </label>
+                                  <textarea
+                                    id={`exp-desc-${exp.id || expIdx}`}
+                                    rows={2}
+                                    value={exp.description || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPortfolio((prev) => ({
+                                        ...prev,
+                                        sections: prev.sections.map((s) =>
+                                          s.id === section.id
+                                            ? {
+                                                ...s,
+                                                content: s.content.map((item: any, idx: number) =>
+                                                  idx === expIdx
+                                                    ? { ...item, description: val }
+                                                    : item
+                                                )
+                                              }
+                                            : s
+                                        )
+                                      }));
+                                    }}
+                                    className={TEXTAREA_CLASS}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           ))}
                           <button
+                            type="button"
                             onClick={() => {
                               const newExp = {
                                 id: `exp-${Date.now()}`,
@@ -912,21 +1173,22 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                                 )
                               }));
                             }}
-                            className="px-3 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded border border-blue-200"
+                            className="h-9 px-3 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-control border border-primary-200 inline-flex items-center gap-1.5 transition-colors focus-ring"
                           >
-                            + Add Experience Item
+                            <PlusIcon className="w-4 h-4" aria-hidden="true" />
+                            <span>Add Experience Item</span>
                           </button>
                         </div>
                       )}
 
                       {section.type === 'about' && (
-                        <p className="text-xs text-gray-500">
-                          The About section is customized using the Basics & Hero Profile settings above.
+                        <p className="text-xs text-neutral-600 leading-relaxed">
+                          The About section is customized using the Basics &amp; Hero Profile card above.
                         </p>
                       )}
 
                       {section.type === 'contact' && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-neutral-600 leading-relaxed">
                           Displays your email ({portfolio.basics.email || 'None set'}) and social
                           links for visitors to connect.
                         </p>
@@ -940,32 +1202,42 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
         </div>
 
         {/* Right Panel: Split-Screen Live Preview Canvas with Interactive Inline Editing */}
-        <div className="w-full lg:w-1/2 h-full bg-slate-800 flex flex-col overflow-hidden relative">
+        <div
+          className={`${
+            mobilePane === 'preview' ? 'flex' : 'hidden'
+          } lg:flex flex-col w-full lg:w-1/2 flex-1 min-h-0 bg-neutral-800 overflow-hidden relative`}
+        >
           {/* Canvas Controls Header */}
-          <div className="bg-slate-900 border-b border-slate-700 px-4 py-2.5 flex items-center justify-between text-xs text-slate-300 z-10">
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span className="font-semibold text-white">Live Visual Preview Canvas</span>
-              <span className="text-slate-400 hidden sm:inline">
+          <div className="bg-neutral-900 border-b border-neutral-700 px-4 py-2.5 flex items-center justify-between text-xs text-neutral-300 z-10 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
+              <span className="font-semibold text-white truncate">Live Visual Preview Canvas</span>
+              <span className="text-neutral-400 hidden sm:inline truncate">
                 (Click any text on canvas to inline edit!)
               </span>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
+                type="button"
+                aria-label="Zoom out"
                 onClick={() => setScale((s) => Math.max(0.6, s - 0.1))}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200"
+                className="h-7 w-7 inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 rounded-control text-neutral-200 transition-colors focus-ring"
               >
                 -
               </button>
               <button
+                type="button"
+                aria-label="Reset zoom"
                 onClick={() => setScale(1)}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200"
+                className="h-7 px-2 inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 rounded-control text-neutral-200 font-medium transition-colors focus-ring"
               >
                 {Math.round(scale * 100)}%
               </button>
               <button
+                type="button"
+                aria-label="Zoom in"
                 onClick={() => setScale((s) => Math.min(1.4, s + 0.1))}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200"
+                className="h-7 w-7 inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 rounded-control text-neutral-200 transition-colors focus-ring"
               >
                 +
               </button>
@@ -975,50 +1247,55 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
           {/* Interactive Live Canvas Area */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center items-start">
             <div
-              className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-gray-200 text-gray-900 overflow-hidden transition-transform duration-200 origin-top"
+              className="w-full max-w-3xl bg-white rounded-panel shadow-modal border border-neutral-200 text-neutral-900 overflow-hidden transition-transform duration-200 origin-top"
               style={{ transform: `scale(${scale})` }}
             >
               {/* Canvas Hero Header */}
-              <div className="p-8 sm:p-12 text-center border-b border-gray-100 bg-gradient-to-b from-slate-50 to-white">
-                {/* Inline Edit for Basics Name */}
+              <div className="p-8 sm:p-12 text-center border-b border-neutral-200/80 bg-gradient-to-b from-primary-50/50 via-white to-neutral-50/40">
                 <div className="inline-block">
                   <InlineEdit
                     value={portfolio.basics.name}
                     onChange={(v) => handleBasicsChange('name', v)}
                     placeholder="Click to set name"
-                    textClassName="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight"
+                    textClassName="text-3xl sm:text-4xl font-extrabold text-neutral-900 tracking-tight"
                   />
                 </div>
 
-                {/* Inline Edit for Title */}
                 <div className="mt-2 inline-block">
                   <InlineEdit
                     value={portfolio.basics.title || ''}
                     onChange={(v) => handleBasicsChange('title', v)}
                     placeholder="Click to set professional title"
-                    textClassName="text-lg sm:text-xl font-medium text-blue-600"
+                    textClassName="text-lg sm:text-xl font-semibold text-primary-600"
                   />
                 </div>
 
-                {/* Inline Edit for Bio */}
                 <div className="mt-4 max-w-xl mx-auto">
                   <InlineEdit
                     value={portfolio.basics.bio || ''}
                     onChange={(v) => handleBasicsChange('bio', v)}
                     placeholder="Click to add your bio summary..."
                     multiline
-                    textClassName="text-sm text-gray-600 leading-relaxed text-center"
+                    textClassName="text-sm text-neutral-600 leading-relaxed text-center"
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500 mt-4">
-                  {portfolio.basics.location && <span>📍 {portfolio.basics.location}</span>}
-                  {portfolio.basics.email && <span>✉️ {portfolio.basics.email}</span>}
+                <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-neutral-600 mt-5">
+                  {portfolio.basics.location && (
+                    <span className="px-3 py-1 rounded-full bg-white border border-neutral-200 shadow-sm">
+                      {portfolio.basics.location}
+                    </span>
+                  )}
+                  {portfolio.basics.email && (
+                    <span className="px-3 py-1 rounded-full bg-white border border-neutral-200 shadow-sm">
+                      {portfolio.basics.email}
+                    </span>
+                  )}
                 </div>
               </div>
 
               {/* Dynamic Ordered Sections on Live Canvas */}
-              <div className="p-8 space-y-12">
+              <div className="p-6 sm:p-8 space-y-12">
                 {orderedSections.map((section) => {
                   if (section.type === 'about') return null;
 
@@ -1026,8 +1303,8 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                     const projects = (section.content as PortfolioProject[]) || [];
                     return (
                       <div key={section.id}>
-                        <h4 className="text-xl font-bold text-gray-900 mb-6 flex items-center space-x-2">
-                          <span className="w-2 h-6 bg-blue-600 rounded-full" />
+                        <h4 className="text-xl font-bold text-neutral-900 mb-6 flex items-center gap-2.5">
+                          <span className="w-1.5 h-6 bg-primary-600 rounded-full" aria-hidden="true" />
                           <span>{section.title}</span>
                         </h4>
 
@@ -1035,56 +1312,52 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                           {projects.map((p) => (
                             <div
                               key={p.id}
-                              className="rounded-xl border border-gray-200 overflow-hidden shadow-sm bg-white flex flex-col"
+                              className="rounded-card border border-neutral-200/90 overflow-hidden shadow-card bg-white flex flex-col"
                             >
-                              {/* Live Gallery Media Preview */}
                               {p.images && p.images.length > 0 ? (
-                                <div className="aspect-video bg-gray-100 overflow-hidden relative">
+                                <div className="aspect-video bg-neutral-100 overflow-hidden relative">
                                   <img
                                     src={resolveImageUrl(p.images[0])}
                                     alt={p.title}
                                     className="w-full h-full object-cover"
                                   />
                                   {p.images.length > 1 && (
-                                    <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                    <span className="absolute bottom-2 right-2 bg-neutral-900/75 text-white text-[10px] px-2 py-0.5 rounded-control font-medium">
                                       +{p.images.length - 1} more
                                     </span>
                                   )}
                                 </div>
                               ) : (
-                                <div className="aspect-video bg-gray-100 flex items-center justify-center text-gray-400">
-                                  <PhotoIcon className="w-8 h-8 opacity-40" />
+                                <div className="aspect-video bg-gradient-to-br from-primary-50/70 via-neutral-50 to-accent-50/70 border-b border-neutral-100 flex items-center justify-center text-primary-400">
+                                  <PhotoIcon className="w-8 h-8 opacity-50" aria-hidden="true" />
                                 </div>
                               )}
 
                               <div className="p-5 flex-1 flex flex-col justify-between">
                                 <div>
-                                  {/* Canvas Inline Edit for Project Title */}
                                   <InlineEdit
                                     value={p.title}
                                     onChange={(v) => handleProjectUpdate(p.id, 'title', v)}
                                     placeholder="Project Title"
-                                    textClassName="text-base font-bold text-gray-900"
+                                    textClassName="text-base font-semibold text-neutral-900"
                                   />
 
-                                  {/* Canvas Inline Edit for Project Description */}
                                   <div className="mt-2">
                                     <InlineEdit
                                       value={p.description}
                                       onChange={(v) => handleProjectUpdate(p.id, 'description', v)}
                                       placeholder="Project description..."
                                       multiline
-                                      textClassName="text-xs text-gray-600 leading-relaxed"
+                                      textClassName="text-xs text-neutral-600 leading-relaxed"
                                     />
                                   </div>
 
-                                  {/* Tags */}
                                   {p.tags && p.tags.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-3">
+                                    <div className="flex flex-wrap gap-1.5 mt-3">
                                       {p.tags.map((t, idx) => (
                                         <span
                                           key={idx}
-                                          className="text-[10px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full"
+                                          className="text-[10px] font-medium bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200/70 px-2 py-0.5 rounded-full"
                                         >
                                           {t}
                                         </span>
@@ -1094,14 +1367,14 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                                 </div>
 
                                 {(p.demoUrl || p.githubUrl) && (
-                                  <div className="flex items-center space-x-3 text-xs pt-4 mt-3 border-t border-gray-100">
+                                  <div className="flex items-center gap-3 text-xs pt-4 mt-3 border-t border-neutral-100">
                                     {p.demoUrl && (
-                                      <span className="text-blue-600 font-semibold">
+                                      <span className="text-primary-600 font-semibold">
                                         Live Demo ↗
                                       </span>
                                     )}
                                     {p.githubUrl && (
-                                      <span className="text-gray-600 font-medium">
+                                      <span className="text-neutral-600 font-medium">
                                         Code ↗
                                       </span>
                                     )}
@@ -1119,15 +1392,15 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                     const skills = section.content || [];
                     return (
                       <div key={section.id}>
-                        <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
-                          <span className="w-2 h-6 bg-blue-600 rounded-full" />
+                        <h4 className="text-xl font-bold text-neutral-900 mb-4 flex items-center gap-2.5">
+                          <span className="w-1.5 h-6 bg-primary-600 rounded-full" aria-hidden="true" />
                           <span>{section.title}</span>
                         </h4>
                         <div className="flex flex-wrap gap-2">
                           {skills.map((skill: any, idx: number) => (
                             <span
                               key={skill.id || idx}
-                              className="px-3 py-1 bg-slate-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-800"
+                              className="px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-control text-xs font-medium text-neutral-800"
                             >
                               {typeof skill === 'string' ? skill : skill.name}
                             </span>
@@ -1141,18 +1414,23 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                     const experiences = section.content || [];
                     return (
                       <div key={section.id}>
-                        <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
-                          <span className="w-2 h-6 bg-blue-600 rounded-full" />
+                        <h4 className="text-xl font-bold text-neutral-900 mb-4 flex items-center gap-2.5">
+                          <span className="w-1.5 h-6 bg-primary-600 rounded-full" aria-hidden="true" />
                           <span>{section.title}</span>
                         </h4>
                         <div className="space-y-4">
                           {experiences.map((exp: any, idx: number) => (
-                            <div key={exp.id || idx} className="border-l-2 border-blue-600 pl-4 py-1">
-                              <h5 className="text-sm font-bold text-gray-900">
+                            <div
+                              key={exp.id || idx}
+                              className="border-l-2 border-primary-600 pl-4 py-1"
+                            >
+                              <h5 className="text-sm font-semibold text-neutral-900">
                                 {exp.position} - {exp.company}
                               </h5>
-                              <p className="text-xs text-gray-500">{exp.period}</p>
-                              <p className="text-xs text-gray-600 mt-1">{exp.description}</p>
+                              <p className="text-xs text-neutral-500">{exp.period}</p>
+                              <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                                {exp.description}
+                              </p>
                             </div>
                           ))}
                         </div>
@@ -1162,13 +1440,16 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
 
                   if (section.type === 'contact') {
                     return (
-                      <div key={section.id} className="text-center p-6 bg-slate-50 rounded-xl border border-gray-200">
-                        <h4 className="text-lg font-bold text-gray-900 mb-2">{section.title}</h4>
-                        <p className="text-xs text-gray-600 mb-3">
+                      <div
+                        key={section.id}
+                        className="text-center p-6 bg-neutral-50 rounded-card border border-neutral-200"
+                      >
+                        <h4 className="text-lg font-bold text-neutral-900 mb-2">{section.title}</h4>
+                        <p className="text-xs text-neutral-600 mb-4">
                           Feel free to reach out via email for opportunities or questions.
                         </p>
                         {portfolio.basics.email && (
-                          <span className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold">
+                          <span className="inline-block px-4 py-2 bg-primary-600 text-white rounded-control text-xs font-semibold shadow-sm">
                             {portfolio.basics.email}
                           </span>
                         )}
