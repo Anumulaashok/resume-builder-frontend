@@ -279,9 +279,9 @@ export const PortfolioPublicView: React.FC<PortfolioPublicViewProps> = ({ slug: 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-b from-primary-50/60 via-white to-neutral-50 border-b border-neutral-200/80 py-12 sm:py-20 lg:py-24">
         <Container>
-          <div className="max-w-3xl mx-auto text-center">
+          <div className="max-w-3xl mx-auto flex flex-col items-center text-center">
             {basics.avatarUrl ? (
-              <div className="mb-6 flex justify-center">
+              <div className="mb-5 sm:mb-6 flex justify-center">
                 <img
                   src={resolveImageUrl(basics.avatarUrl)}
                   alt={basics.name}
@@ -289,7 +289,7 @@ export const PortfolioPublicView: React.FC<PortfolioPublicViewProps> = ({ slug: 
                 />
               </div>
             ) : (
-              <div className="mb-6 flex justify-center" aria-hidden="true">
+              <div className="mb-5 sm:mb-6 flex justify-center" aria-hidden="true">
                 <div
                   className="w-16 h-16 sm:w-20 sm:h-20 rounded-card flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-card ring-4 ring-white"
                   style={{ backgroundColor: primaryColor }}
@@ -299,13 +299,14 @@ export const PortfolioPublicView: React.FC<PortfolioPublicViewProps> = ({ slug: 
               </div>
             )}
 
-            <h1 className="text-3xl sm:text-5xl font-extrabold text-neutral-900 tracking-tight break-words">
+            <h1 className="w-full block text-3xl sm:text-5xl font-extrabold text-neutral-900 tracking-tight leading-tight break-words">
               {basics.name}
             </h1>
 
             {basics.title && (
               <p
-                className="mt-3 text-lg sm:text-2xl font-semibold"
+                data-testid="portfolio-hero-headline"
+                className="mt-2.5 sm:mt-3 w-full block text-base sm:text-2xl font-semibold text-primary-600 leading-snug break-words"
                 style={{ color: primaryColor }}
               >
                 {basics.title}
@@ -313,7 +314,7 @@ export const PortfolioPublicView: React.FC<PortfolioPublicViewProps> = ({ slug: 
             )}
 
             {basics.bio && (
-              <p className="mt-4 text-base sm:text-lg text-neutral-600 max-w-2xl mx-auto leading-relaxed">
+              <p className="mt-4 text-sm sm:text-lg text-neutral-600 max-w-2xl mx-auto leading-relaxed break-words">
                 {basics.bio}
               </p>
             )}
@@ -321,12 +322,12 @@ export const PortfolioPublicView: React.FC<PortfolioPublicViewProps> = ({ slug: 
             {/* Mobile-Friendly Contact & Social Pills */}
             <div
               data-testid="portfolio-hero-contacts"
-              className="mt-7 flex flex-wrap items-center justify-center gap-2.5 text-xs sm:text-sm"
+              className="mt-6 sm:mt-7 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 text-xs sm:text-sm max-w-full"
             >
               {basics.location && (
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-neutral-200/90 shadow-sm text-neutral-700 font-medium">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-neutral-200/90 shadow-sm text-neutral-700 font-medium max-w-full">
                   <MapPinIcon className="w-4 h-4 text-neutral-400 shrink-0" aria-hidden="true" />
-                  <span>{basics.location}</span>
+                  <span className="truncate">{basics.location}</span>
                 </span>
               )}
               {basics.email && (
@@ -341,10 +342,10 @@ export const PortfolioPublicView: React.FC<PortfolioPublicViewProps> = ({ slug: 
               {basics.phone && (
                 <a
                   href={`tel:${basics.phone}`}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-neutral-200/90 shadow-sm text-neutral-700 hover:border-primary-300 hover:text-primary-700 font-medium transition-colors focus-ring"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-neutral-200/90 shadow-sm text-neutral-700 hover:border-primary-300 hover:text-primary-700 font-medium transition-colors focus-ring max-w-full"
                 >
                   <PhoneIcon className="w-4 h-4 text-neutral-400 shrink-0" aria-hidden="true" />
-                  <span>{basics.phone}</span>
+                  <span className="truncate">{basics.phone}</span>
                 </a>
               )}
               {basics.socialLinks?.website && (

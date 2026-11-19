@@ -181,6 +181,86 @@ describe('Frontend Portfolio Platform Components', () => {
       expect(screen.getByText('Senior Product Designer')).toBeInTheDocument();
     });
 
+    it('stacks default hero H1 name and accent headline on separate lines on a light neutral canvas with working zoom and inline edit', async () => {
+      render(<PortfolioEditor onSave={jest.fn()} onBack={jest.fn()} />);
+
+      // Light neutral canvas & light toolbar (matching resume preview)
+      const previewPane = screen.getByTestId('portfolio-preview-pane');
+      const previewToolbar = screen.getByTestId('portfolio-preview-toolbar');
+      const previewViewport = screen.getByTestId('portfolio-preview-viewport');
+
+      expect(previewPane).toHaveClass('bg-neutral-100');
+      expect(previewPane).not.toHaveClass('bg-neutral-800');
+      expect(previewToolbar).toHaveClass('bg-white', 'border-neutral-200');
+      expect(previewToolbar).not.toHaveClass('bg-neutral-900');
+      expect(previewViewport).toHaveClass('bg-neutral-100');
+
+      // Page card itself remains unchanged on top of the light neutral canvas
+      const pageCard = previewViewport.firstElementChild as HTMLElement;
+      expect(pageCard).toHaveClass(
+        'bg-white',
+        'rounded-panel',
+        'shadow-modal',
+        'border',
+        'border-neutral-200'
+      );
+
+      // Hero stacks name as H1 and headline on its own block line below in accent colour
+      const heroH1 = screen.getByRole('heading', { level: 1 });
+      expect(heroH1).toHaveTextContent('Your Name');
+      expect(heroH1).not.toHaveClass('inline-block');
+
+      const headlineWrapper = screen.getByTestId('canvas-hero-headline');
+      expect(headlineWrapper).toHaveTextContent('Software Developer & Creator');
+      expect(headlineWrapper).not.toHaveClass('inline-block');
+      const headlineText = screen.getByText('Software Developer & Creator');
+      expect(headlineText).toHaveClass('block', 'text-primary-600');
+
+      // Existing zoom controls still work
+      const zoomOutBtn = screen.getByRole('button', { name: /Zoom out/i });
+      const resetZoomBtn = screen.getByRole('button', { name: /Reset zoom/i });
+      const zoomInBtn = screen.getByRole('button', { name: /Zoom in/i });
+
+      expect(resetZoomBtn).toHaveTextContent('100%');
+      fireEvent.click(zoomInBtn);
+      expect(resetZoomBtn).toHaveTextContent('110%');
+      expect(pageCard).toHaveStyle({ transform: 'scale(1.1)' });
+
+      fireEvent.click(zoomOutBtn);
+      fireEvent.click(zoomOutBtn);
+      expect(resetZoomBtn).toHaveTextContent('90%');
+      expect(pageCard).toHaveStyle({ transform: 'scale(0.9)' });
+
+      fireEvent.click(resetZoomBtn);
+      expect(resetZoomBtn).toHaveTextContent('100%');
+      expect(pageCard).toHaveStyle({ transform: 'scale(1)' });
+
+      // Inline editing on the hero H1 and headline syncs with form inputs
+      fireEvent.click(screen.getByText('Your Name'));
+      await waitFor(() => {
+        expect(heroH1.querySelector('input')).toBeInTheDocument();
+      });
+      const inlineNameInput = heroH1.querySelector('input') as HTMLInputElement;
+      fireEvent.change(inlineNameInput, { target: { value: 'Jordan Taylor' } });
+      fireEvent.blur(inlineNameInput);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Your Full Name/i)).toHaveValue('Jordan Taylor');
+      });
+
+      fireEvent.click(screen.getByText('Software Developer & Creator'));
+      await waitFor(() => {
+        expect(headlineWrapper.querySelector('input')).toBeInTheDocument();
+      });
+      const inlineTitleInput = headlineWrapper.querySelector('input') as HTMLInputElement;
+      fireEvent.change(inlineTitleInput, { target: { value: 'Principal Engineer' } });
+      fireEvent.blur(inlineTitleInput);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Professional Title/i)).toHaveValue('Principal Engineer');
+      });
+    });
+
     it('toggles publish status between draft and published', async () => {
       (portfolioService.updatePortfolio as jest.Mock).mockResolvedValueOnce({
         ...mockPortfolio,
@@ -395,7 +475,13 @@ describe('Frontend Portfolio Platform Components', () => {
       expect(container.querySelector('header .page-container')).toBeInTheDocument();
       expect(container.querySelector('main.page-container')).toBeInTheDocument();
 
-      expect(screen.getByText('Senior Product Designer')).toBeInTheDocument();
+      const publicHeroH1 = screen.getByRole('heading', { level: 1, name: 'Alex Rivera' });
+      expect(publicHeroH1).toHaveClass('block');
+      const publicHeadline = screen.getByTestId('portfolio-hero-headline');
+      expect(publicHeadline).toHaveTextContent('Senior Product Designer');
+      expect(publicHeadline).toHaveClass('block', 'text-primary-600');
+      expect(publicHeadline).toHaveStyle({ color: '#2563EB' });
+
       expect(screen.getByText('Design System Platform')).toBeInTheDocument();
       expect(screen.getByText('A scalable multi-brand component library for modern web apps.')).toBeInTheDocument();
       expect(screen.getByText('Live Demo')).toBeInTheDocument();
