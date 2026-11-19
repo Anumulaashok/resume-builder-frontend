@@ -3,9 +3,6 @@ export const setToken = (token: string): void => {
 };
 
 export const getToken = (): string | null => {
-    if (typeof window !== 'undefined' && window.location.search.includes('token=1')) {
-        localStorage.setItem('jwt_token', 'mock_jwt_token_123');
-    }
     return localStorage.getItem('jwt_token');
 };
 
