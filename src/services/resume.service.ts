@@ -1,4 +1,10 @@
-import { IResume as BaseResume, ISharing, IPrivacySettings } from "../types/resume";
+import {
+  IResume as BaseResume,
+  ISharing,
+  IPrivacySettings,
+  IShareStats,
+  ISlugAvailability,
+} from "../types/resume";
 import axiosInstance from "../services/axios";
 import { JobMatchResult } from "../types/jobMatch";
 
@@ -139,8 +145,16 @@ class ResumeService {
     const response = await axiosInstance.get<{
       success: boolean;
       data: Resume;
-    }>(`/api/resumes/share/${shareToken}`);
-    return response.data?.data;
+    }>(`/api/resumes/share/${encodeURIComponent(shareToken)}`);
+    return response?.data?.data as Resume;
+  }
+
+  async getPublicResumeBySlug(slug: string): Promise<Resume> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: Resume;
+    }>(`/api/public/r/${encodeURIComponent(slug)}`);
+    return response?.data?.data as Resume;
   }
 
   async getShareSettings(resumeId: string): Promise<ISharing> {
@@ -148,7 +162,41 @@ class ResumeService {
       success: boolean;
       data: ISharing;
     }>(`/api/resumes/${resumeId}/share`);
-    return response.data?.data;
+    return response?.data?.data as ISharing;
+  }
+
+  async getShareStats(resumeId: string): Promise<IShareStats> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: IShareStats;
+    }>(`/api/resumes/${resumeId}/sharing/stats`);
+    return response?.data?.data as IShareStats;
+  }
+
+  async checkSlugAvailability(
+    resumeId: string,
+    slug: string
+  ): Promise<ISlugAvailability> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: ISlugAvailability;
+    }>(
+      `/api/resumes/${resumeId}/sharing/slug/check?slug=${encodeURIComponent(
+        slug
+      )}`
+    );
+    return response?.data?.data as ISlugAvailability;
+  }
+
+  async updateShareSlug(
+    resumeId: string,
+    slug: string | null
+  ): Promise<ISharing> {
+    const response = await axiosInstance.patch<{
+      success: boolean;
+      data: ISharing;
+    }>(`/api/resumes/${resumeId}/sharing/slug`, { slug });
+    return response?.data?.data as ISharing;
   }
 
   async updateShareSettings(

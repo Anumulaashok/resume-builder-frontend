@@ -64,7 +64,9 @@ axiosInstance.interceptors.response.use(
     const isAuthRequest =
       requestUrl.includes('/api/auth/login') ||
       requestUrl.includes('/api/auth/register');
-    const isPublicShareRequest = requestUrl.includes('/api/resumes/share/');
+    const isPublicShareRequest =
+      requestUrl.includes('/api/resumes/share/') ||
+      requestUrl.includes('/api/public/r/');
 
     const isExpiredSession =
       isAxiosError(error) &&
