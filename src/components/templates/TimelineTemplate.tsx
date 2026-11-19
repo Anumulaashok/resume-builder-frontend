@@ -302,8 +302,9 @@ const TimelineTemplateContent: React.FC = () => {
 
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
 
   const orderedSections = getOrderedSections(
@@ -359,7 +360,7 @@ const TimelineTemplateContent: React.FC = () => {
 
       {showSummary && (
         <section
-          className="break-inside-avoid"
+          className={`break-inside-avoid ${!hasSummaryText ? 'print:hidden' : ''}`}
           style={{
             marginBottom:
               orderedSections.length > 0
