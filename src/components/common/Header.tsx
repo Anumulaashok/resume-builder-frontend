@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Bars3Icon,
+  BriefcaseIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
   GlobeAltIcon,
   SparklesIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { Container } from '../ui/container';
 
-export type AppTab = 'resumes' | 'job-match' | 'portfolios';
+export type AppTab = 'resumes' | 'cover-letters' | 'job-match' | 'job-tracker' | 'portfolios';
 
 export const SM_MEDIA_QUERY = '(min-width: 640px)';
 
@@ -60,7 +62,9 @@ const NAV_TABS: ReadonlyArray<{
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }> = [
   { id: 'resumes', label: 'Resumes', Icon: DocumentTextIcon },
+  { id: 'cover-letters', label: 'Cover Letters', Icon: EnvelopeIcon },
   { id: 'job-match', label: 'Job Match', Icon: SparklesIcon },
+  { id: 'job-tracker', label: 'Job Tracker', Icon: BriefcaseIcon },
   { id: 'portfolios', label: 'Portfolios', Icon: GlobeAltIcon },
 ];
 
