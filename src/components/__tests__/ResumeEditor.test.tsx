@@ -27,7 +27,6 @@ jest.mock("../../services/resume.service", () => ({
     createResume: jest.fn(),
     getShareSettings: jest.fn(),
     updateShareSettings: jest.fn(),
-    exportResumePdf: jest.fn(),
     exportResumeTxt: jest.fn(),
   },
 }));
@@ -705,10 +704,7 @@ describe("ResumeEditor autosave, toolbar status indicator, flush, and serializat
 describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
   const originalMatchMedia = window.matchMedia;
   const originalPrint = window.print;
-  const originalCreateObjectURL = URL.createObjectURL;
-  const originalRevokeObjectURL = URL.revokeObjectURL;
   let printSpy: jest.Mock;
-  let anchorClickSpy: jest.SpyInstance;
 
   const mockViewport = (isDesktopViewport: boolean) => {
     window.matchMedia = jest.fn().mockImplementation((query: string) => ({
@@ -725,15 +721,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    URL.createObjectURL = jest.fn(() => "blob:http://localhost/mock-pdf");
-    URL.revokeObjectURL = jest.fn();
-    anchorClickSpy = jest
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
-    (resumeService.exportResumePdf as jest.Mock).mockResolvedValue({
-      blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
-      filename: "staff-frontend-resume.pdf",
-    });
+    jest.useFakeTimers();
     printSpy = jest.fn();
     Object.defineProperty(window, "print", {
       configurable: true,
@@ -743,9 +731,8 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
   });
 
   afterEach(() => {
-    anchorClickSpy.mockRestore();
-    URL.createObjectURL = originalCreateObjectURL;
-    URL.revokeObjectURL = originalRevokeObjectURL;
+    jest.clearAllTimers();
+    jest.useRealTimers();
     window.matchMedia = originalMatchMedia;
     Object.defineProperty(window, "print", {
       configurable: true,
@@ -754,7 +741,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     });
   });
 
-  it("triggers server-side PDF export when clicking the desktop toolbar Export PDF button and closes the overflow menu", async () => {
+  it("calls window.print when clicking the desktop toolbar Export button and closes the overflow menu", () => {
     mockViewport(true);
 
     render(
@@ -764,38 +751,25 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const exportBtn = screen.getByRole("menuitem", { name: /export pdf/i });
+    const exportBtn = screen.getByRole("menuitem", { name: /export/i });
     fireEvent.click(exportBtn);
 
+    expect(printSpy).toHaveBeenCalledTimes(1);
     expect(
-      screen.queryByRole("menuitem", { name: /export pdf/i })
+      screen.queryByRole("menuitem", { name: /export/i })
     ).not.toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(resumeService.exportResumePdf).toHaveBeenCalledWith(
-        "res-101",
-        "Staff Frontend Resume"
-      );
-    });
-    expect(printSpy).not.toHaveBeenCalled();
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
   });
 
-  it("switches activeView to preview mode before starting server-side PDF export when clicking Export PDF on mobile from the Editor tab", async () => {
+  it("switches activeView to preview mode before calling window.print when clicking Export on mobile from the Editor tab", () => {
     mockViewport(false);
 
-    let previewMountedDuringExport = false;
-    (resumeService.exportResumePdf as jest.Mock).mockImplementationOnce(
-      async () => {
-        previewMountedDuringExport = Boolean(
-          document.querySelector('[data-testid="resume-preview-page"]')
-        );
-        return {
-          blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
-          filename: "staff-frontend-resume.pdf",
-        };
-      }
-    );
+    let previewMountedDuringPrint = false;
+    printSpy.mockImplementation(() => {
+      previewMountedDuringPrint = Boolean(
+        document.querySelector('[data-testid="resume-preview-page"]')
+      );
+    });
 
     render(
       <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
@@ -808,18 +782,15 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByLabelText("Full Name")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /export pdf/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
 
-    await waitFor(() => {
-      expect(resumeService.exportResumePdf).toHaveBeenCalledTimes(1);
-    });
-    expect(previewMountedDuringExport).toBe(true);
-    expect(printSpy).not.toHaveBeenCalled();
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(previewMountedDuringPrint).toBe(true);
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
     expect(screen.queryByLabelText("Full Name")).not.toBeInTheDocument();
   });
 
-  it("exports PDF directly on mobile when Preview tab is already active", async () => {
+  it("calls window.print directly on mobile when Preview tab is already active", () => {
     mockViewport(false);
 
     render(
@@ -830,59 +801,41 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /export pdf/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
 
-    await waitFor(() => {
-      expect(resumeService.exportResumePdf).toHaveBeenCalledTimes(1);
-    });
-    expect(printSpy).not.toHaveBeenCalled();
+    expect(printSpy).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
   });
 
-  it("disables and blocks repeated Export PDF clicks while server export is in flight, then re-enables on completion", async () => {
+  it("disables and debounces repeated Export clicks to prevent overlapping print dialogs, then re-enables after cooldown", () => {
     mockViewport(true);
-
-    let resolveExport!: (val: { blob: Blob; filename: string }) => void;
-    (resumeService.exportResumePdf as jest.Mock).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveExport = resolve;
-        })
-    );
 
     render(
       <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
     );
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const firstExportBtn = screen.getByRole("menuitem", { name: /export pdf/i });
+    const firstExportBtn = screen.getByRole("menuitem", { name: /export/i });
 
     // Rapid double-click on the same button instance
     fireEvent.click(firstExportBtn);
     fireEvent.click(firstExportBtn);
-    expect(resumeService.exportResumePdf).toHaveBeenCalledTimes(1);
+    expect(printSpy).toHaveBeenCalledTimes(1);
 
-    // Re-opening overflow menu while export is in flight shows Export PDF disabled and blocks click
+    // Re-opening overflow menu during cooldown shows Export disabled and blocks click
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const inFlightExportBtn = screen.getByRole("menuitem", {
-      name: /export pdf/i,
-    });
-    expect(inFlightExportBtn).toBeDisabled();
-    fireEvent.click(inFlightExportBtn);
-    expect(resumeService.exportResumePdf).toHaveBeenCalledTimes(1);
+    const cooldownExportBtn = screen.getByRole("menuitem", { name: /export/i });
+    expect(cooldownExportBtn).toBeDisabled();
+    fireEvent.click(cooldownExportBtn);
+    expect(printSpy).toHaveBeenCalledTimes(1);
 
-    // Once export completes, Export PDF re-enables and allows exporting again
-    await act(async () => {
-      resolveExport({
-        blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
-        filename: "staff-frontend-resume.pdf",
-      });
+    // After cooldown window elapses, Export re-enables and allows printing again
+    act(() => {
+      jest.advanceTimersByTime(500);
     });
 
-    expect(inFlightExportBtn).not.toBeDisabled();
-    fireEvent.click(inFlightExportBtn);
-    await waitFor(() => {
-      expect(resumeService.exportResumePdf).toHaveBeenCalledTimes(2);
-    });
+    expect(cooldownExportBtn).not.toBeDisabled();
+    fireEvent.click(cooldownExportBtn);
+    expect(printSpy).toHaveBeenCalledTimes(2);
   });
 });

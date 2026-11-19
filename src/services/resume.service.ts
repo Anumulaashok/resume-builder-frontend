@@ -176,34 +176,12 @@ class ResumeService {
     return response.data?.data;
   }
 
-  async exportResumePdf(
-    resumeId: string,
-    fallbackTitle?: string
-  ): Promise<ExportedDocument> {
-    const response = await axiosInstance.get<Blob>(
-      `/api/resumes/${resumeId}/export/pdf`,
-      {
-        responseType: "blob",
-      }
-    );
-    const fallback = buildFallbackExportFilename(fallbackTitle, "pdf");
-    const filename = parseContentDispositionFilename(
-      response.headers?.["content-disposition"],
-      fallback
-    );
-    const blob =
-      response.data instanceof Blob
-        ? response.data
-        : new Blob([response.data], { type: "application/pdf" });
-    return { blob, filename };
-  }
-
   async exportResumeTxt(
     resumeId: string,
     fallbackTitle?: string
   ): Promise<ExportedDocument> {
     const response = await axiosInstance.get<Blob>(
-      `/api/resumes/${resumeId}/export/txt`,
+      `/api/resumes/${resumeId}/export.txt`,
       {
         responseType: "blob",
       }

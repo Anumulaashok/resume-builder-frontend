@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { IResume, ThemeConfig } from "../types/resume";
 import {
-  ArrowDownTrayIcon,
   ArrowPathIcon,
   DocumentTextIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SwatchIcon,
   PaintBrushIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
 import { motion } from "framer-motion";
 import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
@@ -22,14 +22,14 @@ import {
 } from "./templates/registry";
 import { TemplateGalleryModal } from "./templates/TemplateGalleryModal";
 
-export type ExportFormat = "pdf" | "txt";
-
 interface ResumePreviewProps {
   resume: IResume;
   onChange?: (resume: IResume) => void;
   readOnly?: boolean;
-  onExport?: (format: ExportFormat) => Promise<void> | void;
-  exportingFormat?: ExportFormat | null;
+  onDownloadPdf?: () => void;
+  isPrinting?: boolean;
+  onExportTxt?: () => Promise<void> | void;
+  isExportingTxt?: boolean;
 }
 
 export const A4_WIDTH_PX = 794; // 21cm at 96dpi
@@ -61,8 +61,10 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   resume,
   onChange,
   readOnly = false,
-  onExport,
-  exportingFormat,
+  onDownloadPdf,
+  isPrinting = false,
+  onExportTxt,
+  isExportingTxt,
 }) => {
   const externalTemplateId =
     resume.templateId || (resume as any).template;
@@ -74,8 +76,8 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
-  const [internalExporting, setInternalExporting] =
-    useState<ExportFormat | null>(null);
+  const [internalExportingTxt, setInternalExportingTxt] =
+    useState<boolean>(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -143,15 +145,25 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
   const effectiveScale = manualScale ?? fitScale;
   const isFitMode = manualScale === null;
-  const activeExportFormat =
-    exportingFormat !== undefined ? exportingFormat : internalExporting;
-  const isExportBusy = Boolean(activeExportFormat);
+  const isTxtBusy =
+    isExportingTxt !== undefined ? isExportingTxt : internalExportingTxt;
 
-  const handleExportFormat = async (format: ExportFormat) => {
-    if (isExportBusy) return;
+  const handlePrint = () => {
+    if (isPrinting) return;
+    if (onDownloadPdf) {
+      onDownloadPdf();
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.print === "function") {
+      window.print();
+    }
+  };
 
-    if (onExport) {
-      await onExport(format);
+  const handleDownloadTxt = async () => {
+    if (isTxtBusy) return;
+
+    if (onExportTxt) {
+      await onExportTxt();
       return;
     }
 
@@ -161,24 +173,18 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
       return;
     }
 
-    setInternalExporting(format);
+    setInternalExportingTxt(true);
     try {
-      const exported =
-        format === "pdf"
-          ? await resumeService.exportResumePdf(resumeId, resume.title)
-          : await resumeService.exportResumeTxt(resumeId, resume.title);
+      const exported = await resumeService.exportResumeTxt(
+        resumeId,
+        resume.title
+      );
       triggerFileDownload(exported.blob, exported.filename);
-      toast.success(
-        format === "pdf"
-          ? "PDF resume downloaded"
-          : "ATS plain text downloaded"
-      );
+      toast.success("ATS plain text downloaded");
     } catch (error: any) {
-      toast.error(
-        error?.message || `Failed to export ${format.toUpperCase()} resume`
-      );
+      toast.error(error?.message || "Failed to export TXT resume");
     } finally {
-      setInternalExporting(null);
+      setInternalExportingTxt(false);
     }
   };
 
@@ -325,14 +331,14 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             type="button"
             data-testid="export-txt-btn"
             onClick={() => {
-              void handleExportFormat("txt");
+              void handleDownloadTxt();
             }}
-            disabled={isExportBusy}
-            aria-busy={activeExportFormat === "txt"}
-            title="Download ATS-safe plain text (.txt)"
+            disabled={isTxtBusy}
+            aria-busy={isTxtBusy}
+            title="Download ATS plain text (.txt)"
             className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-white border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
           >
-            {activeExportFormat === "txt" ? (
+            {isTxtBusy ? (
               <>
                 <ArrowPathIcon
                   className="h-4 w-4 animate-spin text-blue-600"
@@ -343,7 +349,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             ) : (
               <>
                 <DocumentTextIcon className="h-4 w-4" aria-hidden="true" />
-                <span>ATS Text</span>
+                <span>Download ATS text</span>
               </>
             )}
           </button>
@@ -351,28 +357,13 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
           <button
             type="button"
             data-testid="export-pdf-btn"
-            onClick={() => {
-              void handleExportFormat("pdf");
-            }}
-            disabled={isExportBusy}
-            aria-busy={activeExportFormat === "pdf"}
-            title="Download vector PDF (.pdf)"
+            onClick={handlePrint}
+            disabled={isPrinting}
+            title="Print or save preview as A4 PDF"
             className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 rounded-md shadow-sm text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
           >
-            {activeExportFormat === "pdf" ? (
-              <>
-                <ArrowPathIcon
-                  className="h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-                <span>Exporting PDF…</span>
-              </>
-            ) : (
-              <>
-                <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
-                <span>Download PDF</span>
-              </>
-            )}
+            <PrinterIcon className="h-4 w-4" aria-hidden="true" />
+            <span>Download PDF</span>
           </button>
         </div>
       </div>

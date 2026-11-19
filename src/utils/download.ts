@@ -1,6 +1,6 @@
 export function buildFallbackExportFilename(
   rawTitle: string | undefined,
-  ext: "pdf" | "txt"
+  ext: "txt" = "txt"
 ): string {
   const base = (rawTitle || "resume")
     .trim()

@@ -30,6 +30,7 @@ jest.mock("react-resizable-panels", () => ({
 const sampleResume: IResume = {
   _id: "res-export-1",
   title: "Staff Backend Resume",
+  templateId: "tech-split",
   content: {
     basics: {
       name: "Anumula Ashok",
@@ -63,7 +64,7 @@ const sampleResume: IResume = {
   },
 };
 
-describe("Frontend Server-Side PDF & ATS Plain Text Export Pipeline", () => {
+describe("Print-to-PDF & Backend ATS Plain-Text (.txt) Export Flow", () => {
   const originalCreateObjectURL = URL.createObjectURL;
   const originalRevokeObjectURL = URL.revokeObjectURL;
   let toastErrorSpy: jest.SpyInstance;
@@ -88,14 +89,14 @@ describe("Frontend Server-Side PDF & ATS Plain Text Export Pipeline", () => {
     URL.revokeObjectURL = originalRevokeObjectURL;
   });
 
-  it("renders distinct PDF and ATS Text download buttons instead of browser Print and shows loading feedback", async () => {
-    let resolvePdf!: (val: { blob: Blob; filename: string }) => void;
-    const exportPdfSpy = jest
-      .spyOn(resumeService, "exportResumePdf")
+  it('triggers window.print on the A4 preview when clicking "Download PDF" and downloads .txt when clicking "Download ATS text"', async () => {
+    let resolveTxt!: (val: { blob: Blob; filename: string }) => void;
+    const exportTxtSpy = jest
+      .spyOn(resumeService, "exportResumeTxt")
       .mockImplementationOnce(
         () =>
           new Promise((resolve) => {
-            resolvePdf = resolve;
+            resolveTxt = resolve;
           })
       );
 
@@ -103,35 +104,44 @@ describe("Frontend Server-Side PDF & ATS Plain Text Export Pipeline", () => {
 
     const pdfBtn = screen.getByTestId("export-pdf-btn");
     const txtBtn = screen.getByTestId("export-txt-btn");
+    const previewPage = screen.getByTestId("resume-preview-page");
 
     expect(pdfBtn).toHaveTextContent("Download PDF");
-    expect(txtBtn).toHaveTextContent("ATS Text");
-    expect(screen.queryByRole("button", { name: /^print$/i })).not.toBeInTheDocument();
+    expect(txtBtn).toHaveTextContent("Download ATS text");
+    expect(previewPage.className).toContain("print:!transform-none");
 
+    // Download PDF uses window.print on the preview
     fireEvent.click(pdfBtn);
-    expect(printSpy).not.toHaveBeenCalled();
-    expect(exportPdfSpy).toHaveBeenCalledWith("res-export-1", "Staff Backend Resume");
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(exportTxtSpy).not.toHaveBeenCalled();
 
-    // Loading feedback while server renders PDF
-    expect(pdfBtn).toHaveTextContent("Exporting PDF…");
-    expect(pdfBtn).toBeDisabled();
+    // Download ATS text calls backend .txt endpoint and saves the file
+    fireEvent.click(txtBtn);
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(exportTxtSpy).toHaveBeenCalledWith(
+      "res-export-1",
+      "Staff Backend Resume"
+    );
+    expect(txtBtn).toHaveTextContent("Exporting TXT…");
     expect(txtBtn).toBeDisabled();
 
     await act(async () => {
-      resolvePdf({
-        blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
-        filename: "staff-backend-resume.pdf",
+      resolveTxt({
+        blob: new Blob(["Anumula Ashok\nWORK EXPERIENCE\n"], {
+          type: "text/plain;charset=utf-8",
+        }),
+        filename: "staff-backend-resume.txt",
       });
     });
 
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(anchorClickSpy).toHaveBeenCalledTimes(1);
-    expect(toastSuccessSpy).toHaveBeenCalledWith("PDF resume downloaded");
-    expect(pdfBtn).toHaveTextContent("Download PDF");
-    expect(pdfBtn).not.toBeDisabled();
+    expect(toastSuccessSpy).toHaveBeenCalledWith("ATS plain text downloaded");
+    expect(txtBtn).toHaveTextContent("Download ATS text");
+    expect(txtBtn).not.toBeDisabled();
   });
 
-  it("downloads ATS plain text via ResumeEditor and flushes unsaved edits before requesting server export", async () => {
+  it('flushes unsaved edits in ResumeEditor before calling GET /api/resumes/:id/export.txt when clicking "Download ATS text"', async () => {
     const updateSpy = jest
       .spyOn(resumeService, "updateResume")
       .mockResolvedValueOnce({ _id: "res-export-1" } as any);
@@ -146,7 +156,6 @@ describe("Frontend Server-Side PDF & ATS Plain Text Export Pipeline", () => {
 
     render(<ResumeEditor initialResume={sampleResume} onBack={jest.fn()} />);
 
-    // Make an unsaved edit right before clicking ATS Text export
     fireEvent.change(screen.getByLabelText("Professional Title"), {
       target: { value: "Principal Distributed Systems Engineer" },
     });
@@ -166,69 +175,84 @@ describe("Frontend Server-Side PDF & ATS Plain Text Export Pipeline", () => {
     expect(printSpy).not.toHaveBeenCalled();
   });
 
-  it("persists a brand-new unsaved resume before exporting PDF from the editor overflow menu", async () => {
+  it("persists a brand-new unsaved resume before downloading ATS text from the editor overflow menu", async () => {
     const createSpy = jest
       .spyOn(resumeService, "createResume")
       .mockResolvedValueOnce({
         data: { _id: "newly-created-id-99" },
       } as any);
-    const exportPdfSpy = jest
-      .spyOn(resumeService, "exportResumePdf")
+    const exportTxtSpy = jest
+      .spyOn(resumeService, "exportResumeTxt")
       .mockResolvedValueOnce({
-        blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
-        filename: "untitled-resume.pdf",
+        blob: new Blob(["Untitled Resume\n"], {
+          type: "text/plain;charset=utf-8",
+        }),
+        filename: "untitled-resume.txt",
       });
 
     render(<ResumeEditor onBack={jest.fn()} />);
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+    fireEvent.click(screen.getByTestId("export-txt-menu-btn"));
 
     await waitFor(() => {
       expect(createSpy).toHaveBeenCalledTimes(1);
-      expect(exportPdfSpy).toHaveBeenCalledWith(
+      expect(exportTxtSpy).toHaveBeenCalledWith(
         "newly-created-id-99",
         "Untitled Resume"
       );
     });
 
+    expect(anchorClickSpy).toHaveBeenCalledTimes(1);
     expect(printSpy).not.toHaveBeenCalled();
   });
 
-  it("displays an error toast and resets loading state when server export fails", async () => {
+  it("displays an error toast and resets loading state when backend .txt export fails", async () => {
     jest
-      .spyOn(resumeService, "exportResumePdf")
-      .mockRejectedValueOnce(new Error("Document rendering timed out"));
+      .spyOn(resumeService, "exportResumeTxt")
+      .mockRejectedValueOnce(new Error("Failed to generate ATS text"));
 
     render(<ResumeEditor initialResume={sampleResume} onBack={jest.fn()} />);
 
-    const pdfBtn = screen.getByTestId("export-pdf-btn");
-    fireEvent.click(pdfBtn);
+    const txtBtn = screen.getByTestId("export-txt-btn");
+    fireEvent.click(txtBtn);
 
     await waitFor(() => {
-      expect(toastErrorSpy).toHaveBeenCalledWith("Document rendering timed out");
+      expect(toastErrorSpy).toHaveBeenCalledWith("Failed to generate ATS text");
     });
 
-    expect(pdfBtn).not.toBeDisabled();
-    expect(pdfBtn).toHaveTextContent("Download PDF");
+    expect(txtBtn).not.toBeDisabled();
+    expect(txtBtn).toHaveTextContent("Download ATS text");
   });
 
-  it("parses Content-Disposition filenames and extracts JSON error messages from failed Blob responses", async () => {
-    expect(
-      parseContentDispositionFilename(
-        'attachment; filename="senior-engineer.pdf"',
-        "fallback.pdf"
-      )
-    ).toBe("senior-engineer.pdf");
+  it("requests GET /api/resumes/:id/export.txt and extracts Content-Disposition filenames & Blob JSON errors", async () => {
+    const getSpy = jest.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+      data: new Blob(["Anumula Ashok\n"], { type: "text/plain;charset=utf-8" }),
+      headers: {
+        "content-disposition": 'attachment; filename="staff-engineer.txt"',
+      },
+    } as any);
+
+    const exported = await resumeService.exportResumeTxt(
+      "507f1f77bcf86cd799439022",
+      "Fallback Title"
+    );
+    expect(getSpy).toHaveBeenCalledWith(
+      "/api/resumes/507f1f77bcf86cd799439022/export.txt",
+      { responseType: "blob" }
+    );
+    expect(exported.filename).toBe("staff-engineer.txt");
+
     expect(
       parseContentDispositionFilename(
         "attachment; filename*=UTF-8''ashok%20resume.txt",
         "fallback.txt"
       )
     ).toBe("ashok resume.txt");
-    expect(buildFallbackExportFilename("Staff C++ / Go Resume!", "pdf")).toBe(
-      "staff-c-go-resume.pdf"
+    expect(buildFallbackExportFilename("Staff C++ / Go Resume!")).toBe(
+      "staff-c-go-resume.txt"
     );
+    expect((resumeService as any).exportResumePdf).toBeUndefined();
 
     const errorBlob = {
       text: () =>
@@ -248,7 +272,7 @@ describe("Frontend Server-Side PDF & ATS Plain Text Export Pipeline", () => {
       );
 
     await expect(
-      axiosInstance.get("/api/resumes/bad-id/export/pdf", {
+      axiosInstance.get("/api/resumes/bad-id/export.txt", {
         responseType: "blob",
         adapter: failWithBlob,
       })
