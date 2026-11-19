@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import HomePage from './components/HomePage';
 import PublicResumeView from './components/PublicResumeView';
+import ReauthModal from './components/ReauthModal';
 import { PortfolioPublicView } from './components/portfolio/PortfolioPublicView';
 import { Toaster } from 'react-hot-toast';
 import { useIsSmUp } from './components/common/Header';
 import { getStoredUser, isAuthenticated, StoredUser } from './utils/token';
-import { AUTH_LOGOUT_EVENT } from './services/axios';
+import { AuthModalContext, authEventBus } from './utils/authEventBus';
 
 export const getShareTokenFromLocation = (): string | null => {
   if (typeof window === 'undefined') return null;
@@ -27,8 +28,15 @@ function App() {
     isAuthenticated() ? getStoredUser() : null
   );
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [showReauthModal, setShowReauthModal] = useState(false);
+  const [reauthEmail, setReauthEmail] = useState<string>('');
   const isSmUp = useIsSmUp();
   const toastPosition = isSmUp ? 'top-center' : 'bottom-center';
+
+  const authenticatedRef = useRef(authenticated);
+  authenticatedRef.current = authenticated;
+  const userRef = useRef(user);
+  userRef.current = user;
 
   // Detect unauthenticated public portfolio view
   const pathname = window.location.pathname;
@@ -42,15 +50,50 @@ function App() {
   useEffect(() => {
     const authed = isAuthenticated();
     setAuthenticated(authed);
-    setUser(authed ? getStoredUser() : null);
+    authenticatedRef.current = authed;
+    const storedUser = authed ? getStoredUser() : null;
+    setUser(storedUser);
+    userRef.current = storedUser;
+    if (storedUser?.email) {
+      setReauthEmail(storedUser.email);
+    }
     setShareToken(getShareTokenFromLocation());
 
-    const handleLogout = () => {
-      setAuthenticated(false);
-      setUser(null);
+    const unsubscribeExpired = authEventBus.onSessionExpired((detail) => {
+      if (!authenticatedRef.current) return;
+      const emailHint = detail.email || userRef.current?.email || '';
+      if (emailHint) {
+        setReauthEmail(emailHint);
+      }
+      setShowReauthModal(true);
+    });
+
+    const unsubscribeOpenReauth = authEventBus.onOpenReauth((detail) => {
+      if (!authenticatedRef.current) return;
+      const emailHint = detail.email || userRef.current?.email || '';
+      if (emailHint) {
+        setReauthEmail(emailHint);
+      }
+      setShowReauthModal(true);
+    });
+
+    const unsubscribeReauthenticated = authEventBus.onReauthenticated(
+      (detail) => {
+        const nextUser = detail.user || getStoredUser();
+        setUser(nextUser);
+        if (nextUser?.email) {
+          setReauthEmail(nextUser.email);
+        }
+        setAuthenticated(true);
+        setShowReauthModal(false);
+      }
+    );
+
+    return () => {
+      unsubscribeExpired();
+      unsubscribeOpenReauth();
+      unsubscribeReauthenticated();
     };
-    window.addEventListener(AUTH_LOGOUT_EVENT, handleLogout);
-    return () => window.removeEventListener(AUTH_LOGOUT_EVENT, handleLogout);
   }, []);
 
   // Unauthenticated visitor view for published portfolios via slug
@@ -83,18 +126,37 @@ function App() {
 
   if (authenticated) {
     return (
-      <div className="App w-full min-h-screen">
-        <HomePage
-          user={user}
-          onLogout={() => {
-            setUser(null);
-            setAuthenticated(false);
-          }}
-        />
-        <div className="print:hidden">
-          <Toaster position={toastPosition} />
+      <AuthModalContext.Provider value={{ hasGlobalModal: true }}>
+        <div className="App w-full min-h-screen">
+          <HomePage
+            user={user}
+            onLogout={() => {
+              setShowReauthModal(false);
+              setUser(null);
+              setAuthenticated(false);
+            }}
+          />
+          <ReauthModal
+            isOpen={showReauthModal}
+            initialEmail={reauthEmail || user?.email || ''}
+            onSuccess={(loggedInUser) => {
+              const resolvedUser = loggedInUser || getStoredUser();
+              setUser(resolvedUser);
+              if (resolvedUser?.email) {
+                setReauthEmail(resolvedUser.email);
+              }
+              setAuthenticated(true);
+              setShowReauthModal(false);
+            }}
+            onDismiss={() => {
+              setShowReauthModal(false);
+            }}
+          />
+          <div className="print:hidden">
+            <Toaster position={toastPosition} />
+          </div>
         </div>
-      </div>
+      </AuthModalContext.Provider>
     );
   }
 
@@ -104,7 +166,11 @@ function App() {
         <Login
           onToggleAuth={toggleAuth}
           onLoginSuccess={(loggedInUser) => {
-            setUser(loggedInUser || getStoredUser());
+            const resolvedUser = loggedInUser || getStoredUser();
+            setUser(resolvedUser);
+            if (resolvedUser?.email) {
+              setReauthEmail(resolvedUser.email);
+            }
             setAuthenticated(true);
           }}
         />
