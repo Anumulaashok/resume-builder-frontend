@@ -1,29 +1,25 @@
-// React imports
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-// UI Components
 import {
   PencilIcon,
+  PencilSquareIcon,
   DocumentDuplicateIcon,
   DocumentArrowDownIcon,
   ArrowLeftIcon,
   PlusIcon,
   XMarkIcon,
+  EyeIcon,
   EyeSlashIcon,
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
   ShareIcon,
+  Bars3Icon,
+  TrashIcon,
+  EllipsisVerticalIcon,
+  MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
-
-// Loadash debounce
 import { debounce } from "lodash";
-import { useResumeHistory } from "./useResumeHistory";
-
-// Notifications
 import toast from "react-hot-toast";
-
-// DnD related imports
 import {
   DndContext,
   closestCenter,
@@ -42,14 +38,10 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-// Layout Components
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
-// Services
+import { useResumeHistory } from "./useResumeHistory";
 import { resumeService } from "../services/resume.service";
-
-// Types
 import {
   dateFields,
   IResume,
@@ -57,13 +49,11 @@ import {
   SectionOption,
   SectionType,
 } from "../types/resume";
-
-// Custom Components
 import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
-import { EyeIcon } from "lucide-react";
 import ShareModal from "./ShareModal";
+import { formatResumeDate } from "../utils/date";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -177,20 +167,471 @@ const sectionOptions: SectionOption[] = [
   },
 ];
 
+export function normalizeResume(input?: IResume): IResume {
+  const source = input || defaultResume;
+  const basics = source.content?.basics || defaultResume.content.basics;
+  const rawBasicsSummary = basics?.summary;
+  const rawTopSummary = source.summary;
+
+  const resolvedSummary =
+    typeof rawBasicsSummary === "string" && rawBasicsSummary.length > 0
+      ? rawBasicsSummary
+      : typeof rawTopSummary === "string" && rawTopSummary.length > 0
+      ? rawTopSummary
+      : rawBasicsSummary ?? rawTopSummary ?? "";
+
+  const sections = Array.isArray(source.content?.sections)
+    ? source.content.sections
+    : [];
+  const rawOrder = Array.isArray(source.content?.sectionOrder)
+    ? source.content.sectionOrder
+    : [];
+  const missingIds = sections
+    .map((s) => s.id)
+    .filter((id) => !rawOrder.includes(id));
+
+  return {
+    ...defaultResume,
+    ...source,
+    title: source.title ?? defaultResume.title ?? "Untitled Resume",
+    summary: resolvedSummary,
+    content: {
+      ...defaultResume.content,
+      ...source.content,
+      basics: {
+        ...defaultResume.content.basics,
+        ...basics,
+        name: basics?.name ?? "",
+        label: basics?.label ?? "",
+        email: basics?.email ?? "",
+        phone: basics?.phone ?? "",
+        summary: resolvedSummary,
+        location: {
+          ...defaultResume.content.basics.location,
+          ...(basics?.location || {}),
+        },
+      },
+      sections,
+      sectionOrder: [...rawOrder, ...missingIds],
+    },
+  };
+}
+
+function formatItemDateRange(item: any): string {
+  const start = formatResumeDate(item?.startDate);
+  const end = formatResumeDate(item?.endDate);
+  const single = formatResumeDate(item?.date);
+
+  if (start) {
+    const endLabel = item?.current || !end ? "Present" : end;
+    return `${start} – ${endLabel}`;
+  }
+  if (item?.current) {
+    return "Present";
+  }
+  return end || single || "";
+}
+
+export function getItemDisplayLines(
+  sectionType: SectionType,
+  item: any
+): { primary: string; secondary: string } {
+  if (!item) {
+    return { primary: "Untitled Item", secondary: "" };
+  }
+
+  const dateRange = formatItemDateRange(item);
+
+  switch (sectionType) {
+    case SectionType.WORK: {
+      const company = (item.company || item.name || "").trim();
+      const position = (item.position || "").trim();
+      const primary = company || position || "Untitled Role";
+      const secondary = [
+        company && position ? position : "",
+        dateRange,
+        item.location,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return { primary, secondary };
+    }
+
+    case SectionType.EDUCATION: {
+      const institution = (item.institution || "").trim();
+      const degree = (item.degree || "").trim();
+      const field = (item.field || "").trim();
+
+      if (institution) {
+        const degreeField = [degree, field].filter(Boolean).join(" in ");
+        return {
+          primary: institution,
+          secondary: [degreeField, dateRange, item.location]
+            .filter(Boolean)
+            .join(" · "),
+        };
+      }
+
+      const primary = degree || field || "Untitled Education";
+      const secondary = [degree && field ? field : "", dateRange, item.location]
+        .filter(Boolean)
+        .join(" · ");
+      return { primary, secondary };
+    }
+
+    case SectionType.SKILLS:
+    case SectionType.TECK_SKILLS:
+    case SectionType.SOFTSKILSS: {
+      const primary = (item.name || item.title || "").trim() || "Untitled Skill";
+      const levelStr =
+        typeof item.level === "number"
+          ? item.level <= 5
+            ? `Level ${item.level}/5`
+            : `${item.level}%`
+          : typeof item.level === "string"
+          ? item.level.trim()
+          : "";
+      const tags = Array.isArray(item.technologies)
+        ? item.technologies.join(", ")
+        : Array.isArray(item.subSkills)
+        ? item.subSkills.join(", ")
+        : "";
+      return {
+        primary,
+        secondary: [levelStr, tags].filter(Boolean).join(" · "),
+      };
+    }
+
+    case SectionType.PROJECTS: {
+      const primary =
+        (item.name || item.title || "").trim() || "Untitled Project";
+      const techs = Array.isArray(item.technologies)
+        ? item.technologies.join(", ")
+        : "";
+      const secondary =
+        [dateRange, techs, item.url].filter(Boolean).join(" · ") ||
+        (item.description || "").trim();
+      return { primary, secondary };
+    }
+
+    case SectionType.LANGUAGES: {
+      const primary =
+        (item.name || item.language || "").trim() || "Untitled Language";
+      const fluency = (item.fluency || item.level || "").trim();
+      const prof =
+        typeof item.proficiency === "number" ? `${item.proficiency}%` : "";
+      return {
+        primary,
+        secondary: [fluency, prof].filter(Boolean).join(" · "),
+      };
+    }
+
+    case SectionType.CERTIFICATES: {
+      const primary =
+        (item.name || item.title || "").trim() || "Untitled Certificate";
+      return {
+        primary,
+        secondary: [item.issuer, dateRange].filter(Boolean).join(" · "),
+      };
+    }
+
+    case SectionType.COURSES: {
+      const primary =
+        (item.course || item.name || "").trim() || "Untitled Course";
+      return {
+        primary,
+        secondary: [item.institution, dateRange].filter(Boolean).join(" · "),
+      };
+    }
+
+    case SectionType.AWARDS:
+    case SectionType.ACHIVEMENTS: {
+      const primary =
+        (item.title || item.name || "").trim() || "Untitled Award";
+      return {
+        primary,
+        secondary: [item.awarder || item.issuer, dateRange]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    }
+
+    case SectionType.ORGANIZATIONS: {
+      const primary =
+        (item.organization || item.name || "").trim() ||
+        "Untitled Organization";
+      return {
+        primary,
+        secondary: [item.position, dateRange].filter(Boolean).join(" · "),
+      };
+    }
+
+    case SectionType.PUBLICATIONS: {
+      const primary =
+        (item.title || item.name || "").trim() || "Untitled Publication";
+      return {
+        primary,
+        secondary: [item.publisher, dateRange].filter(Boolean).join(" · "),
+      };
+    }
+
+    case SectionType.REFERENCES: {
+      const primary = (item.name || "").trim() || "Untitled Reference";
+      const roleAtCo = [item.position, item.company]
+        .filter(Boolean)
+        .join(" at ");
+      return {
+        primary,
+        secondary: [roleAtCo, item.contact || item.email || item.phone]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    }
+
+    default: {
+      const primary =
+        (
+          item.title ||
+          item.name ||
+          item.institution ||
+          item.company ||
+          item.degree ||
+          ""
+        ).trim() || "Untitled Item";
+      const secondary =
+        [item.subtitle || item.position, dateRange, item.location]
+          .filter(Boolean)
+          .join(" · ") || (item.description || "").trim();
+      return { primary, secondary };
+    }
+  }
+}
+
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return true;
+    }
+    return window.matchMedia("(min-width: 1024px)").matches;
+  });
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    const mql = window.matchMedia("(min-width: 1024px)");
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    }
+    mql.addListener(onChange);
+    return () => mql.removeListener(onChange);
+  }, []);
+
+  return isDesktop;
+}
+
 interface SortableItemProps {
   id: string;
   section: ISection;
-  onRemove: (type: SectionType, id: string) => void;
-  onEdit: (type: SectionType, item: any) => void;
-  onHide: (type: SectionType, id: string) => void;
+  onAddItem: (section: ISection) => void;
+  onDeleteSection: (section: ISection) => void;
+  onRemove: (sectionId: string, itemId: string) => void;
+  onEdit: (type: SectionType, item: any, sectionId: string) => void;
+  onHide: (sectionId: string, itemId: string) => void;
 }
+
+const SortableItem: React.FC<SortableItemProps> = ({
+  id,
+  section,
+  onAddItem,
+  onDeleteSection,
+  onRemove,
+  onEdit,
+  onHide,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 30 : undefined,
+    position: isDragging ? "relative" : undefined,
+  };
+
+  const itemCount = section.content?.length || 0;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-white rounded-xl border border-gray-200 shadow-sm transition-shadow ${
+        isDragging ? "ring-2 ring-blue-500 shadow-lg opacity-90" : "hover:shadow-md"
+      }`}
+    >
+      {/* Section Header */}
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 bg-neutral-50/80 border-b border-gray-100 rounded-t-xl">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            style={{ touchAction: "none" }}
+            className="cursor-grab active:cursor-grabbing p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title={`Drag to reorder ${section.title}`}
+            aria-label={`Drag to reorder ${section.title}`}
+          >
+            <Bars3Icon className="h-5 w-5" />
+          </button>
+          <h3 className="text-base font-semibold text-gray-900 truncate">
+            {section.title}
+          </h3>
+          <span className="text-xs font-medium text-gray-600 bg-gray-200/70 px-2 py-0.5 rounded-full shrink-0">
+            {itemCount}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => onAddItem(section)}
+            title={`Add item to ${section.title}`}
+            aria-label={`Add item to ${section.title}`}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <PlusIcon className="h-4 w-4" />
+            <span>Add</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onDeleteSection(section)}
+            title={`Remove ${section.title} section`}
+            aria-label={`Remove ${section.title} section`}
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            <TrashIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Section Items */}
+      <div className="p-4 sm:p-5">
+        {section.content && section.content.length > 0 ? (
+          <div className="space-y-2.5">
+            {section.content.map((item: any) => {
+              const { primary, secondary } = getItemDisplayLines(
+                section.type,
+                item
+              );
+              const isHidden = item.enabled === false;
+
+              return (
+                <div
+                  key={item.id}
+                  className={`px-3.5 py-3 border rounded-lg transition-colors flex items-center justify-between gap-3 ${
+                    isHidden
+                      ? "border-gray-200 bg-neutral-50 opacity-65"
+                      : "border-gray-200 bg-white hover:border-blue-300 hover:bg-neutral-50/50"
+                  }`}
+                >
+                  <div
+                    onClick={() => onEdit(section.type, item, section.id)}
+                    className="min-w-0 flex-1 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {primary}
+                      </p>
+                      {isHidden && (
+                        <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-gray-200/80 text-gray-600 shrink-0">
+                          Hidden
+                        </span>
+                      )}
+                    </div>
+                    {secondary && (
+                      <p className="text-xs text-gray-500 truncate mt-0.5">
+                        {secondary}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => onHide(section.id, item.id)}
+                      title={
+                        isHidden
+                          ? "Show item on resume"
+                          : "Hide item from resume"
+                      }
+                      aria-label={
+                        isHidden ? `Show ${primary}` : `Hide ${primary}`
+                      }
+                      className="p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {isHidden ? (
+                        <EyeSlashIcon className="h-4 w-4" />
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(section.type, item, section.id)}
+                      title={`Edit ${primary}`}
+                      aria-label={`Edit ${primary}`}
+                      className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemove(section.id, item.id)}
+                      title={`Remove ${primary}`}
+                      aria-label={`Remove ${primary}`}
+                      className="p-1.5 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-6 px-4 rounded-lg border border-dashed border-gray-200 bg-neutral-50/60 text-sm text-gray-500">
+            <p>No items yet. Click Add to include entries in {section.title}.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
   initialResume,
   onSave,
   onBack,
 }) => {
-  const { resume, setResume, undo, redo, canUndo, canRedo } = useResumeHistory(initialResume || defaultResume);
+  const { resume, setResume, undo, redo, canUndo, canRedo } = useResumeHistory(
+    normalizeResume(initialResume)
+  );
+  const isDesktop = useIsDesktop();
   const [loading, setLoading] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
@@ -198,25 +639,68 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
   const [customSectionTitle, setCustomSectionTitle] = useState("");
   const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
-  const [filteredSections, setFilteredSections] = useState<SectionOption[]>();
-  const [orderedSections, setOrderedSections] = useState<ISection[]>([]);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [addContent, setAddContent] = useState<{
     type: SectionType;
     item: any;
+    sectionId?: string;
   } | null>(null);
   const [deletableSection, setDeletableSection] = useState<ISection | null>(
     null
   );
+
+  const prevInitialResumeRef = useRef<IResume | undefined>(initialResume);
+  const isInitialMountRef = useRef(true);
+  const titleBeforeEditRef = useRef<string>(resume.title || "");
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialResume && initialResume !== prevInitialResumeRef.current) {
+      prevInitialResumeRef.current = initialResume;
+      setResume(normalizeResume(initialResume));
+    }
+  }, [initialResume, setResume]);
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    if (!showOverflowMenu) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        overflowMenuRef.current &&
+        !overflowMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowOverflowMenu(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowOverflowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showOverflowMenu]);
+
   const sensors = useSensors(
     useSensor(TouchSensor, {
-      // Add custom touch sensor options for better mobile experience
       activationConstraint: {
         delay: 100,
         tolerance: 5,
       },
     }),
     useSensor(PointerSensor, {
-      // Customize pointer sensor for better touch handling
       activationConstraint: {
         distance: 5,
       },
@@ -226,39 +710,56 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     })
   );
 
-  // ----------- handlers start -----------
-
   const handleChange = (section: string, value: any) => {
-    setResume((prev) => ({
-      ...prev,
+    setResume((prev) => {
+      const nextSummary =
+        section === "basics" && value?.summary !== undefined
+          ? value.summary
+          : prev.summary;
+      return {
+        ...prev,
+        summary: nextSummary,
+        content: {
+          ...prev.content,
+          [section]: value,
+        },
+      };
+    });
+  };
+
+  const handlePreviewChange = (updatedResume: IResume) => {
+    const syncedSummary =
+      updatedResume.content?.basics?.summary ?? updatedResume.summary ?? "";
+    setResume({
+      ...updatedResume,
+      summary: syncedSummary,
       content: {
-        ...prev.content,
-        [section]: value,
+        ...updatedResume.content,
+        basics: {
+          ...updatedResume.content.basics,
+          summary: syncedSummary,
+        },
       },
-    }));
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (active.id !== over?.id) {
+    if (over && active.id !== over.id) {
       setResume((prev) => {
-        const oldIndex = prev.content.sectionOrder.indexOf(
-          active.id.toString()
-        );
-        const newIndex = prev.content.sectionOrder.indexOf(
-          over?.id.toString() || ""
-        );
+        const currentOrder = prev.content.sectionOrder;
+        const oldIndex = currentOrder.indexOf(active.id.toString());
+        const newIndex = currentOrder.indexOf(over.id.toString());
+        if (oldIndex === -1 || newIndex === -1) {
+          return prev;
+        }
 
         return {
           ...prev,
           content: {
             ...prev.content,
-            sectionOrder: arrayMove(
-              prev.content.sectionOrder,
-              oldIndex,
-              newIndex
-            ),
+            sectionOrder: arrayMove(currentOrder, oldIndex, newIndex),
           },
         };
       });
@@ -267,6 +768,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const handleAddSection = (section: SectionOption) => {
     setShowSectionModal(false);
+    setSearchTerm("");
     const newSection: ISection = {
       id: `${section.id}-${Date.now()}`,
       type: section.type,
@@ -274,7 +776,6 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       content: [],
     };
 
-    // Fix: Properly add the new section to both arrays
     setResume((prev) => ({
       ...prev,
       content: {
@@ -296,7 +797,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     const newSection: ISection = {
       id: `custom-${Date.now()}`,
       type: SectionType.CUSTOM,
-      title: customSectionTitle,
+      title: customSectionTitle.trim(),
       content: [],
       isCustom: true,
     };
@@ -329,7 +830,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
 
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
     debouncedAutoSave(resume);
+    return () => {
+      debouncedAutoSave.cancel();
+    };
   }, [resume, debouncedAutoSave]);
 
   const handleSave = async () => {
@@ -356,7 +864,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       setLoading(true);
       try {
         const savedResume: any = await resumeService.createResume(resume);
-        setResume((prev) => ({ ...prev, _id: savedResume.id || savedResume._id }));
+        setResume((prev) => ({
+          ...prev,
+          _id: savedResume.id || savedResume._id,
+        }));
         setShowShareModal(true);
       } catch (error) {
         toast.error("Failed to save resume before sharing");
@@ -373,12 +884,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       id: `${section.id}-item-${Date.now()}`,
     };
 
-    // Create appropriate item template based on section type
     switch (section.type) {
       case SectionType.EDUCATION:
         newItem = {
           ...newItem,
-
           degree: "",
           field: "",
           startDate: {} as dateFields,
@@ -392,6 +901,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.WORK:
         newItem = {
           ...newItem,
+          name: "",
           company: "",
           position: "",
           startDate: {} as dateFields,
@@ -415,6 +925,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.LANGUAGES:
         newItem = {
           ...newItem,
+          name: "",
           language: "",
           fluency: "",
         };
@@ -453,6 +964,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.COURSES:
         newItem = {
           ...newItem,
+          name: "",
           course: "",
           institution: "",
           date: {} as dateFields,
@@ -464,6 +976,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.ACHIVEMENTS:
         newItem = {
           ...newItem,
+          name: "",
           title: "",
           awarder: "",
           date: {} as dateFields,
@@ -474,6 +987,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.ORGANIZATIONS:
         newItem = {
           ...newItem,
+          name: "",
           organization: "",
           position: "",
           startDate: {} as dateFields,
@@ -519,36 +1033,41 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         };
     }
 
-    setAddContent({ type: section.type, item: newItem });
+    setAddContent({ type: section.type, item: newItem, sectionId: section.id });
   };
 
   const handleAddContent = (type: SectionType, item: any) => {
-    const updatedSections = resume.content.sections.map((section) => {
-      if (section.type === type) {
-        const existingItemIndex = section.content.findIndex(
-          (content) => content.id === item.id
+    const targetSectionId = addContent?.sectionId;
+
+    setResume((prev) => {
+      const updatedSections = prev.content.sections.map((section) => {
+        const matchesSection = targetSectionId
+          ? section.id === targetSectionId
+          : section.type === type;
+        if (!matchesSection) {
+          return section;
+        }
+
+        const existingContent = section.content || [];
+        const existingItemIndex = existingContent.findIndex(
+          (contentItem) => contentItem.id === item.id
         );
 
         if (existingItemIndex !== -1) {
-          // Update existing item
-          const updatedContent = [...section.content];
+          const updatedContent = [...existingContent];
           updatedContent[existingItemIndex] = item;
           return {
             ...section,
             content: updatedContent,
           };
-        } else {
-          // Add new item
-          return {
-            ...section,
-            content: [...(section.content || []), item],
-          };
         }
-      }
-      return section;
-    });
 
-    setResume((prev) => {
+        return {
+          ...section,
+          content: [...existingContent, item],
+        };
+      });
+
       return {
         ...prev,
         content: {
@@ -559,888 +1078,712 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     });
 
     setAddContent(null);
-    toast.success("Content added successfully");
+    toast.success("Content saved successfully");
   };
 
   const handleDeleteSection = (id: string) => {
-    setResume((prev) => {
-      const updatedSections = prev.content.sections.filter(
-        (section) => section.id !== id
-      );
-      const updatedSectionOrder = prev.content.sectionOrder.filter(
-        (sectionId) => sectionId !== id
-      );
-      return {
-        ...prev,
-        content: {
-          ...prev.content,
-          sections: updatedSections,
-          sectionOrder: updatedSectionOrder,
-        },
-      };
-    });
+    setResume((prev) => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        sections: prev.content.sections.filter((section) => section.id !== id),
+        sectionOrder: prev.content.sectionOrder.filter(
+          (sectionId) => sectionId !== id
+        ),
+      },
+    }));
     setDeletableSection(null);
     toast.success("Section deleted successfully");
   };
-  // ----------- handlers end -----------
 
-  useEffect(() => {
-    const selectedSectionTypes = resume.content.sections.map(
-      (section) => section.type
-    );
-
-    const filteredSections = sectionOptions.filter(
-      (section) =>
-        !selectedSectionTypes.includes(section.type) ||
-        section.type === SectionType.CUSTOM
-    );
-
-    const orderedSections = resume?.content?.sections
-      ? resume.content.sectionOrder
-          .map((id) =>
-            resume.content.sections.find((section) => section.id === id)
-          )
-          .filter((section): section is ISection => section !== undefined)
-      : [];
-    setOrderedSections(orderedSections);
-    setFilteredSections(filteredSections);
-  }, [resume]);
-
-  // Update SortableItem component to be more touch-friendly
-  const SortableItem: React.FC<SortableItemProps> = ({
-    id,
-    section,
-    onRemove,
-    onEdit,
-    onHide,
-  }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      zIndex: isDragging ? 999 : undefined,
-      position: isDragging ? "relative" : undefined,
-      touchAction: "none", // Important for mobile drag
-    };
-
-    return (
-      <div
-        ref={setNodeRef}
-        style={style as any}
-        className={`bg-gray-800 rounded-lg shadow border border-gray-700 p-4 ${
-          isDragging ? "opacity-75 shadow-lg" : ""
-        }`}
-        {...attributes}
-        {...listeners}
-      >
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-white">{section.title}</h3>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => handleAddNewItem(section)}
-              className="text-gray-400 hover:text-blue-500"
-              aria-label={`Add item to ${section.title}`}
-            >
-              <PlusIcon className="h-5 w-5" name="add" unicode={"\u002B"} />
-            </button>
-            <button
-              onClick={() => setDeletableSection(section)}
-              className="text-gray-400 hover:text-blue-500"
-              aria-label={`Edit ${section.title}`}
-            >
-              <XMarkIcon
-                className="h-5 w-5 hover:text-red-500 cursor-pointer"
-                name="delete"
-                unicode={"\u2716"}
-              />
-            </button>
-          </div>
-        </div>
-        {/* Display content items or empty state message */}
-        <div className="space-y-2">
-          {section.content && section.content.length > 0 ? (
-            section.content.map((item: any) => (
-              <div
-                key={item.id}
-                className="p-3 border border-gray-700 rounded-md hover:border-blue-300 transition-colors flex justify-between items-center"
-              >
-                {item.title ||
-                  item.name ||
-                  item.institution ||
-                  item.company ||
-                  item.degree ||
-                  "Untitled Item"}
-                <div className="flex space-x-5 items-center">
-                  <p onClick={() => onHide(section.type, item.id)}>
-                    {item.enabled ? (
-                      <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    ) : (
-                      <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    )}
-                  </p>
-                  <PencilIcon
-                    onClick={() => onEdit(section.type, item)}
-                    className="h-5 w-5 hover:text-blue-500 cursor-pointer"
-                    name="edit"
-                  />
-                  <XMarkIcon
-                    onClick={() => onRemove(section.type, item.id)}
-                    className="h-5 w-5 hover:text-red-500 cursor-pointer"
-                    name="delete"
-                  />
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              <p>No items yet. Click the + button to add content.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
+  const handleToggleItemVisibility = (sectionId: string, itemId: string) => {
+    setResume((prev) => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        sections: prev.content.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          return {
+            ...section,
+            content: section.content.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    enabled: item.enabled === false ? true : false,
+                  }
+                : item
+            ),
+          };
+        }),
+      },
+    }));
   };
 
-  return (
-    <div className="min-h-screen bg-gray-900 pt-16">
-      <div className="h-[calc(100vh-4rem)] bg-gray-900">
-        {/* Mobile View Switcher */}
-        <div className="lg:hidden flex justify-center space-x-4 py-2 bg-gray-800 border-b">
+  const handleRemoveItem = (sectionId: string, itemId: string) => {
+    setResume((prev) => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        sections: prev.content.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          return {
+            ...section,
+            content: section.content.filter((item) => item.id !== itemId),
+          };
+        }),
+      },
+    }));
+  };
+
+  const orderedSections = useMemo(() => {
+    const sections = resume?.content?.sections || [];
+    const order = resume?.content?.sectionOrder || [];
+    const fromOrder = order
+      .map((id) => sections.find((section) => section.id === id))
+      .filter((section): section is ISection => section !== undefined);
+    const missing = sections.filter((s) => !order.includes(s.id));
+    return [...fromOrder, ...missing];
+  }, [resume]);
+
+  const filteredSections = useMemo(() => {
+    const selectedSectionTypes = (resume?.content?.sections || []).map(
+      (section) => section.type
+    );
+    const query = searchTerm.trim().toLowerCase();
+
+    return sectionOptions.filter((section) => {
+      const isAvailable =
+        !selectedSectionTypes.includes(section.type) ||
+        section.type === SectionType.CUSTOM;
+      if (!isAvailable) return false;
+      if (!query) return true;
+      return (
+        section.title.toLowerCase().includes(query) ||
+        section.description.toLowerCase().includes(query)
+      );
+    });
+  }, [resume, searchTerm]);
+
+  const summaryValue =
+    resume.content?.basics?.summary ?? resume.summary ?? "";
+
+  const editorPanelContent = (
+    <div className="h-full min-h-0 flex flex-col bg-neutral-50 text-gray-900">
+      {/* Toolbar */}
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 shrink-0 z-20">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex items-center gap-2 min-w-[180px] flex-1">
+            <button
+              type="button"
+              onClick={onBack}
+              title="Back to resumes"
+              aria-label="Back"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shrink-0"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              <span>Back</span>
+            </button>
+
+            <div className="h-5 w-px bg-gray-200 shrink-0" aria-hidden="true" />
+
+            <div className="min-w-0 flex-1">
+              {isEditingTitle ? (
+                <input
+                  ref={titleInputRef}
+                  type="text"
+                  aria-label="Resume Title"
+                  value={resume.title || ""}
+                  onChange={(e) =>
+                    setResume((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                  onBlur={() => setIsEditingTitle(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setIsEditingTitle(false);
+                    } else if (e.key === "Escape") {
+                      setResume((prev) => ({
+                        ...prev,
+                        title: titleBeforeEditRef.current,
+                      }));
+                      setIsEditingTitle(false);
+                    }
+                  }}
+                  placeholder="Resume Title"
+                  className="w-full text-base sm:text-lg font-semibold text-gray-900 bg-transparent border-b-2 border-blue-600 focus:outline-none px-1 py-0.5"
+                />
+              ) : (
+                <button
+                  type="button"
+                  data-testid="resume-title-heading"
+                  onClick={() => {
+                    titleBeforeEditRef.current = resume.title || "";
+                    setIsEditingTitle(true);
+                  }}
+                  title="Click to rename resume"
+                  aria-label="Edit resume title"
+                  className="group inline-flex items-center gap-1.5 max-w-full text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                >
+                  <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                    {resume.title || "Untitled Resume"}
+                  </h1>
+                  <PencilSquareIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-600 shrink-0 transition-colors" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white shadow-sm">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!canUndo}
+                title="Undo"
+                aria-label="Undo"
+                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-neutral-50 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              >
+                <ArrowUturnLeftIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!canRedo}
+                title="Redo"
+                aria-label="Redo"
+                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-neutral-50 border-l border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              >
+                <ArrowUturnRightIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleOpenShare}
+              disabled={loading}
+              title="Share Resume & Privacy Settings"
+              data-testid="share-resume-btn-1"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+            >
+              <ShareIcon className="h-4 w-4 text-gray-500" />
+              <span>Share</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+            >
+              <PencilIcon className="h-4 w-4" />
+              <span>Save</span>
+            </button>
+
+            {/* Secondary Actions Overflow Menu */}
+            <div className="relative" ref={overflowMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowOverflowMenu((prev) => !prev)}
+                title="More actions"
+                aria-label="More actions"
+                aria-haspopup="menu"
+                aria-expanded={showOverflowMenu}
+                data-testid="toolbar-overflow-btn"
+                className="p-1.5 border border-gray-300 rounded-lg text-gray-600 bg-white hover:bg-neutral-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                <EllipsisVerticalIcon className="h-5 w-5" />
+              </button>
+
+              {showOverflowMenu && (
+                <div
+                  role="menu"
+                  aria-label="Secondary resume actions"
+                  className="absolute right-0 mt-1.5 w-44 rounded-lg bg-white border border-gray-200 shadow-lg py-1 z-30"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setResume((prev) => ({
+                        ...prev,
+                        title: `${prev.title || "Untitled Resume"} (Copy)`,
+                      }));
+                      setShowOverflowMenu(false);
+                      toast.success("Prepared copy title");
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                  >
+                    <DocumentDuplicateIcon className="h-4 w-4 text-gray-500" />
+                    <span>Clone</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowOverflowMenu(false);
+                      window.print();
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                  >
+                    <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
+                    <span>Export</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable Editor Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-5 pb-10 space-y-4">
+        {/* Basic Information Card */}
+        <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-4 sm:px-5 py-3.5 bg-neutral-50/80 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-900">
+              Basic Information
+            </h2>
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="basics-name"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Full Name
+                </label>
+                <input
+                  id="basics-name"
+                  type="text"
+                  value={resume.content.basics.name || ""}
+                  onChange={(e) =>
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      name: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Jane Doe"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-label"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Professional Title
+                </label>
+                <input
+                  id="basics-label"
+                  type="text"
+                  value={resume.content.basics.label || ""}
+                  onChange={(e) =>
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      label: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Senior Software Engineer"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-email"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Email
+                </label>
+                <input
+                  id="basics-email"
+                  type="email"
+                  value={resume.content.basics.email || ""}
+                  onChange={(e) =>
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      email: e.target.value,
+                    })
+                  }
+                  placeholder="jane@example.com"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-phone"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Phone
+                </label>
+                <input
+                  id="basics-phone"
+                  type="tel"
+                  value={resume.content.basics.phone || ""}
+                  onChange={(e) =>
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      phone: e.target.value,
+                    })
+                  }
+                  placeholder="+1 (555) 000-0000"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="basics-summary"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Professional Summary
+              </label>
+              <textarea
+                id="basics-summary"
+                rows={4}
+                value={summaryValue}
+                onChange={(e) =>
+                  handleChange("basics", {
+                    ...resume.content.basics,
+                    summary: e.target.value,
+                  })
+                }
+                placeholder="Write a concise overview of your experience, core strengths, and impact..."
+                className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Sortable Resume Sections */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={orderedSections.map((s) => s.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-4">
+              {orderedSections.map((section) => (
+                <SortableItem
+                  key={section.id}
+                  id={section.id}
+                  section={section}
+                  onAddItem={handleAddNewItem}
+                  onDeleteSection={setDeletableSection}
+                  onEdit={(type, content, sectionId) => {
+                    setAddContent({ type, item: content, sectionId });
+                  }}
+                  onHide={handleToggleItemVisibility}
+                  onRemove={handleRemoveItem}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        {/* Add Content Button kept inside scroll container */}
+        <div className="pt-2 pb-4">
           <button
+            type="button"
+            onClick={() => setShowSectionModal(true)}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-700 bg-white hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm"
+          >
+            <PlusIcon className="h-5 w-5" />
+            <span>Add Content</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="h-screen pt-16 bg-neutral-50 flex flex-col overflow-hidden">
+      {/* Mobile View Switcher */}
+      {!isDesktop && (
+        <div className="flex justify-center gap-3 py-2 px-4 bg-white border-b border-gray-200 shrink-0">
+          <button
+            type="button"
             onClick={() => setActiveView("editor")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeView === "editor"
-                ? "bg-blue-100 text-blue-700"
-                : "text-gray-500 hover:text-gray-300"
+                ? "bg-blue-50 text-blue-700 font-semibold"
+                : "text-gray-600 hover:text-gray-900 hover:bg-neutral-100"
             }`}
           >
             Editor
           </button>
           <button
+            type="button"
             onClick={() => setActiveView("preview")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeView === "preview"
-                ? "bg-blue-100 text-blue-700"
-                : "text-gray-500 hover:text-gray-300"
+                ? "bg-blue-50 text-blue-700 font-semibold"
+                : "text-gray-600 hover:text-gray-900 hover:bg-neutral-100"
             }`}
           >
             Preview
           </button>
         </div>
+      )}
 
-        {/* Mobile View */}
-        <div className="lg:hidden h-full">
-          {activeView === "editor" ? (
-            <div className="h-full overflow-auto px-4 py-6 bg-gray-900">
-              <div className="bg-gray-800 shadow-xl rounded-lg overflow-hidden">
-                {/* Header */}
-                <div className="px-4 sm:px-6 py-4 border-b border-gray-700">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                    <div className="flex items-center space-x-4">
-                      <button
-                        onClick={onBack}
-                        className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <ArrowLeftIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1" />
-                        Back
-                      </button>
-                      <input
-                        type="text"
-                        value={resume.title}
-                        onChange={(e) =>
-                          setResume((prev) => ({
-                            ...prev,
-                            title: e.target.value,
-                          }))
-                        }
-                        className="text-xl sm:text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 w-full sm:w-auto"
-                        placeholder="Resume Title"
-                      />
-                    </div>
-                    <div className="flex items-center space-x-2 sm:space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={undo}
-                          disabled={!canUndo}
-                          className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                          title="Undo"
-                        >
-                          <ArrowUturnLeftIcon className="h-5 w-5 text-gray-600" />
-                        </button>
-                        <button
-                          onClick={redo}
-                          disabled={!canRedo}
-                          className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                          title="Redo"
-                        >
-                          <ArrowUturnRightIcon className="h-5 w-5 text-gray-600" />
-                        </button>
-                      </div>
-                      <button
-                        onClick={handleSave}
-                        disabled={loading}
-                        className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                      >
-                        <PencilIcon className="h-4 w-4 mr-1.5" />
-                        Save
-                      </button>
-                      <button
-                        onClick={handleOpenShare}
-                        className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-indigo-500 rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        title="Share Resume & Privacy Settings"
-                        data-testid="share-resume-btn-1"
-                      >
-                        <ShareIcon className="h-4 w-4 mr-1.5" />
-                        Share
-                      </button>
-                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
-                        Clone
-                      </button>
-                      <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
-                        Export
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 sm:p-6 space-y-6">
-                  {/* Basic Information */}
-                  <section>
-                    <h3 className="text-lg font-medium text-white mb-4">
-                      Basic Information
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Full Name
-                        </label>
-                        <input
-                          type="text"
-                          value={resume.content.basics.name}
-                          onChange={(e) =>
-                            handleChange("basics", {
-                              ...resume.content.basics,
-                              name: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Professional Title
-                        </label>
-                        <input
-                          type="text"
-                          value={resume.content.basics.label}
-                          onChange={(e) =>
-                            handleChange("basics", {
-                              ...resume.content.basics,
-                              label: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          value={resume.content.basics.email}
-                          onChange={(e) =>
-                            handleChange("basics", {
-                              ...resume.content.basics,
-                              email: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Phone
-                        </label>
-                        <input
-                          type="tel"
-                          value={resume.content.basics.phone}
-                          onChange={(e) =>
-                            handleChange("basics", {
-                              ...resume.content.basics,
-                              phone: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Professional Summary
-                      </label>
-                      <textarea
-                        rows={4}
-                        value={resume.content.basics.summary}
-                        onChange={(e) =>
-                          handleChange("basics", {
-                            ...resume.content.basics,
-                            summary: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      />
-                    </div>
-                  </section>
-
-                  {/* Resume Sections */}
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={resume.content.sectionOrder}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="space-y-4">
-                        {orderedSections.map((section) => (
-                          <SortableItem
-                            key={section.id}
-                            id={section.id}
-                            section={section}
-                            onEdit={(type, content) => {
-                              setAddContent({ type, item: content });
-                            }}
-                            onHide={(type, id) => {
-                              setResume((prev) => ({
-                                ...prev,
-                                content: {
-                                  ...prev.content,
-                                  sections: prev.content.sections.map(
-                                    (section) => {
-                                      if (section.type === type) {
-                                        return {
-                                          ...section,
-                                          content: section.content.map((item) =>
-                                            item.id === id
-                                              ? {
-                                                  ...item,
-                                                  enabled: !item.enabled,
-                                                }
-                                              : item
-                                          ),
-                                        };
-                                      }
-                                      return section;
-                                    }
-                                  ),
-                                },
-                              }));
-                            }}
-                            onRemove={(type, id) => {
-                              setResume((prev) => ({
-                                ...prev,
-                                content: {
-                                  ...prev.content,
-                                  sections: prev.content.sections.map(
-                                    (section) => {
-                                      if (section.type === type) {
-                                        return {
-                                          ...section,
-                                          content: section.content.filter(
-                                            (item) => item.id !== id
-                                          ),
-                                        };
-                                      }
-                                      return section;
-                                    }
-                                  ),
-                                },
-                              }));
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-
-                  {/* Add Content Button */}
-                  <div className="flex justify-center py-6">
-                    <button
-                      onClick={() => setShowSectionModal(true)}
-                      className="inline-flex items-center px-4 py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      <PlusIcon className="h-5 w-5 mr-2 text-gray-400" />
-                      Add Content
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="h-full bg-gray-900">
-              <ResumePreview resume={resume} onChange={setResume} />
-            </div>
-          )}
-        </div>
-
-        {/* Desktop View */}
-        <div className="hidden lg:block h-full">
+      <div className="flex-1 min-h-0">
+        {isDesktop ? (
           <PanelGroup direction="horizontal" className="h-full">
-            <Panel defaultSize={55} minSize={40}>
-              <div className="h-full overflow-auto px-4 sm:px-6 lg:px-8 py-6 bg-gray-900">
-                <div className="bg-gray-800 shadow-xl rounded-lg overflow-hidden">
-                  {/* Header */}
-                  <div className="px-4 sm:px-6 py-4 border-b border-gray-700">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                      <div className="flex items-center space-x-4">
-                        <button
-                          onClick={onBack}
-                          className="inline-flex items-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <ArrowLeftIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1" />
-                          Back
-                        </button>
-                        <input
-                          type="text"
-                          value={resume.title}
-                          onChange={(e) =>
-                            setResume((prev) => ({
-                              ...prev,
-                              title: e.target.value,
-                            }))
-                          }
-                          className="text-xl sm:text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 w-full sm:w-auto"
-                          placeholder="Resume Title"
-                        />
-                      </div>
-                      <div className="flex items-center space-x-2 sm:space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={undo}
-                            disabled={!canUndo}
-                            className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                            title="Undo"
-                          >
-                            <ArrowUturnLeftIcon className="h-5 w-5 text-gray-600" />
-                          </button>
-                          <button
-                            onClick={redo}
-                            disabled={!canRedo}
-                            className="p-2 border border-gray-600 rounded-md shadow-sm bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                            title="Redo"
-                          >
-                            <ArrowUturnRightIcon className="h-5 w-5 text-gray-600" />
-                          </button>
-                        </div>
-                        <button
-                          onClick={handleSave}
-                          disabled={loading}
-                          className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                        >
-                          <PencilIcon className="h-4 w-4 mr-1.5" />
-                          Save
-                        </button>
-                        <button
-                          onClick={handleOpenShare}
-                          disabled={loading}
-                          className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <ShareIcon className="h-4 w-4 mr-1.5" />
-                          Share
-                        </button>
-                        <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                          <DocumentDuplicateIcon className="h-4 w-4 mr-1.5" />
-                          Clone
-                        </button>
-                        <button className="flex-1 sm:flex-none inline-flex items-center justify-center px-3 py-2 sm:px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                          <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
-                          Export
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-4 sm:p-6 space-y-6">
-                    {/* Basic Information */}
-                    <section>
-                      <h3 className="text-lg font-medium text-white mb-4">
-                        Basic Information
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Full Name
-                          </label>
-                          <input
-                            type="text"
-                            value={resume.content.basics.name}
-                            onChange={(e) =>
-                              handleChange("basics", {
-                                ...resume.content.basics,
-                                name: e.target.value,
-                              })
-                            }
-                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Professional Title
-                          </label>
-                          <input
-                            type="text"
-                            value={resume.content.basics.label}
-                            onChange={(e) =>
-                              handleChange("basics", {
-                                ...resume.content.basics,
-                                label: e.target.value,
-                              })
-                            }
-                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            value={resume.content.basics.email}
-                            onChange={(e) =>
-                              handleChange("basics", {
-                                ...resume.content.basics,
-                                email: e.target.value,
-                              })
-                            }
-                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Phone
-                          </label>
-                          <input
-                            type="tel"
-                            value={resume.content.basics.phone}
-                            onChange={(e) =>
-                              handleChange("basics", {
-                                ...resume.content.basics,
-                                phone: e.target.value,
-                              })
-                            }
-                            className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Professional Summary
-                        </label>
-                        <textarea
-                          rows={4}
-                          value={resume.content.basics.summary}
-                          onChange={(e) =>
-                            handleChange("basics", {
-                              ...resume.content.basics,
-                              summary: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        />
-                      </div>
-                    </section>
-
-                    {/* Resume Sections */}
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <SortableContext
-                        items={resume.content.sectionOrder}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="space-y-4">
-                          {orderedSections.map((section) => (
-                            <SortableItem
-                              key={section.id}
-                              id={section.id}
-                              section={section}
-                              onEdit={(type, content) => {
-                                setAddContent({ type, item: content });
-                              }}
-                              onHide={(type, id) => {
-                                setResume((prev) => ({
-                                  ...prev,
-                                  content: {
-                                    ...prev.content,
-                                    sections: prev.content.sections.map(
-                                      (section) => {
-                                        if (section.type === type) {
-                                          return {
-                                            ...section,
-                                            content: section.content.map(
-                                              (item) =>
-                                                item.id === id
-                                                  ? {
-                                                      ...item,
-                                                      enabled: !item.enabled,
-                                                    }
-                                                  : item
-                                            ),
-                                          };
-                                        }
-                                        return section;
-                                      }
-                                    ),
-                                  },
-                                }));
-                              }}
-                              onRemove={(type, id) => {
-                                setResume((prev) => ({
-                                  ...prev,
-                                  content: {
-                                    ...prev.content,
-                                    sections: prev.content.sections.map(
-                                      (section) => {
-                                        if (section.type === type) {
-                                          return {
-                                            ...section,
-                                            content: section.content.filter(
-                                              (item) => item.id !== id
-                                            ),
-                                          };
-                                        }
-                                        return section;
-                                      }
-                                    ),
-                                  },
-                                }));
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-
-                    {/* Add Content Button */}
-                    <div className="flex justify-center py-6">
-                      <button
-                        onClick={() => setShowSectionModal(true)}
-                        className="inline-flex items-center px-4 py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <PlusIcon className="h-5 w-5 mr-2 text-gray-400" />
-                        Add Content
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <Panel defaultSize={55} minSize={38} className="h-full">
+              {editorPanelContent}
             </Panel>
 
-            <PanelResizeHandle className="w-2 hover:w-3 bg-gray-200 transition-all duration-150 hover:bg-blue-100 flex items-center justify-center relative group">
-              <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-blue-300 transition-colors absolute" />
-              <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-blue-300 transition-colors absolute translate-x-0.5" />
+            <PanelResizeHandle
+              aria-label="Resize editor and preview panels"
+              title="Drag to resize panels"
+              data-testid="panel-resize-handle"
+              className="w-2 bg-gray-200 hover:bg-blue-500 active:bg-blue-600 focus:outline-none focus-visible:bg-blue-500 transition-colors duration-150 flex items-center justify-center relative group cursor-col-resize"
+            >
+              <div className="h-8 w-1 rounded-full bg-gray-400/70 group-hover:opacity-0 transition-opacity" />
+              <div className="absolute h-10 w-4 rounded-full bg-blue-600 shadow-md border border-blue-400 opacity-0 group-hover:opacity-100 group-active:opacity-100 group-focus-visible:opacity-100 transition-opacity flex items-center justify-center gap-0.5 pointer-events-none">
+                <span className="w-0.5 h-4 bg-white/90 rounded-full" />
+                <span className="w-0.5 h-4 bg-white/90 rounded-full" />
+              </div>
             </PanelResizeHandle>
 
-            <Panel defaultSize={45} minSize={30}>
-              <div className="h-full bg-gray-900">
-                <ResumePreview resume={resume} onChange={setResume} />
+            <Panel defaultSize={45} minSize={30} className="h-full">
+              <div className="h-full bg-neutral-100">
+                <ResumePreview
+                  resume={resume}
+                  onChange={handlePreviewChange}
+                />
               </div>
             </Panel>
           </PanelGroup>
-        </div>
+        ) : activeView === "editor" ? (
+          editorPanelContent
+        ) : (
+          <div className="h-full bg-neutral-100">
+            <ResumePreview resume={resume} onChange={handlePreviewChange} />
+          </div>
+        )}
       </div>
 
       {/* Add Section Modal */}
       <AnimatePresence>
-      {showSectionModal && (
-        <motion.div 
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-            className="bg-gray-800 rounded-xl w-full max-w-3xl mx-4 shadow-2xl transform transition-all"
+        {showSectionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
           >
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-white">
-                  Add Content
-                </h2>
-                <button
-                  onClick={() => setShowSectionModal(false)}
-                  className="text-gray-400 hover:text-gray-500 transition-colors"
-                >
-                  <XMarkIcon className="h-6 w-6" />
-                </button>
-              </div>
-
-              {/* Search Input */}
-              <div className="mb-6">
-                <input
-                  type="text"
-                  placeholder="Search sections..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              {/* Sections Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
-                {filteredSections?.map((section) => (
+            <motion.div
+              initial={{ scale: 0.96, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 12 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Add Content"
+              className="bg-white border border-gray-200 rounded-xl w-full max-w-3xl mx-4 shadow-2xl transform transition-all text-gray-900"
+            >
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-5">
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Add Content
+                  </h2>
                   <button
-                    key={section.id}
-                    onClick={() => handleAddSection(section)}
-                    className="flex flex-col p-4 border border-gray-700 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
+                    type="button"
+                    onClick={() => {
+                      setShowSectionModal(false);
+                      setSearchTerm("");
+                    }}
+                    aria-label="Close Add Content modal"
+                    title="Close"
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-neutral-100 transition-colors"
                   >
-                    <h3 className="text-base font-medium text-white mb-1">
-                      {section.title}
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative mb-5">
+                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search sections..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+
+                {/* Sections Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[60vh] overflow-y-auto pr-1">
+                  {filteredSections.map((section) => (
+                    <button
+                      type="button"
+                      key={section.id}
+                      onClick={() => handleAddSection(section)}
+                      className="flex flex-col p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-sm transition-all text-left"
+                    >
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                        {section.title}
+                      </h3>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        {section.description}
+                      </p>
+                    </button>
+                  ))}
+
+                  {/* Custom Section Option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSectionModal(false);
+                      setSearchTerm("");
+                      setShowCustomSectionModal(true);
+                    }}
+                    className="flex flex-col p-4 bg-neutral-50 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50/30 transition-all text-left"
+                  >
+                    <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                      Custom
                     </h3>
-                    <p className="text-sm text-gray-500">
-                      {section.description}
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      Create a custom section to combine different elements or
+                      add something unique.
                     </p>
                   </button>
-                ))}
-
-                {/* Custom Section Option */}
-                <button
-                  onClick={() => {
-                    setShowSectionModal(false);
-                    setShowCustomSectionModal(true);
-                  }}
-                  className="flex flex-col p-4 border border-dashed border-gray-600 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left"
-                >
-                  <h3 className="text-base font-medium text-white mb-1">
-                    Custom
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    Create a custom section to combine different elements or add
-                    something unique.
-                  </p>
-                </button>
+                </div>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
       </AnimatePresence>
 
       {/* Custom Section Modal */}
       <AnimatePresence>
-      {showCustomSectionModal && (
-        <motion.div 
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-            className="bg-gray-800 rounded-xl w-full max-w-md mx-4 shadow-2xl transform transition-all"
+        {showCustomSectionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
           >
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-white">
-                  Create Custom Section
-                </h2>
-                <button
-                  onClick={() => setShowCustomSectionModal(false)}
-                  className="text-gray-400 hover:text-gray-500 transition-colors"
-                >
-                  <XMarkIcon className="h-6 w-6" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="sectionTitle"
-                    className="block text-sm font-medium text-gray-300 mb-1"
-                  >
-                    Section Title
-                  </label>
-                  <input
-                    id="sectionTitle"
-                    type="text"
-                    value={customSectionTitle}
-                    onChange={(e) => setCustomSectionTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="Enter section title..."
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-3">
+            <motion.div
+              initial={{ scale: 0.96, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 12 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Create Custom Section"
+              className="bg-white border border-gray-200 rounded-xl w-full max-w-md mx-4 shadow-2xl transform transition-all text-gray-900"
+            >
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-5">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Create Custom Section
+                  </h2>
                   <button
+                    type="button"
                     onClick={() => setShowCustomSectionModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-600 rounded-md shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    aria-label="Close Custom Section modal"
+                    title="Close"
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-neutral-100 transition-colors"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddCustomSection}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Create Section
+                    <XMarkIcon className="h-5 w-5" />
                   </button>
                 </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="sectionTitle"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Section Title
+                    </label>
+                    <input
+                      id="sectionTitle"
+                      type="text"
+                      value={customSectionTitle}
+                      onChange={(e) => setCustomSectionTitle(e.target.value)}
+                      className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="Enter section title..."
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomSectionModal(false)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomSection}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      Create Section
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
-      {addContent !== null && (
-        <SectionEditors
-          content={addContent}
-          onClose={() => setAddContent(null)}
-          onSave={handleAddContent}
-        />
-      )}
+        {addContent !== null && (
+          <SectionEditors
+            content={addContent}
+            onClose={() => setAddContent(null)}
+            onSave={handleAddContent}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
-      {deletableSection && (
-        <DialogBox
-          title="Delete Section"
-          onClose={() => setDeletableSection(null)}
-          onSave={handleDeleteSection}
-          id={deletableSection.id}
-          className="max-w-full mx-auto"
-          saveText="Delete"
-        >
-          <p className="text-gray-300">
-            Are you sure you want to delete this section? This action cannot be
-            undone.
-          </p>
-        </DialogBox>
-      )}
+        {deletableSection && (
+          <DialogBox
+            title="Delete Section"
+            onClose={() => setDeletableSection(null)}
+            onSave={handleDeleteSection}
+            id={deletableSection.id}
+            className="max-w-full mx-auto"
+            saveText="Delete"
+          >
+            <p className="text-sm text-gray-600">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-gray-900">
+                {deletableSection.title}
+              </span>
+              ? This action cannot be undone.
+            </p>
+          </DialogBox>
+        )}
       </AnimatePresence>
-      
+
       <AnimatePresence>
-      {loading && (
-        <motion.div 
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 z-50"
-        >
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
-        </motion.div>
-      )}
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center bg-white/75 backdrop-blur-sm z-50"
+          >
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600" />
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {resume._id && (
@@ -1450,7 +1793,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           resumeId={resume._id}
           resumeTitle={resume.title}
           initialSharing={resume.sharing}
-          onSharingUpdated={(sharing) => setResume((prev) => ({ ...prev, sharing }))}
+          onSharingUpdated={(sharing) =>
+            setResume((prev) => ({ ...prev, sharing }))
+          }
         />
       )}
     </div>
