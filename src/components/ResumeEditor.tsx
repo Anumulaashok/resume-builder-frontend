@@ -57,6 +57,10 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useResumeHistory } from "./useResumeHistory";
 import { resumeService } from "../services/resume.service";
 import {
+  hasResumeOmittedSummary,
+  normalizeResume,
+} from "../utils/resumeNormalizer";
+import {
   dateFields,
   IResume,
   ISection,
@@ -65,7 +69,6 @@ import {
 } from "../types/resume";
 import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
-import { defaultResume } from "../constants/editorConstants";
 import ShareModal from "./ShareModal";
 import ReauthModal from "./ReauthModal";
 import VersionHistoryDrawer from "./VersionHistoryDrawer";
@@ -261,62 +264,7 @@ function createDebouncedCallback<T extends (...args: any[]) => void>(
   return debounced;
 }
 
-export function normalizeResume(input?: IResume): IResume {
-  const source = input || defaultResume;
-  const basics = source.content?.basics || defaultResume.content.basics;
-  const rawBasicsSummary = basics?.summary;
-  const rawTopSummary = source.summary;
-
-  const resolvedSummary =
-    typeof rawBasicsSummary === "string" && rawBasicsSummary.length > 0
-      ? rawBasicsSummary
-      : typeof rawTopSummary === "string" && rawTopSummary.length > 0
-      ? rawTopSummary
-      : rawBasicsSummary ?? rawTopSummary ?? "";
-
-  const sections = Array.isArray(source.content?.sections)
-    ? source.content.sections
-    : [];
-  const rawOrder = Array.isArray(source.content?.sectionOrder)
-    ? source.content.sectionOrder
-    : [];
-  const missingIds = sections
-    .map((s) => s.id)
-    .filter((id) => !rawOrder.includes(id));
-  const resolvedId = source._id || source.id;
-
-  return {
-    ...defaultResume,
-    ...source,
-    ...(resolvedId
-      ? {
-          _id: source._id || resolvedId,
-          id: source.id || resolvedId,
-        }
-      : {}),
-    title: source.title ?? defaultResume.title ?? "Untitled Resume",
-    summary: resolvedSummary,
-    content: {
-      ...defaultResume.content,
-      ...source.content,
-      basics: {
-        ...defaultResume.content.basics,
-        ...basics,
-        name: basics?.name ?? "",
-        label: basics?.label ?? "",
-        email: basics?.email ?? "",
-        phone: basics?.phone ?? "",
-        summary: resolvedSummary,
-        location: {
-          ...defaultResume.content.basics.location,
-          ...(basics?.location || {}),
-        },
-      },
-      sections,
-      sectionOrder: [...rawOrder, ...missingIds],
-    },
-  };
-}
+export { normalizeResume };
 
 function formatItemDateRange(item: any): string {
   const start = formatResumeDate(item?.startDate);
@@ -1525,10 +1473,23 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         persistedIdRef.current;
       if (!targetId) return;
 
+      const fallbackSummaryBeforeRestore =
+        latestResumeRef.current.summary ??
+        latestResumeRef.current.content?.basics?.summary;
+
       try {
         const { resume: restoredResume, previousSnapshotIndex } =
           await resumeService.restoreResumeVersion(targetId, index);
-        applyServerResumeState(restoredResume);
+        const hydratedRestoredResume =
+          hasResumeOmittedSummary(restoredResume) &&
+          typeof fallbackSummaryBeforeRestore === "string" &&
+          fallbackSummaryBeforeRestore.length > 0
+            ? normalizeResume({
+                ...restoredResume,
+                summary: fallbackSummaryBeforeRestore,
+              })
+            : restoredResume;
+        applyServerResumeState(hydratedRestoredResume);
         setShowVersionHistory(false);
 
         toast(
