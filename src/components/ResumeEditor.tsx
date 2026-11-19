@@ -1,4 +1,11 @@
-import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+  useContext,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PencilIcon,
@@ -10,6 +17,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ExclamationCircleIcon,
+  ExclamationTriangleIcon,
   PlusIcon,
   XMarkIcon,
   EyeIcon,
@@ -56,7 +64,14 @@ import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
 import ShareModal from "./ShareModal";
+import ReauthModal from "./ReauthModal";
 import { formatResumeDate } from "../utils/date";
+import {
+  authEventBus,
+  AuthModalContext,
+  isUnauthorizedError,
+} from "../utils/authEventBus";
+import { getStoredUser } from "../utils/token";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -702,6 +717,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const { resume, setResume, undo, redo, canUndo, canRedo } = useResumeHistory(
     normalizeResume(initialResume)
   );
+  const { hasGlobalModal } = useContext(AuthModalContext);
   const isDesktop = useIsDesktop();
   const [loading, setLoading] = useState(false);
   const [persistedId, setPersistedId] = useState<string | undefined>(
@@ -709,6 +725,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(() =>
     initialResume?._id ? "saved" : "unsaved_new"
+  );
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
+  const [reauthDismissed, setReauthDismissed] = useState(false);
+  const [showLocalReauthModal, setShowLocalReauthModal] = useState(false);
+  const [reauthEmail, setReauthEmail] = useState<string>(
+    () => getStoredUser()?.email || initialResume?.content?.basics?.email || ""
   );
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
@@ -743,6 +765,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     initialResume?._id ? serializeResumeSnapshot(resume) : null
   );
   const hasShownAutoSaveErrorToastRef = useRef(false);
+  const sessionExpiredRef = useRef(false);
+  const pendingRetryAfterAuthRef = useRef(false);
+  const hasGlobalModalRef = useRef(hasGlobalModal);
+  hasGlobalModalRef.current = hasGlobalModal;
   const isSavingRef = useRef(false);
   const queuedSaveRef = useRef<{
     resume: IResume;
@@ -849,15 +875,43 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   currentResolvers[i]({ ok: true, data: savedData });
                 }
               } catch (error) {
-                if (
-                  currentOrigin === "autosave" &&
-                  !hasShownAutoSaveErrorToastRef.current
-                ) {
-                  hasShownAutoSaveErrorToastRef.current = true;
-                  toast.error("Auto-save failed");
-                }
-                if (!queuedSaveRef.current) {
+                const unauthorized =
+                  isUnauthorizedError(error) || sessionExpiredRef.current;
+
+                if (unauthorized) {
+                  pendingRetryAfterAuthRef.current = true;
+                  if (!sessionExpiredRef.current) {
+                    sessionExpiredRef.current = true;
+                    if (isMountedRef.current) {
+                      setIsSessionExpired(true);
+                      setReauthDismissed(false);
+                    }
+                    authEventBus.emitSessionExpired({
+                      email:
+                        getStoredUser()?.email ||
+                        latestResumeRef.current.content?.basics?.email ||
+                        "",
+                    });
+                  }
+                  if (queuedSaveRef.current) {
+                    const pendingQueued = queuedSaveRef.current;
+                    queuedSaveRef.current = null;
+                    for (let i = 0; i < pendingQueued.resolvers.length; i += 1) {
+                      pendingQueued.resolvers[i]({ ok: false, error });
+                    }
+                  }
                   updateSaveStatus("failed");
+                } else {
+                  if (
+                    currentOrigin === "autosave" &&
+                    !hasShownAutoSaveErrorToastRef.current
+                  ) {
+                    hasShownAutoSaveErrorToastRef.current = true;
+                    toast.error("Auto-save failed");
+                  }
+                  if (!queuedSaveRef.current) {
+                    updateSaveStatus("failed");
+                  }
                 }
                 for (let i = 0; i < currentResolvers.length; i += 1) {
                   currentResolvers[i]({ ok: false, error });
@@ -894,6 +948,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const debouncedAutoSave = useMemo(
     () =>
       createDebouncedCallback((resumeToSave: IResume) => {
+        if (sessionExpiredRef.current) return;
         const activeId = resumeToSave._id || persistedIdRef.current;
         if (!activeId) return;
         void enqueueSave(resumeToSave, "autosave");
@@ -902,7 +957,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
 
   const hasUnsavedChanges = useCallback((): boolean => {
-    if (isSavingRef.current || debouncedAutoSave.pending()) {
+    if (
+      isSavingRef.current ||
+      debouncedAutoSave.pending() ||
+      pendingRetryAfterAuthRef.current
+    ) {
       return true;
     }
     const currentSnapshot = serializeResumeSnapshot(latestResumeRef.current);
@@ -911,6 +970,106 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
     return currentSnapshot !== initialBlankSnapshotRef.current;
   }, [debouncedAutoSave]);
+
+  const handleReopenReauth = useCallback(() => {
+    const emailHint =
+      reauthEmail ||
+      getStoredUser()?.email ||
+      latestResumeRef.current.content?.basics?.email ||
+      "";
+    setReauthDismissed(false);
+    if (!hasGlobalModalRef.current) {
+      setShowLocalReauthModal(true);
+    }
+    authEventBus.emitOpenReauth({ email: emailHint });
+  }, [reauthEmail]);
+
+  useEffect(() => {
+    const unsubscribeExpired = authEventBus.onSessionExpired((detail) => {
+      const hadUnsavedOrActiveSave =
+        isSavingRef.current ||
+        debouncedAutoSave.pending() ||
+        hasUnsavedChanges();
+      debouncedAutoSave.cancel();
+      sessionExpiredRef.current = true;
+      if (hadUnsavedOrActiveSave) {
+        pendingRetryAfterAuthRef.current = true;
+      }
+      if (isMountedRef.current) {
+        if (detail.email) {
+          setReauthEmail(detail.email);
+        }
+        setIsSessionExpired(true);
+        setReauthDismissed(false);
+        if (!hasGlobalModalRef.current) {
+          setShowLocalReauthModal(true);
+        }
+        if (
+          hadUnsavedOrActiveSave &&
+          (latestResumeRef.current._id || persistedIdRef.current)
+        ) {
+          updateSaveStatus("failed");
+        }
+      }
+    });
+
+    const unsubscribeOpen = authEventBus.onOpenReauth((detail) => {
+      if (!isMountedRef.current) return;
+      if (detail.email) {
+        setReauthEmail(detail.email);
+      }
+      setReauthDismissed(false);
+      if (!hasGlobalModalRef.current) {
+        setShowLocalReauthModal(true);
+      }
+    });
+
+    const unsubscribeDismissed = authEventBus.onReauthDismissed(() => {
+      debouncedAutoSave.cancel();
+      if (!isMountedRef.current) return;
+      setReauthDismissed(true);
+      setShowLocalReauthModal(false);
+    });
+
+    const unsubscribeReauthenticated = authEventBus.onReauthenticated(
+      (detail) => {
+        const shouldRetry =
+          pendingRetryAfterAuthRef.current || hasUnsavedChanges();
+        sessionExpiredRef.current = false;
+        pendingRetryAfterAuthRef.current = false;
+        debouncedAutoSave.cancel();
+
+        if (isMountedRef.current) {
+          if (detail.user?.email) {
+            setReauthEmail(detail.user.email);
+          }
+          setIsSessionExpired(false);
+          setReauthDismissed(false);
+          setShowLocalReauthModal(false);
+        }
+
+        const activeId =
+          latestResumeRef.current._id || persistedIdRef.current;
+        if (
+          shouldRetry &&
+          (activeId || saveStatusRef.current === "failed")
+        ) {
+          void enqueueSave(latestResumeRef.current, "retry").then((result) => {
+            if (result.ok && isMountedRef.current) {
+              toast.success("Resume saved successfully!");
+            }
+          });
+        }
+      }
+    );
+
+    return () => {
+      unsubscribeExpired();
+      unsubscribeOpen();
+      unsubscribeDismissed();
+      unsubscribeReauthenticated();
+    };
+  }, [debouncedAutoSave, enqueueSave, hasUnsavedChanges, updateSaveStatus]);
 
   useEffect(() => {
     if (initialResume && initialResume !== prevInitialResumeRef.current) {
@@ -1088,6 +1247,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       return;
     }
 
+    if (sessionExpiredRef.current) {
+      debouncedAutoSave.cancel();
+      pendingRetryAfterAuthRef.current = true;
+      return;
+    }
+
     const activeId = resume._id || persistedIdRef.current;
     if (!activeId) {
       return;
@@ -1110,14 +1275,20 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      debouncedAutoSave.flush();
+      if (!sessionExpiredRef.current) {
+        debouncedAutoSave.flush();
+      } else {
+        debouncedAutoSave.cancel();
+      }
     };
   }, [debouncedAutoSave]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       const dirtyBeforeFlush = hasUnsavedChanges();
-      debouncedAutoSave.flush();
+      if (!sessionExpiredRef.current) {
+        debouncedAutoSave.flush();
+      }
       if (dirtyBeforeFlush || hasUnsavedChanges()) {
         event.preventDefault();
         event.returnValue = "";
@@ -1132,11 +1303,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const handleRetrySave = () => {
     debouncedAutoSave.cancel();
+    if (sessionExpiredRef.current) {
+      pendingRetryAfterAuthRef.current = true;
+      handleReopenReauth();
+      return;
+    }
     void enqueueSave(latestResumeRef.current, "retry");
   };
 
   const handleSave = async () => {
     debouncedAutoSave.cancel();
+    if (sessionExpiredRef.current) {
+      pendingRetryAfterAuthRef.current = true;
+      handleReopenReauth();
+      return;
+    }
     setLoading(true);
     try {
       const result = await enqueueSave(latestResumeRef.current, "manual");
@@ -1146,7 +1327,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       toast.success("Resume saved successfully!");
       onSave?.(result.data);
     } catch (error) {
-      toast.error("Failed to save resume");
+      if (!isUnauthorizedError(error) && !sessionExpiredRef.current) {
+        toast.error("Failed to save resume");
+      }
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -1865,6 +2048,37 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       {/* Full-Width Document Toolbar */}
       {editorToolbar}
 
+      {/* Persistent Unsaved Changes Warning Banner when session expired and modal dismissed */}
+      {isSessionExpired && reauthDismissed && (
+        <div
+          role="alert"
+          data-testid="unsaved-changes-warning-banner"
+          className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-2.5 shrink-0 print:hidden"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-sm text-amber-900">
+              <ExclamationTriangleIcon
+                className="h-5 w-5 text-amber-600 shrink-0"
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="font-semibold">Unsaved changes:</strong> Your
+                session has expired and background auto-save is paused. Sign in
+                to save your work before leaving this page.
+              </span>
+            </div>
+            <button
+              type="button"
+              data-testid="reopen-reauth-btn"
+              onClick={handleReopenReauth}
+              className="inline-flex items-center justify-center px-3 py-1.5 rounded-control text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 focus-ring transition-colors shrink-0"
+            >
+              Sign in to save
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile View Switcher */}
       {!isDesktop && (
         <div className="flex justify-center gap-3 py-2 px-4 bg-white border-b border-gray-200 shrink-0 print:hidden">
@@ -2152,6 +2366,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           onSharingUpdated={(sharing) =>
             setResume((prev) => ({ ...prev, sharing }))
           }
+        />
+      )}
+
+      {!hasGlobalModal && (
+        <ReauthModal
+          isOpen={showLocalReauthModal}
+          initialEmail={reauthEmail}
+          onDismiss={() => setShowLocalReauthModal(false)}
         />
       )}
     </div>
