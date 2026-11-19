@@ -25,8 +25,17 @@ export type { BulletsProps } from './Bullets';
 export { Description } from './Description';
 export type { DescriptionProps } from './Description';
 
-export { SkillList, KeywordList } from './SkillList';
-export type { SkillListProps, KeywordListProps } from './SkillList';
+export {
+  SkillList,
+  KeywordList,
+  isNarrowSkillLayout,
+  NARROW_SKILL_CONTAINER_WIDTH_PX,
+} from './SkillList';
+export type {
+  SkillListProps,
+  KeywordListProps,
+  NarrowSkillDecisionInput,
+} from './SkillList';
 
 export { ContactRow } from './ContactRow';
 export type { ContactRowProps } from './ContactRow';

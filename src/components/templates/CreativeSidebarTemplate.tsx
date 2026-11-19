@@ -48,10 +48,11 @@ const CreativeSidebarContent: React.FC = () => {
       }}
     >
       <aside
-        className="shrink-0 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200"
+        className="shrink-0 min-w-0 max-w-full bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 [overflow-wrap:anywhere]"
         style={{
           width: 'var(--theme-sidebar-width, 32%)',
           padding: 'var(--theme-page-margin, 1.75cm)',
+          overflowWrap: 'anywhere',
         }}
       >
         <div
@@ -85,6 +86,7 @@ const CreativeSidebarContent: React.FC = () => {
         <SectionRenderer
           filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
           tone="modern"
+          narrow
         />
       </aside>
 

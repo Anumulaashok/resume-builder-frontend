@@ -79,8 +79,8 @@ const TechSplitContent: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex flex-col sm:flex-row gap-7 items-start">
-        <div className="flex-1 min-w-0 w-full">
+      <div className="flex flex-col sm:flex-row print:flex-row gap-7 items-start min-w-0">
+        <div className="flex-1 min-w-0 w-full [overflow-wrap:anywhere]">
           {showSummary && (
             <section
               style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
@@ -107,12 +107,17 @@ const TechSplitContent: React.FC = () => {
         </div>
 
         <aside
-          className="shrink-0 w-full sm:pl-5 sm:border-l border-slate-200"
-          style={{ width: 'var(--theme-sidebar-width, 32%)' }}
+          data-testid="tech-split-sidebar"
+          className="shrink-0 min-w-0 max-w-full w-full sm:pl-5 print:pl-5 sm:border-l print:border-l border-slate-200 [overflow-wrap:anywhere]"
+          style={{
+            width: 'var(--theme-sidebar-width, 32%)',
+            overflowWrap: 'anywhere',
+          }}
         >
           <SectionRenderer
             filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
             tone="modern"
+            narrow
           />
         </aside>
       </div>
