@@ -3,7 +3,8 @@ import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
 import { IPortfolio } from '../types/portfolio';
-import Header from './common/Header';
+import Header, { AppTab } from './common/Header';
+import JobMatch from './jobMatch/JobMatch';
 import ResumeEditor from './ResumeEditor';
 import ResumeList from './ResumeList';
 import { PortfolioList } from './portfolio/PortfolioList';
@@ -16,10 +17,11 @@ interface HomePageProps {
 
 export default function HomePage({ onLogout }: HomePageProps) {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialTab = urlParams?.get('tab') === 'portfolios' ? 'portfolios' : 'resumes';
+  const tabParam = urlParams?.get('tab');
+  const initialTab: AppTab = tabParam === 'portfolios' || tabParam === 'job-match' ? tabParam : 'resumes';
   const initialView = urlParams?.get('view') === 'editor' ? 'editor' : 'list';
 
-  const [activeTab, setActiveTab] = useState<'resumes' | 'portfolios'>(initialTab);
+  const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [portfolioView, setPortfolioView] = useState<'list' | 'editor'>(initialView);
 
@@ -140,6 +142,12 @@ export default function HomePage({ onLogout }: HomePageProps) {
             />
           )}
         </>
+      )}
+
+      {activeTab === 'job-match' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-10">
+          <JobMatch />
+        </div>
       )}
 
       {/* Portfolios Tab Content */}

@@ -1,5 +1,6 @@
 import { IResume as BaseResume, ISharing, IPrivacySettings } from "../types/resume";
 import axiosInstance from "../services/axios";
+import { JobMatchResult } from "../types/jobMatch";
 
 export type Resume = BaseResume;
 
@@ -72,6 +73,14 @@ class ResumeService {
   ): Promise<ResumeWithMeta> {
     const response = await axiosInstance.put(`/api/resumes/${id}`, resumeData);
     return response.data;
+  }
+
+  async analyzeJobMatch(id: string, jobDescription: string, jobTitle?: string): Promise<JobMatchResult> {
+    const response = await axiosInstance.post<{ success: boolean; data: JobMatchResult }>(
+      `/api/resumes/${id}/job-match`,
+      { jobDescription, jobTitle: jobTitle || undefined }
+    );
+    return response.data.data;
   }
 
   async deleteResume(id: string): Promise<void> {
