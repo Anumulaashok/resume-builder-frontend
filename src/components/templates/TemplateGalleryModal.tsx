@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { XMarkIcon, CheckCircleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
-import { IResume } from '../../types/resume';
+import { IResume, ThemeConfig } from '../../types/resume';
 import { getThemeStyles } from '../../constants/themeConstants';
 import {
   TemplateCategory,
@@ -11,9 +11,9 @@ import {
 import { sampleResume } from './sampleResume';
 import { isResumeEmpty } from './templateHelpers';
 
-const A4_PREVIEW_WIDTH = 794;
-const A4_PREVIEW_HEIGHT = 1123;
-const MINI_SCALE = 0.28;
+export const A4_PREVIEW_WIDTH = 794;
+export const A4_PREVIEW_HEIGHT = 1123;
+const DEFAULT_THUMBNAIL_WIDTH = 310;
 
 const CATEGORY_FILTERS: Array<{ id: 'all' | TemplateCategory; label: string }> = [
   { id: 'all', label: 'All' },
@@ -60,6 +60,112 @@ const LayoutIcon: React.FC<{ layout: TemplateLayout }> = ({ layout }) => {
       </svg>
       <span>{LAYOUT_LABELS[layout]}</span>
     </span>
+  );
+};
+
+interface TemplateThumbnailProps {
+  template: TemplateDefinition;
+  previewResume: IResume;
+  themeConfig?: ThemeConfig;
+  isSelected: boolean;
+}
+
+const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({
+  template,
+  previewResume,
+  themeConfig,
+  isSelected,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(DEFAULT_THUMBNAIL_WIDTH);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = (rectWidth?: number) => {
+      const nextWidth =
+        typeof rectWidth === 'number' && rectWidth > 0
+          ? rectWidth
+          : el.getBoundingClientRect().width || el.clientWidth;
+      if (nextWidth > 0) {
+        setContainerWidth((prev) =>
+          Math.abs(prev - nextWidth) > 0.25 ? nextWidth : prev
+        );
+      }
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        measure(entry.contentRect?.width);
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const PreviewComponent = template.component;
+  const previewStyles = useMemo(
+    () => getThemeStyles(themeConfig, template.defaultTheme),
+    [themeConfig, template.defaultTheme]
+  );
+
+  const scale = Number((containerWidth / A4_PREVIEW_WIDTH).toFixed(6));
+  const scaledHeight = Math.floor(
+    containerWidth * (A4_PREVIEW_HEIGHT / A4_PREVIEW_WIDTH)
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      data-testid={`template-thumbnail-${template.id}`}
+      className="relative w-full overflow-hidden bg-white border-b border-neutral-200"
+      style={{
+        height: `${scaledHeight}px`,
+      }}
+    >
+      <div
+        aria-hidden="true"
+        data-testid={`template-thumbnail-sheet-${template.id}`}
+        className="bg-white pointer-events-none select-none origin-top-left"
+        style={{
+          width: `${A4_PREVIEW_WIDTH}px`,
+          minHeight: `${A4_PREVIEW_HEIGHT}px`,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          ...previewStyles,
+        }}
+      >
+        <PreviewComponent
+          resume={{
+            ...previewResume,
+            templateId: template.id,
+            themeConfig: {
+              ...template.defaultTheme,
+              ...(themeConfig || {}),
+            },
+          }}
+          readOnly
+        />
+      </div>
+
+      {isSelected && (
+        <span
+          data-testid={`active-template-badge-${template.id}`}
+          className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-600 text-white shadow-sm"
+        >
+          <CheckCircleIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Current</span>
+        </span>
+      )}
+    </div>
   );
 };
 
@@ -147,12 +253,9 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
 
   if (!isOpen) return null;
 
-  const scaledW = Math.round(A4_PREVIEW_WIDTH * MINI_SCALE);
-  const scaledH = Math.round(A4_PREVIEW_HEIGHT * MINI_SCALE);
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs print:hidden"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm print:hidden"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -214,7 +317,7 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-ring ${
                   isActive
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
                 }`}
               >
@@ -229,11 +332,6 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredTemplates.map((template) => {
               const isSelected = template.id === activeTemplateId;
-              const PreviewComponent = template.component;
-              const previewStyles = getThemeStyles(
-                resume.themeConfig,
-                template.defaultTheme
-              );
 
               return (
                 <button
@@ -242,58 +340,21 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
                   data-testid={`template-card-${template.id}`}
                   aria-pressed={isSelected}
                   onClick={() => onSelect(template)}
-                  className={`group text-left bg-white rounded-xl border-2 overflow-hidden flex flex-col transition-all focus-ring ${
+                  className={`group w-full text-left bg-white rounded-xl border-2 overflow-hidden flex flex-col items-stretch transition-all focus-ring ${
                     isSelected
                       ? 'border-blue-600 ring-2 ring-blue-600/25 shadow-md'
                       : 'border-neutral-200 hover:border-blue-400 hover:shadow-md'
                   }`}
                 >
-                  {/* Scaled Live Mini Preview Viewport */}
-                  <div className="relative bg-neutral-100 border-b border-neutral-200 py-3 flex justify-center overflow-hidden">
-                    <div
-                      aria-hidden="true"
-                      className="overflow-hidden bg-white shadow-sm ring-1 ring-black/5 rounded-[2px] pointer-events-none select-none"
-                      style={{
-                        width: `${scaledW}px`,
-                        height: `${scaledH}px`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${A4_PREVIEW_WIDTH}px`,
-                          minHeight: `${A4_PREVIEW_HEIGHT}px`,
-                          transform: `scale(${MINI_SCALE})`,
-                          transformOrigin: 'top left',
-                          ...previewStyles,
-                        }}
-                      >
-                        <PreviewComponent
-                          resume={{
-                            ...previewResume,
-                            templateId: template.id,
-                            themeConfig: {
-                              ...template.defaultTheme,
-                              ...(resume.themeConfig || {}),
-                            },
-                          }}
-                          readOnly
-                        />
-                      </div>
-                    </div>
-
-                    {isSelected && (
-                      <span
-                        data-testid={`active-template-badge-${template.id}`}
-                        className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-600 text-white shadow-sm"
-                      >
-                        <CheckCircleIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>Current</span>
-                      </span>
-                    )}
-                  </div>
+                  <TemplateThumbnail
+                    template={template}
+                    previewResume={previewResume}
+                    themeConfig={resume.themeConfig}
+                    isSelected={isSelected}
+                  />
 
                   {/* Card Footer Metadata */}
-                  <div className="p-3.5 flex-1 flex flex-col justify-between gap-2">
+                  <div className="w-full p-3.5 flex-1 flex flex-col justify-between gap-2">
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold text-sm text-neutral-900 group-hover:text-blue-600 transition-colors">

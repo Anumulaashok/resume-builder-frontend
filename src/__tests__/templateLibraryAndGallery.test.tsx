@@ -308,6 +308,66 @@ describe('Template Library, Shared Primitives, Design Controls, and Gallery', ()
         })
       );
     });
+
+    it('scales mini-preview thumbnails dynamically to 100% of the card width without side or bottom bands', () => {
+      const observers: Array<{
+        callback: ResizeObserverCallback;
+        target?: Element;
+      }> = [];
+      const OriginalResizeObserver = (window as any).ResizeObserver;
+
+      class MockResizeObserver {
+        callback: ResizeObserverCallback;
+        target?: Element;
+        constructor(cb: ResizeObserverCallback) {
+          this.callback = cb;
+          observers.push(this);
+        }
+        observe(el: Element) {
+          this.target = el;
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+
+      (window as any).ResizeObserver = MockResizeObserver;
+
+      try {
+        render(<ResumePreview resume={sampleResume} onChange={jest.fn()} />);
+        fireEvent.click(screen.getByTestId('open-template-gallery-btn'));
+
+        const dialog = screen.getByRole('dialog', { name: /template gallery/i });
+        const thumbViewport = within(dialog).getByTestId('template-thumbnail-modern');
+        const thumbSheet = within(dialog).getByTestId('template-thumbnail-sheet-modern');
+
+        expect(thumbViewport).toHaveClass('w-full');
+
+        // Simulate ResizeObserver reporting a 397px card width (exact 0.5x of 794px A4 width)
+        const modernObserver = observers.find((o) => o.target === thumbViewport);
+        expect(modernObserver).toBeDefined();
+
+        React.act(() => {
+          modernObserver!.callback(
+            [
+              {
+                target: thumbViewport,
+                contentRect: { width: 397, height: 561 } as DOMRectReadOnly,
+              } as ResizeObserverEntry,
+            ],
+            modernObserver as unknown as ResizeObserver
+          );
+        });
+
+        expect(thumbViewport).toHaveStyle({ height: '561px' });
+        expect(thumbSheet).toHaveStyle({
+          width: '794px',
+          minHeight: '1123px',
+          transform: 'scale(0.5)',
+        });
+      } finally {
+        (window as any).ResizeObserver = OriginalResizeObserver;
+      }
+    });
   });
 
   describe('4. Theme CSS Variables & Grouped Design Controls', () => {
