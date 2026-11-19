@@ -1,4 +1,4 @@
-import { ISection, SectionType } from '../../types/resume';
+import { dateFields, IResume, ISection, SectionType } from '../../types/resume';
 import { formatResumeDate } from '../../utils/date';
 
 export type CanonicalSectionKind =
@@ -6,7 +6,18 @@ export type CanonicalSectionKind =
   | 'education'
   | 'projects'
   | 'skills'
-  | 'other';
+  | 'languages'
+  | 'certificates'
+  | 'awards'
+  | 'courses'
+  | 'organizations'
+  | 'publications'
+  | 'references'
+  | 'interests'
+  | 'achievements'
+  | 'custom';
+
+export type DateFormatPattern = 'MMM YYYY' | 'MM/YYYY' | 'YYYY';
 
 const WORK_TYPES = new Set([
   SectionType.WORK.toLowerCase(),
@@ -42,33 +53,258 @@ const SKILL_TYPES = new Set([
   'soft_skills',
 ]);
 
+const LANGUAGE_TYPES = new Set([
+  SectionType.LANGUAGES.toLowerCase(),
+  'language',
+  'languages',
+]);
+
+const CERTIFICATE_TYPES = new Set([
+  SectionType.CERTIFICATES.toLowerCase(),
+  'certificate',
+  'certificates',
+  'certification',
+  'certifications',
+]);
+
+const AWARD_TYPES = new Set([
+  SectionType.AWARDS.toLowerCase(),
+  'award',
+  'awards',
+  'honors',
+]);
+
+const COURSE_TYPES = new Set([
+  SectionType.COURSES.toLowerCase(),
+  'course',
+  'courses',
+  'coursework',
+]);
+
+const ORGANIZATION_TYPES = new Set([
+  SectionType.ORGANIZATIONS.toLowerCase(),
+  'organization',
+  'organizations',
+  'volunteer',
+  'volunteering',
+  'affiliations',
+]);
+
+const PUBLICATION_TYPES = new Set([
+  SectionType.PUBLICATIONS.toLowerCase(),
+  'publication',
+  'publications',
+]);
+
+const REFERENCE_TYPES = new Set([
+  SectionType.REFERENCES.toLowerCase(),
+  'reference',
+  'references',
+]);
+
+const INTEREST_TYPES = new Set([
+  SectionType.INTERESTS.toLowerCase(),
+  'interest',
+  'interests',
+  'hobbies',
+]);
+
+const ACHIEVEMENT_TYPES = new Set([
+  SectionType.ACHIVEMENTS.toLowerCase(),
+  'achievement',
+  'achievements',
+  'accomplishments',
+]);
+
+const CUSTOM_TYPES = new Set([
+  SectionType.CUSTOM.toLowerCase(),
+  'custom',
+]);
+
+function matchKindToken(token: string): CanonicalSectionKind | null {
+  if (!token) return null;
+  if (WORK_TYPES.has(token)) return 'work';
+  if (EDUCATION_TYPES.has(token)) return 'education';
+  if (PROJECT_TYPES.has(token)) return 'projects';
+  if (SKILL_TYPES.has(token)) return 'skills';
+  if (LANGUAGE_TYPES.has(token)) return 'languages';
+  if (CERTIFICATE_TYPES.has(token)) return 'certificates';
+  if (AWARD_TYPES.has(token)) return 'awards';
+  if (COURSE_TYPES.has(token)) return 'courses';
+  if (ORGANIZATION_TYPES.has(token)) return 'organizations';
+  if (PUBLICATION_TYPES.has(token)) return 'publications';
+  if (REFERENCE_TYPES.has(token)) return 'references';
+  if (INTEREST_TYPES.has(token)) return 'interests';
+  if (ACHIEVEMENT_TYPES.has(token)) return 'achievements';
+  if (CUSTOM_TYPES.has(token)) return 'custom';
+  return null;
+}
+
 export function resolveSectionKind(section: ISection): CanonicalSectionKind {
   const rawType = (section.type ?? '').toString().trim().toLowerCase();
-
-  if (WORK_TYPES.has(rawType)) return 'work';
-  if (EDUCATION_TYPES.has(rawType)) return 'education';
-  if (PROJECT_TYPES.has(rawType)) return 'projects';
-  if (SKILL_TYPES.has(rawType)) return 'skills';
+  const byType = matchKindToken(rawType);
+  if (byType) return byType;
 
   // Fallback inference when generic/custom type strings come from external/AI payloads
   const rawId = (section.id ?? '').toString().trim().toLowerCase();
-  if (WORK_TYPES.has(rawId)) return 'work';
-  if (EDUCATION_TYPES.has(rawId)) return 'education';
-  if (PROJECT_TYPES.has(rawId)) return 'projects';
-  if (SKILL_TYPES.has(rawId)) return 'skills';
+  const byId = matchKindToken(rawId);
+  if (byId) return byId;
 
-  return 'other';
+  const rawTitle = (section.title ?? '').toString().trim().toLowerCase();
+  const byTitle = matchKindToken(rawTitle);
+  if (byTitle) return byTitle;
+
+  return 'custom';
 }
 
-export function formatItemDateRange(item: Record<string, any>): string {
+const MONTH_INDEX_MAP: Record<string, number> = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+};
+
+const SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+function parseMonthToken(rawMonth: string): number | null {
+  const trimmed = rawMonth.trim().toLowerCase().replace(/\.$/, '');
+  if (!trimmed) return null;
+  if (MONTH_INDEX_MAP[trimmed]) return MONTH_INDEX_MAP[trimmed];
+  const numeric = Number(trimmed);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 12) {
+    return numeric;
+  }
+  return null;
+}
+
+function parseMonthYear(
+  value?: string | Partial<dateFields>
+): { month: number | null; year: string | null; raw: string } {
+  const base = formatResumeDate(value);
+  if (!base) {
+    return { month: null, year: null, raw: '' };
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const rawYear = (value.year ?? '').toString().trim();
+    const rawMonth = (value.month ?? '').toString().trim();
+    return {
+      month: parseMonthToken(rawMonth),
+      year: /^\d{4}$/.test(rawYear) ? rawYear : rawYear || null,
+      raw: base,
+    };
+  }
+
+  const trimmed = base.trim();
+  if (/^present|current|now$/i.test(trimmed)) {
+    return { month: null, year: null, raw: 'Present' };
+  }
+
+  // YYYY-MM or YYYY-MM-DD
+  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})(?:[-/]\d{1,2})?$/);
+  if (isoMatch) {
+    const year = isoMatch[1];
+    const month = parseMonthToken(isoMatch[2]);
+    return { month, year, raw: trimmed };
+  }
+
+  // MM/YYYY or MM-YYYY
+  const slashMatch = trimmed.match(/^(\d{1,2})[-/](\d{4})$/);
+  if (slashMatch) {
+    const month = parseMonthToken(slashMatch[1]);
+    const year = slashMatch[2];
+    return { month, year, raw: trimmed };
+  }
+
+  // Month YYYY (e.g. "Jun 2021", "September 2023")
+  const namedMatch = trimmed.match(/^([A-Za-z.]+)\s+(\d{4})$/);
+  if (namedMatch) {
+    const month = parseMonthToken(namedMatch[1]);
+    const year = namedMatch[2];
+    return { month, year, raw: trimmed };
+  }
+
+  // Year only
+  const yearOnly = trimmed.match(/^(\d{4})$/);
+  if (yearOnly) {
+    return { month: null, year: yearOnly[1], raw: trimmed };
+  }
+
+  return { month: null, year: null, raw: trimmed };
+}
+
+export function formatDateWithPattern(
+  value?: string | Partial<dateFields>,
+  dateFormat?: DateFormatPattern
+): string {
+  const base = formatResumeDate(value);
+  if (!base) return '';
+  if (!dateFormat) return base;
+
+  const { month, year, raw } = parseMonthYear(value);
+  if (!year) return raw;
+
+  if (dateFormat === 'YYYY') {
+    return year;
+  }
+
+  if (!month) {
+    return year;
+  }
+
+  if (dateFormat === 'MM/YYYY') {
+    return `${String(month).padStart(2, '0')}/${year}`;
+  }
+
+  return `${SHORT_MONTHS[month - 1]} ${year}`;
+}
+
+export function formatItemDateRange(
+  item: Record<string, any>,
+  dateFormat?: DateFormatPattern
+): string {
   if (!item) return '';
 
-  const start = formatResumeDate(item.startDate);
-  const end = formatResumeDate(item.endDate);
-  const singleDate = formatResumeDate(item.date);
+  const start = formatDateWithPattern(item.startDate, dateFormat);
+  const end = formatDateWithPattern(item.endDate, dateFormat);
+  const singleDate = formatDateWithPattern(item.date, dateFormat);
 
   if (start) {
-    const displayEnd = item.current || item.isCurrent || !end ? 'Present' : end;
+    const rawEnd = formatResumeDate(item.endDate);
+    const displayEnd = item.current || item.isCurrent || !rawEnd ? 'Present' : end;
     return `${start} - ${displayEnd}`;
   }
 
@@ -222,7 +458,36 @@ export function getOrderedSections(
   if (!Array.isArray(sectionOrder) || sectionOrder.length === 0) {
     return sections.filter((s) => s && s.enabled !== false);
   }
-  return sectionOrder
+  const orderedIds = new Set(sectionOrder);
+  const fromOrder = sectionOrder
     .map((id) => sections.find((s) => s.id === id))
     .filter((s): s is ISection => Boolean(s) && s!.enabled !== false);
+  const remaining = sections.filter(
+    (s) => s && s.enabled !== false && !orderedIds.has(s.id)
+  );
+  return [...fromOrder, ...remaining];
+}
+
+export function isResumeEmpty(resume?: IResume | null): boolean {
+  if (!resume) return true;
+  const basics = resume.content?.basics || {};
+  if (
+    (basics.name && basics.name.trim()) ||
+    (basics.label && basics.label.trim()) ||
+    (basics.email && basics.email.trim()) ||
+    (basics.phone && basics.phone.trim()) ||
+    (basics.summary && basics.summary.trim()) ||
+    (resume.summary && resume.summary.trim())
+  ) {
+    return false;
+  }
+
+  const sections = resume.content?.sections || [];
+  return !sections.some(
+    (sec) =>
+      sec &&
+      sec.enabled !== false &&
+      Array.isArray(sec.content) &&
+      sec.content.some((item: any) => item && item.enabled !== false)
+  );
 }
