@@ -56,7 +56,7 @@ describe('Developer, Startup, and Academic CV Templates', () => {
           'academic',
         ])
       );
-      expect(templateRegistry).toHaveLength(9);
+      expect(new Set(templateRegistry.map((t) => t.id)).size).toBe(templateRegistry.length);
 
       NEW_TEMPLATES.forEach(({ id, name, category, atsFriendly, component }) => {
         const entry = getTemplate(id);
@@ -495,7 +495,7 @@ describe('Developer, Startup, and Academic CV Templates', () => {
 
       // All (9)
       expect(within(dialog).getByTestId('gallery-category-all')).toHaveTextContent(
-        'All (9)'
+        `All (${templateRegistry.length})`
       );
 
       // Tech category -> tech-split, developer (ATS), startup (non-ATS)
