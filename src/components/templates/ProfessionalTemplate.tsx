@@ -55,7 +55,7 @@ const ProfessionalTemplateContent: React.FC = () => {
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <InlineEdit
             value={basics.name || ''}
             onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
@@ -76,7 +76,7 @@ const ProfessionalTemplateContent: React.FC = () => {
             placeholder="Professional Title"
           />
         </div>
-        <div className="flex items-center gap-3 sm:justify-end shrink-0">
+        <div className="flex items-center gap-3 sm:justify-end min-w-0 max-w-full sm:max-w-[55%]">
           <ContactRow variant={atsMode ? 'inline-left' : 'stacked-right'} />
           <ProfilePhoto />
         </div>

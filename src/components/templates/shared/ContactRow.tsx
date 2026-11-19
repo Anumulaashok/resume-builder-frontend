@@ -13,7 +13,7 @@ import { ProfilePhoto } from './ProfilePhoto';
 import { useTemplateContext } from './TemplateContext';
 
 const linkClassName =
-  'underline decoration-slate-400/80 underline-offset-2 hover:decoration-current transition-colors print:decoration-slate-400';
+  'underline decoration-slate-400/80 underline-offset-2 hover:decoration-current transition-colors print:decoration-slate-400 [overflow-wrap:anywhere]';
 
 export interface ContactRowProps {
   resume?: IResume;
@@ -169,12 +169,12 @@ export const ContactRow: React.FC<ContactRowProps> = ({
     const isRight = effectiveVariant === 'stacked-right';
     return (
       <div
-        className={`flex items-center gap-3 shrink-0 ${
+        className={`flex items-center gap-3 min-w-0 max-w-full ${
           isRight ? 'sm:justify-end' : 'justify-start'
         } ${!hasAnyNonEmptyEntry && !showPhoto ? 'print:hidden' : ''} ${className}`}
       >
         <div
-          className={`text-xs text-slate-600 space-y-1 ${
+          className={`text-xs text-slate-600 space-y-1 min-w-0 max-w-full [overflow-wrap:anywhere] ${
             isRight ? 'sm:text-right' : 'text-left'
           } ${!hasAnyNonEmptyEntry ? 'print:hidden' : ''}`}
           style={isAtsMode ? { color: '#111827' } : undefined}

@@ -675,7 +675,7 @@ describe("4. ATS Mode Toggle", () => {
 
   it.each([
     "tech-split",
-    "executive-two-column",
+    "two-column",
     "timeline",
     "bold-header",
     "accent-sidebar",
@@ -715,7 +715,7 @@ describe("4. ATS Mode Toggle", () => {
         within(pageEl).queryByTestId("timeline-date-rail")
       ).not.toBeInTheDocument();
       expect(
-        within(pageEl).queryByTestId("bold-header-banner")
+        within(pageEl).queryByTestId("bold-header-band")
       ).not.toBeInTheDocument();
       expect(
         within(pageEl).queryByTestId("accent-sidebar-print-bg")
@@ -728,3 +728,94 @@ describe("4. ATS Mode Toggle", () => {
     }
   );
 });
+
+describe("5. Main Merge Integration (#40 Print Polish & #60 Sidebar Overflow)", () => {
+  it("preserves print:hidden on empty contact/summary/label placeholders alongside photo & ATS wrappers", () => {
+    const emptyBasicsResume = buildResume({
+      templateId: "compact",
+      content: {
+        ...buildResume().content,
+        basics: {
+          name: "",
+          label: "",
+          email: "",
+          phone: "",
+          summary: "",
+          image: SAMPLE_PHOTO_DATA_URL,
+        },
+      },
+    });
+
+    const { unmount } = render(
+      <ResumePreview resume={emptyBasicsResume} onChange={jest.fn()} />
+    );
+    const pageEl = screen.getByTestId("resume-preview-page");
+    expect(within(pageEl).getByTestId("resume-profile-photo")).toBeInTheDocument();
+    // Empty label pipe separator and empty summary get print:hidden
+    const separator = within(pageEl).getByText("|");
+    expect(separator.className).toContain("print:hidden");
+    const emailPlaceholder = within(pageEl).getByText("Email Address");
+    expect(emailPlaceholder.closest(".print\\:hidden")).not.toBeNull();
+    unmount();
+
+    // BoldHeader & Elegant empty name placeholder initials/monogram keep print:hidden when no photo
+    const boldEmpty = buildResume({
+      templateId: "bold-header",
+      content: {
+        ...buildResume().content,
+        basics: { name: "", label: "", email: "", phone: "", summary: "" },
+      },
+    });
+    const { unmount: unmountBold } = render(
+      <ResumePreview resume={boldEmpty} onChange={jest.fn()} />
+    );
+    expect(screen.getByTestId("bold-header-initials").className).toContain("print:hidden");
+    unmountBold();
+
+    const elegantEmpty = buildResume({
+      templateId: "elegant",
+      content: {
+        ...buildResume().content,
+        basics: { name: "", label: "", email: "", phone: "", summary: "" },
+      },
+    });
+    render(<ResumePreview resume={elegantEmpty} onChange={jest.fn()} />);
+    expect(
+      screen.getByTestId("elegant-monogram").parentElement?.className
+    ).toContain("print:hidden");
+  });
+
+  it("preserves TechSplit/Startup narrow sidebar overflow protections in non-ATS mode and collapses in ATS mode", () => {
+    const techResume = buildResume({
+      templateId: "tech-split",
+      content: {
+        ...buildResume().content,
+        basics: {
+          ...buildResume().content.basics,
+          website: "https://maya-lin-systems-engineering.example.dev",
+          image: SAMPLE_PHOTO_DATA_URL,
+        },
+      },
+    });
+
+    const { rerender } = render(<ResumePreview resume={techResume} readOnly />);
+    const sidebar = screen.getByTestId("tech-split-sidebar");
+    expect(sidebar.className).toContain("min-w-0");
+    expect(sidebar.style.overflowWrap).toBe("anywhere");
+    const langGrid = sidebar.querySelector('[data-section-kind="languages"]');
+    expect(langGrid?.className).toContain("grid-cols-1");
+    expect(langGrid?.className).not.toContain("sm:grid-cols-2");
+
+    rerender(
+      <ResumePreview
+        resume={{
+          ...techResume,
+          themeConfig: { ...defaultThemeConfig, atsMode: true },
+        }}
+        readOnly
+      />
+    );
+    expect(screen.queryByTestId("tech-split-sidebar")).not.toBeInTheDocument();
+  });
+});
+

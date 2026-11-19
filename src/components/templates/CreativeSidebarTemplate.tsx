@@ -77,6 +77,7 @@ const CreativeSidebarContent: React.FC = () => {
 
         {showSummary && (
           <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
             style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
           >
             <SectionHeading title="About" />

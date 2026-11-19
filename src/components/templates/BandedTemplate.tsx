@@ -83,7 +83,7 @@ const BandedTemplateContent: React.FC = () => {
               : 'var(--theme-accent, var(--theme-primary, #0f766e))',
           }}
         >
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <InlineEdit
               value={basics.name || ''}
               onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
@@ -107,12 +107,15 @@ const BandedTemplateContent: React.FC = () => {
             />
           </div>
           {showPhoto ? (
-            <div className="flex items-center gap-3 sm:justify-end shrink-0">
+            <div className="flex items-center gap-3 sm:justify-end min-w-0 max-w-full sm:max-w-[55%]">
               <ContactRow variant={atsMode ? 'inline-left' : 'stacked-right'} />
               <ProfilePhoto />
             </div>
           ) : (
-            <ContactRow variant={atsMode ? 'inline-left' : 'stacked-right'} />
+            <ContactRow
+              variant={atsMode ? 'inline-left' : 'stacked-right'}
+              className="sm:max-w-[55%]"
+            />
           )}
         </header>
       )}

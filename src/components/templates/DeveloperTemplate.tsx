@@ -215,7 +215,7 @@ const DeveloperTemplateContent: React.FC = () => {
         lineHeight: 'var(--theme-line-height, 1.48)',
       }}
     >
-      <table role="presentation" className="w-full border-collapse">
+      <table role="presentation" className="w-full table-fixed border-collapse">
         <thead aria-hidden="true" className="hidden print:table-header-group">
           <tr>
             <td
@@ -226,7 +226,7 @@ const DeveloperTemplateContent: React.FC = () => {
         </thead>
         <tbody>
           <tr>
-            <td className="p-0 align-top">
+            <td className="p-0 align-top min-w-0 max-w-full [overflow-wrap:anywhere]">
               <header
                 className="pb-4 border-b-2"
                 style={{
@@ -237,8 +237,14 @@ const DeveloperTemplateContent: React.FC = () => {
                       : undefined,
                 }}
               >
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                  <div className="min-w-0">
+                <div
+                  className={
+                    atsMode
+                      ? 'flex flex-col gap-2 min-w-0'
+                      : 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0'
+                  }
+                >
+                  <div className="min-w-0 flex-1">
                     <InlineEdit
                       value={basics.name || ''}
                       onChange={
@@ -257,7 +263,9 @@ const DeveloperTemplateContent: React.FC = () => {
                         {!atsMode && (
                           <span
                             aria-hidden="true"
-                            className="text-xs font-bold select-none"
+                            className={`text-xs font-bold select-none ${
+                              !basics.label?.trim() ? 'print:hidden' : ''
+                            }`}
                             style={{
                               fontFamily: MONO_STACK,
                               color:
@@ -287,11 +295,21 @@ const DeveloperTemplateContent: React.FC = () => {
                   </div>
 
                   {(prominentLinks.length > 0 || showPhoto) && (
-                    <div className="flex items-start gap-3 sm:justify-end shrink-0">
+                    <div
+                      className={
+                        atsMode
+                          ? 'flex flex-wrap items-center gap-3 min-w-0 max-w-full'
+                          : 'flex items-start gap-3 sm:justify-end min-w-0 max-w-full sm:max-w-[58%]'
+                      }
+                    >
                       {prominentLinks.length > 0 && (
                         <div
                           data-testid="developer-prominent-links"
-                          className="flex flex-wrap sm:justify-end gap-1.5"
+                          className={
+                            atsMode
+                              ? 'flex flex-wrap gap-x-3 gap-y-1 min-w-0 max-w-full'
+                              : 'flex flex-wrap sm:justify-end gap-1.5 min-w-0 max-w-full'
+                          }
                         >
                           {prominentLinks.map((link) => (
                             <a
@@ -301,22 +319,24 @@ const DeveloperTemplateContent: React.FC = () => {
                               rel="noopener noreferrer"
                               className={
                                 atsMode
-                                  ? 'inline-flex items-center text-xs underline decoration-slate-400 underline-offset-2'
-                                  : 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium bg-slate-50 hover:bg-slate-100 transition-colors print:bg-slate-50'
+                                  ? 'inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] text-xs underline decoration-slate-400 underline-offset-2'
+                                  : 'inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium bg-slate-50 hover:bg-slate-100 transition-colors print:bg-slate-50'
                               }
                               style={
                                 atsMode
-                                  ? { color: '#111827' }
+                                  ? { color: '#111827', overflowWrap: 'anywhere' }
                                   : {
                                       fontFamily: MONO_STACK,
                                       borderColor:
                                         'var(--theme-accent, var(--theme-primary, #0284c7))',
                                       color: 'var(--theme-primary, #0f172a)',
+                                      overflowWrap: 'anywhere',
                                     }
                               }
                             >
                               {!atsMode && (
                                 <span
+                                  className="shrink-0"
                                   style={{
                                     color:
                                       'var(--theme-accent, var(--theme-primary, #0284c7))',
@@ -325,7 +345,9 @@ const DeveloperTemplateContent: React.FC = () => {
                                   {renderLinkIcon(link.key)}
                                 </span>
                               )}
-                              <span>{link.label}</span>
+                              <span className="min-w-0 [overflow-wrap:anywhere]">
+                                {link.label}
+                              </span>
                             </a>
                           ))}
                         </div>

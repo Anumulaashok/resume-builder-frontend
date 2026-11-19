@@ -62,7 +62,7 @@ const TechSplitContent: React.FC = () => {
               : 'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2'
           }
         >
-          <div>
+          <div className="min-w-0 flex-1">
             <InlineEdit
               value={basics.name || ''}
               onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
@@ -83,7 +83,7 @@ const TechSplitContent: React.FC = () => {
               placeholder="Systems / Software Engineer"
             />
           </div>
-          <div className="flex items-center gap-3 sm:justify-end shrink-0">
+          <div className="flex items-center gap-3 sm:justify-end min-w-0 max-w-full sm:max-w-[55%]">
             <ContactRow variant={atsMode ? 'inline-left' : 'stacked-right'} />
             <ProfilePhoto />
           </div>

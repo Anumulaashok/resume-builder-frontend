@@ -568,7 +568,9 @@ const StartupTemplateContent: React.FC = () => {
                   {showSummary && (
                     <section
                       data-testid="startup-summary-callout"
-                      className="rounded-r-xl border border-slate-200/90 border-l-4 bg-slate-50/90 print:bg-slate-50 p-3.5 break-inside-avoid"
+                      className={`rounded-r-xl border border-slate-200/90 border-l-4 bg-slate-50/90 print:bg-slate-50 p-3.5 break-inside-avoid ${
+                        !hasSummaryText ? 'print:hidden' : ''
+                      }`}
                       style={{
                         borderLeftColor:
                           'var(--theme-accent, var(--theme-primary, #ea580c))',
