@@ -31,6 +31,7 @@ import {
   TrashIcon,
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
+  CodeBracketIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -76,6 +77,7 @@ import {
   isUnauthorizedError,
 } from "../utils/authEventBus";
 import { getStoredUser } from "../utils/token";
+import { downloadResumeAsJson } from "../utils/importers";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -1426,6 +1428,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   }, [activeView, isDesktop, loading]);
 
+  const handleExportJson = useCallback(() => {
+    setShowOverflowMenu(false);
+    try {
+      downloadResumeAsJson(latestResumeRef.current);
+      toast.success("Resume exported as JSON");
+    } catch {
+      toast.error("Failed to export JSON Resume");
+    }
+  }, []);
+
   const handleExportTxt = useCallback(async () => {
     if (isExportingTxtRef.current || loading) {
       return;
@@ -2094,6 +2106,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   >
                     <DocumentTextIcon className="h-4 w-4 text-gray-500" />
                     <span>Download ATS text</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="export-json-resume-btn"
+                    onClick={handleExportJson}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                  >
+                    <CodeBracketIcon className="h-4 w-4 text-gray-500" />
+                    <span>Export JSON</span>
                   </button>
                 </div>
               )}
