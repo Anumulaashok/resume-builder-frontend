@@ -290,6 +290,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
         isOpen={showTemplateGallery}
         activeTemplateId={activeTemplate.id}
         resume={resume}
+        customisedKeys={customisedKeysRef.current}
         onSelect={handleTemplateSelect}
         onClose={() => setShowTemplateGallery(false)}
       />
