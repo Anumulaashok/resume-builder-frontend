@@ -103,11 +103,21 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
     }
   };
 
+  const isEmailHidden = readOnly && Boolean(
+    resume.sharing?.privacy?.hideEmail || resume.sharing?.privacySettings?.hideEmail
+  );
+  const isPhoneHidden = readOnly && Boolean(
+    resume.sharing?.privacy?.hidePhone || resume.sharing?.privacySettings?.hidePhone
+  );
+  const isAddressHidden = readOnly && Boolean(
+    resume.sharing?.privacy?.hideAddress || resume.sharing?.privacySettings?.hideAddress
+  );
+
   const formattedAddress = [
-    resume.content.basics.location?.address,
+    !isAddressHidden ? resume.content.basics.location?.address : undefined,
     resume.content.basics.location?.city,
     resume.content.basics.location?.countryCode
-  ].filter(Boolean).join(', ') || resume.content.basics.location?.address;
+  ].filter(Boolean).join(', ') || (!isAddressHidden ? resume.content.basics.location?.address : undefined);
 
   return (
     <div className="p-[2cm] h-full print:p-8 mt-5 bg-slate-50" style={{ fontFamily: 'var(--theme-body-font, serif)', color: 'var(--theme-text-color, #334155)' }}>
@@ -138,7 +148,7 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
           />
         </div>
         <div className="text-sm text-slate-600 text-right space-y-1">
-          {(resume.content.basics.email || !readOnly) && (
+          {!isEmailHidden && (resume.content.basics.email || !readOnly) && (
             <InlineEdit 
               value={resume.content.basics.email || ""} 
               onChange={readOnly ? undefined : (v) => updateBasics('email', v)} 
@@ -147,7 +157,7 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
               readOnly={readOnly}
             />
           )}
-          {(resume.content.basics.phone || !readOnly) && (
+          {!isPhoneHidden && (resume.content.basics.phone || !readOnly) && (
             <InlineEdit 
               value={resume.content.basics.phone || ""} 
               onChange={readOnly ? undefined : (v) => updateBasics('phone', v)} 

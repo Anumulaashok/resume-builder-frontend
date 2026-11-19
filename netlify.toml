@@ -1,0 +1,18 @@
+# Netlify Deployment Configuration for Resume Builder Frontend
+
+[build]
+  command = "npm run build"
+  publish = "build"
+
+# API proxy rewrite rule: forward /api requests to backend service
+[[redirects]]
+  from = "/api/*"
+  to = "http://localhost:10000/api/:splat"
+  status = 200
+  force = true
+
+# Client-side SPA routing fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
