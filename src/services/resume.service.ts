@@ -1,4 +1,10 @@
-import { IResume as BaseResume, ISharing, IPrivacySettings } from "../types/resume";
+import {
+  IResume as BaseResume,
+  ISharing,
+  IPrivacySettings,
+  IResumeHistorySummaryItem,
+  IResumeHistorySnapshot,
+} from "../types/resume";
 import axiosInstance from "../services/axios";
 import { JobMatchResult } from "../types/jobMatch";
 
@@ -15,6 +21,11 @@ export interface ResumeWithMeta extends Resume {
 export interface AIGenerateResponse {
   success: boolean;
   data: ResumeWithMeta;
+}
+
+export interface RestoreResumeVersionResult {
+  resume: ResumeWithMeta;
+  previousSnapshotIndex?: number;
 }
 
 export function normalizeResumeIdentifiers<T extends Partial<Resume>>(
@@ -165,6 +176,55 @@ class ResumeService {
       data: ISharing;
     }>(`/api/resumes/${resumeId}/share`, settings);
     return response.data?.data;
+  }
+
+  async getResumeHistory(resumeId: string): Promise<IResumeHistorySummaryItem[]> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: IResumeHistorySummaryItem[];
+    }>(`/api/resumes/${resumeId}/history`);
+    return response.data?.data || [];
+  }
+
+  async getResumeHistorySnapshot(
+    resumeId: string,
+    index: number
+  ): Promise<IResumeHistorySnapshot> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: IResumeHistorySnapshot;
+    }>(`/api/resumes/${resumeId}/history/${index}`);
+    return response.data?.data;
+  }
+
+  async restoreResumeVersion(
+    resumeId: string,
+    index: number
+  ): Promise<RestoreResumeVersionResult> {
+    const response = await axiosInstance.post<{
+      success: boolean;
+      data: ResumeWithMeta & { history?: unknown[] };
+      previousSnapshotIndex?: number;
+    }>(`/api/resumes/${resumeId}/history/${index}/restore`);
+
+    const payload = response.data;
+    const rawResume =
+      payload && typeof payload === "object" && "data" in payload
+        ? payload.data
+        : (payload as ResumeWithMeta & { history?: unknown[] });
+    const fallbackPrevIndex =
+      Array.isArray(rawResume?.history) && rawResume.history.length > 0
+        ? rawResume.history.length - 1
+        : undefined;
+    const previousSnapshotIndex =
+      typeof payload?.previousSnapshotIndex === "number"
+        ? payload.previousSnapshotIndex
+        : fallbackPrevIndex;
+
+    return {
+      resume: unwrapResumeResponse(payload),
+      previousSnapshotIndex,
+    };
   }
 }
 
