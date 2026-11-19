@@ -7,6 +7,9 @@ import { MinimalTemplate } from './MinimalTemplate';
 import { TechSplitTemplate } from './TechSplitTemplate';
 import { CreativeSidebarTemplate } from './CreativeSidebarTemplate';
 import { ExecutiveTwoColumnTemplate } from './ExecutiveTwoColumnTemplate';
+import { ClassicTemplate } from './ClassicTemplate';
+import { ExecutiveTemplate } from './ExecutiveTemplate';
+import { CompactTemplate } from './CompactTemplate';
 
 export type TemplateCategory =
   | 'simple'
@@ -178,6 +181,75 @@ export const templateRegistry: TemplateDefinition[] = [
       lineHeight: 1.45,
     },
     component: ExecutiveTwoColumnTemplate,
+  },
+  {
+    id: 'classic',
+    name: 'Classic',
+    description:
+      'Conservative serif layout with centered header, inline contact line, and thin full-width heading rules.',
+    category: 'professional',
+    layout: 'single',
+    atsFriendly: true,
+    defaultTheme: {
+      fontPairingId: 'classic-serif',
+      primaryColor: '#1e293b',
+      accentColor: '#334155',
+      textColor: '#1f2937',
+      headingColor: '#111827',
+      sectionSpacing: 'normal',
+      pageMargins: 'normal',
+      headingStyle: 'underline',
+      skillStyle: 'comma',
+      fontScale: 1,
+      lineHeight: 1.5,
+    },
+    component: ClassicTemplate,
+  },
+  {
+    id: 'executive',
+    name: 'Executive',
+    description:
+      'Authoritative single-column layout with a left-accented name block, emphasised summary, and tracked uppercase headings.',
+    category: 'professional',
+    layout: 'single',
+    atsFriendly: true,
+    defaultTheme: {
+      fontPairingId: 'elegant-hybrid',
+      primaryColor: '#1e293b',
+      accentColor: '#2563eb',
+      textColor: '#334155',
+      headingColor: '#0f172a',
+      sectionSpacing: 'normal',
+      pageMargins: 'normal',
+      headingStyle: 'caps',
+      skillStyle: 'columns',
+      fontScale: 1,
+      lineHeight: 1.5,
+    },
+    component: ExecutiveTemplate,
+  },
+  {
+    id: 'compact',
+    name: 'Compact',
+    description:
+      'Dense single-column layout with tight spacing, right-aligned dates, and comma-separated skills to fit experienced profiles on one page.',
+    category: 'simple',
+    layout: 'single',
+    atsFriendly: true,
+    defaultTheme: {
+      fontPairingId: 'modern-sans',
+      primaryColor: '#1e293b',
+      accentColor: '#334155',
+      textColor: '#334155',
+      headingColor: '#0f172a',
+      sectionSpacing: 'compact',
+      pageMargins: 'narrow',
+      headingStyle: 'underline',
+      skillStyle: 'comma',
+      fontScale: 0.85,
+      lineHeight: 1.3,
+    },
+    component: CompactTemplate,
   },
 ];
 
