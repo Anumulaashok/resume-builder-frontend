@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Bars3Icon,
+  BriefcaseIcon,
   DocumentTextIcon,
   GlobeAltIcon,
   SparklesIcon,
@@ -8,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Container } from '../ui/container';
 
-export type AppTab = 'resumes' | 'job-match' | 'portfolios';
+export type AppTab = 'resumes' | 'job-match' | 'job-tracker' | 'portfolios';
 
 export const SM_MEDIA_QUERY = '(min-width: 640px)';
 
@@ -61,6 +62,7 @@ const NAV_TABS: ReadonlyArray<{
 }> = [
   { id: 'resumes', label: 'Resumes', Icon: DocumentTextIcon },
   { id: 'job-match', label: 'Job Match', Icon: SparklesIcon },
+  { id: 'job-tracker', label: 'Job Tracker', Icon: BriefcaseIcon },
   { id: 'portfolios', label: 'Portfolios', Icon: GlobeAltIcon },
 ];
 
