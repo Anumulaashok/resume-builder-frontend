@@ -118,3 +118,5 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({
     <ProfessionalTemplateContent />
   </TemplateProvider>
 );
+
+export { formatResumeDate as formatDate } from '../../utils/date';
