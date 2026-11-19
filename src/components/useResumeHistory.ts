@@ -1,4 +1,5 @@
-import { useReducer, useCallback } from 'react';
+import { useReducer, useCallback, useRef } from 'react';
+import { defaultResume } from '../constants/editorConstants';
 import { IResume } from '../types/resume';
 
 export const MAX_HISTORY = 50;
@@ -19,18 +20,42 @@ const clampIndex = (index: number, length: number): number => {
   if (length <= 0) {
     return 0;
   }
-  return Math.min(Math.max(index, 0), length - 1);
+  const normalizedIndex = Number.isFinite(index) ? Math.trunc(index) : 0;
+  return Math.min(Math.max(normalizedIndex, 0), length - 1);
 };
 
-export function historyReducer(state: HistoryState, action: HistoryAction): HistoryState {
+const findLastValidSnapshot = (history: IResume[]): IResume | undefined => {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i] !== undefined && history[i] !== null) {
+      return history[i];
+    }
+  }
+  return undefined;
+};
+
+export function historyReducer(
+  state: HistoryState,
+  action: HistoryAction
+): HistoryState {
   switch (action.type) {
     case 'PUSH': {
       const safeCurrentIndex = clampIndex(state.index, state.history.length);
-      const currentState = state.history[safeCurrentIndex];
-      const nextState =
-        typeof action.payload === 'function' ? action.payload(currentState) : action.payload;
+      const currentState =
+        state.history[safeCurrentIndex] ??
+        findLastValidSnapshot(state.history) ??
+        defaultResume;
+      const resolvedNext =
+        typeof action.payload === 'function'
+          ? action.payload(currentState)
+          : action.payload;
+      const nextState = resolvedNext ?? currentState;
 
-      const truncatedHistory = state.history.slice(0, safeCurrentIndex + 1);
+      const truncatedHistory =
+        state.history.length > 0
+          ? state.history
+              .slice(0, safeCurrentIndex + 1)
+              .filter((entry): entry is IResume => entry !== undefined && entry !== null)
+          : [];
       const appendedHistory = [...truncatedHistory, nextState];
       const cappedHistory =
         appendedHistory.length > MAX_HISTORY
@@ -39,11 +64,12 @@ export function historyReducer(state: HistoryState, action: HistoryAction): Hist
 
       return {
         history: cappedHistory,
-        index: cappedHistory.length - 1,
+        index: clampIndex(cappedHistory.length - 1, cappedHistory.length),
       };
     }
     case 'UNDO': {
-      const nextIndex = clampIndex(state.index - 1, state.history.length);
+      const safeCurrentIndex = clampIndex(state.index, state.history.length);
+      const nextIndex = clampIndex(safeCurrentIndex - 1, state.history.length);
       if (nextIndex === state.index) {
         return state;
       }
@@ -53,7 +79,8 @@ export function historyReducer(state: HistoryState, action: HistoryAction): Hist
       };
     }
     case 'REDO': {
-      const nextIndex = clampIndex(state.index + 1, state.history.length);
+      const safeCurrentIndex = clampIndex(state.index, state.history.length);
+      const nextIndex = clampIndex(safeCurrentIndex + 1, state.history.length);
       if (nextIndex === state.index) {
         return state;
       }
@@ -68,11 +95,13 @@ export function historyReducer(state: HistoryState, action: HistoryAction): Hist
 }
 
 export function useResumeHistory(initialState: IResume) {
+  const fallbackRef = useRef<IResume>(initialState ?? defaultResume);
+
   const [state, dispatch] = useReducer(
     historyReducer,
     initialState,
     (init): HistoryState => ({
-      history: [init],
+      history: [init ?? defaultResume],
       index: 0,
     })
   );
@@ -89,12 +118,19 @@ export function useResumeHistory(initialState: IResume) {
     dispatch({ type: 'REDO' });
   }, []);
 
+  const safeIndex = clampIndex(state.index, state.history.length);
+  const resume: IResume =
+    state.history[safeIndex] ??
+    findLastValidSnapshot(state.history) ??
+    initialState ??
+    fallbackRef.current;
+
   return {
-    resume: state.history[state.index],
+    resume,
     setResume,
     undo,
     redo,
-    canUndo: state.index > 0,
-    canRedo: state.index < state.history.length - 1,
+    canUndo: safeIndex > 0,
+    canRedo: safeIndex < state.history.length - 1,
   };
 }
