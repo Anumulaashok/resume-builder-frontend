@@ -1,6 +1,7 @@
 import React from 'react';
 import { IResume, ISection, SectionType } from '../../types/resume';
 import { InlineEdit } from '../ui/InlineEdit';
+import { formatResumeDate } from '../../utils/date';
 
 interface TemplateProps {
   resume: IResume;
@@ -41,7 +42,11 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ resume, onChange, read
   const renderSectionContent = (section: ISection) => {
     if (Array.isArray(section.content)) {
       return section.content.map((item: any) => {
-        if (item.enabled) return null;
+        if (item.enabled === false) return null;
+
+        const startDate = formatResumeDate(item.startDate);
+        const endDate = formatResumeDate(item.endDate);
+        const displayEndDate = item.current || !endDate ? 'Present' : endDate;
         
         return (
           <div key={item.id} style={{ marginBottom: 'var(--theme-item-spacing, 1rem)' }}>
@@ -55,10 +60,11 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ resume, onChange, read
                   style={{ fontFamily: 'var(--theme-heading-font)', color: 'var(--theme-heading-color, #111827)' }}
                 />
                 <InlineEdit value={item.field} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'field', v)} readOnly={readOnly} textClassName="text-sm text-gray-600" />
-                <p className="text-xs text-gray-500">
-                  {item?.startDate?.month || ""} - {item?.startDate?.year ?? ""} -{" "}
-                  {item?.endDate?.month || "Present"} -{item?.endDate?.year || ""}
-                </p>
+                {startDate && (
+                  <p className="text-xs text-gray-500">
+                    {startDate} - {displayEndDate}
+                  </p>
+                )}
                 <InlineEdit value={item.description || ''} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'description', v)} readOnly={readOnly} multiline textClassName="text-xs text-gray-500" />
               </>
             ) : section.type === SectionType.WORK ? (
@@ -71,7 +77,9 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ resume, onChange, read
                     textClassName="text-md font-semibold"
                     style={{ fontFamily: 'var(--theme-heading-font)', color: 'var(--theme-heading-color, #111827)' }}
                   />
-                  <span className="text-xs text-gray-500">{item.startDate} - {item.endDate || "Present"}</span>
+                  {startDate && (
+                    <span className="text-xs text-gray-500">{startDate} - {displayEndDate}</span>
+                  )}
                 </div>
                 <InlineEdit value={item.name} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'name', v)} readOnly={readOnly} textClassName="text-sm font-medium text-gray-700" />
                 <InlineEdit value={item.description || ''} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'description', v)} readOnly={readOnly} multiline textClassName="text-sm text-gray-600 mt-1" />
@@ -208,7 +216,7 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ resume, onChange, read
       {/* Sections */}
       {(resume.content.sectionOrder || []).map((sectionId) => {
         const section = (resume.content.sections || []).find((s) => s.id === sectionId);
-        if (!section || section.enabled) return null;
+        if (!section || section.enabled === false) return null;
 
         return (
           <div key={section.id} style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}>

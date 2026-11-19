@@ -1,6 +1,7 @@
 import React from 'react';
 import { IResume, ISection, SectionType } from '../../types/resume';
 import { InlineEdit } from '../ui/InlineEdit';
+import { formatResumeDate } from '../../utils/date';
 
 interface TemplateProps {
   resume: IResume;
@@ -41,7 +42,11 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
   const renderSectionContent = (section: ISection) => {
     if (Array.isArray(section.content)) {
       return section.content.map((item: any) => {
-        if (item.enabled) return null;
+        if (item.enabled === false) return null;
+
+        const startDate = formatResumeDate(item.startDate);
+        const endDate = formatResumeDate(item.endDate);
+        const displayEndDate = item.current || !endDate ? 'Present' : endDate;
         
         return (
           <div key={item.id} style={{ marginBottom: 'var(--theme-item-spacing, 1.25rem)' }}>
@@ -59,9 +64,11 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
                   <InlineEdit value={item.description || ''} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'description', v)} readOnly={readOnly} multiline textClassName="text-sm text-gray-600 mt-2 block" />
                 </div>
                 <div className="w-1/4 text-right">
-                  <p className="text-xs text-gray-500 font-medium">
-                    {item?.startDate?.month || ""} {item?.startDate?.year ?? ""} - {item?.endDate?.month || "Present"} {item?.endDate?.year || ""}
-                  </p>
+                  {startDate && (
+                    <p className="text-xs text-gray-500 font-medium">
+                      {startDate} - {displayEndDate}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : section.type === SectionType.WORK ? (
@@ -78,7 +85,9 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
                   <InlineEdit value={item.description || ''} onChange={readOnly ? undefined : (v) => updateSectionItem(section.id, item.id, 'description', v)} readOnly={readOnly} multiline textClassName="text-sm text-gray-600 mt-2 block" />
                 </div>
                 <div className="w-1/4 text-right">
-                  <span className="text-xs text-gray-500 font-medium">{item.startDate} - {item.endDate || "Present"}</span>
+                  {startDate && (
+                    <span className="text-xs text-gray-500 font-medium">{startDate} - {displayEndDate}</span>
+                  )}
                 </div>
               </div>
             ) : (
@@ -200,7 +209,7 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({ resume, onChange
       {/* Sections */}
       {(resume.content.sectionOrder || []).map((sectionId) => {
         const section = (resume.content.sections || []).find((s) => s.id === sectionId);
-        if (!section || section.enabled) return null;
+        if (!section || section.enabled === false) return null;
 
         return (
           <div key={section.id} style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}>
