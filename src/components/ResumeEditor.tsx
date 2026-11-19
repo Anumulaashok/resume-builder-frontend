@@ -31,6 +31,7 @@ import {
   TrashIcon,
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
+  SparklesIcon,
   CodeBracketIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
@@ -67,6 +68,11 @@ import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
 import ShareModal from "./ShareModal";
+import AIAssistantDrawer, {
+  AssistantTab,
+  BulletTarget,
+  extractResumeBullets,
+} from "./AIAssistantDrawer";
 import ReauthModal from "./ReauthModal";
 import VersionHistoryDrawer from "./VersionHistoryDrawer";
 import { formatResumeDate } from "../utils/date";
@@ -548,6 +554,7 @@ interface SortableItemProps {
   onRemove: (sectionId: string, itemId: string) => void;
   onEdit: (type: SectionType, item: any, sectionId: string) => void;
   onHide: (sectionId: string, itemId: string) => void;
+  onOptimizeBullets?: (sectionId: string, itemId: string) => void;
 }
 
 const SortableItem: React.FC<SortableItemProps> = ({
@@ -558,6 +565,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
   onRemove,
   onEdit,
   onHide,
+  onOptimizeBullets,
 }) => {
   const {
     attributes,
@@ -672,6 +680,21 @@ const SortableItem: React.FC<SortableItemProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {onOptimizeBullets &&
+                      ((typeof item.description === "string" &&
+                        item.description.trim().length > 0) ||
+                        (Array.isArray(item.highlights) &&
+                          item.highlights.length > 0)) && (
+                        <button
+                          type="button"
+                          onClick={() => onOptimizeBullets(section.id, item.id)}
+                          title={`Optimize bullets for ${primary}`}
+                          aria-label={`Optimize bullets for ${primary}`}
+                          className="p-1.5 rounded-md text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <SparklesIcon className="h-4 w-4" />
+                        </button>
+                      )}
                     <button
                       type="button"
                       onClick={() => onHide(section.id, item.id)}
@@ -765,6 +788,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     sectionId?: string;
   } | null>(null);
   const [deletableSection, setDeletableSection] = useState<ISection | null>(
+    null
+  );
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [aiAssistantTab, setAiAssistantTab] = useState<AssistantTab>("summary");
+  const [selectedBulletKey, setSelectedBulletKey] = useState<string | null>(
     null
   );
 
@@ -1832,6 +1860,137 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }));
   };
 
+  const handleOpenBulletOptimizer = (sectionId: string, itemId: string) => {
+    const allBullets = extractResumeBullets(resume);
+    const matching = allBullets.find(
+      (b) => b.sectionId === sectionId && b.itemId === itemId
+    );
+    if (matching) {
+      setSelectedBulletKey(matching.key);
+    }
+    setAiAssistantTab("bullets");
+    setShowAIAssistant(true);
+  };
+
+  const handleApplyAISummary = (newSummary: string) => {
+    setResume((prev) => ({
+      ...prev,
+      summary: newSummary,
+      content: {
+        ...prev.content,
+        basics: {
+          ...prev.content.basics,
+          summary: newSummary,
+        },
+      },
+    }));
+  };
+
+  const handleApplyAIBullet = (
+    target: BulletTarget | null,
+    newBulletText: string
+  ) => {
+    setResume((prev) => {
+      if (target) {
+        const updatedSections = prev.content.sections.map((section) => {
+          if (section.id !== target.sectionId) return section;
+          return {
+            ...section,
+            content: section.content.map((item: any) => {
+              if (item.id !== target.itemId) return item;
+              if (
+                target.sourceField === "highlights" &&
+                Array.isArray(item.highlights)
+              ) {
+                const nextHighlights = [...item.highlights];
+                nextHighlights[target.lineIndex] = `${target.prefix}${newBulletText}`;
+                return { ...item, highlights: nextHighlights };
+              }
+              const rawDesc = typeof item.description === "string" ? item.description : "";
+              const lines = rawDesc.split(/\r?\n/);
+              lines[target.lineIndex] = `${target.prefix}${newBulletText}`;
+              return { ...item, description: lines.join("\n") };
+            }),
+          };
+        });
+        return {
+          ...prev,
+          content: {
+            ...prev.content,
+            sections: updatedSections,
+          },
+        };
+      }
+
+      // Fallback when applying a newly refined bullet with no existing bullet selected
+      const workSecIndex = prev.content.sections.findIndex(
+        (s) => s.type === SectionType.WORK
+      );
+      if (workSecIndex !== -1) {
+        const updatedSections = [...prev.content.sections];
+        const workSec = updatedSections[workSecIndex];
+        if (workSec.content && workSec.content.length > 0) {
+          const firstItem: any = workSec.content[0];
+          const existingDesc =
+            typeof firstItem.description === "string" && firstItem.description.trim()
+              ? `${firstItem.description.trim()}\n• ${newBulletText}`
+              : `• ${newBulletText}`;
+          updatedSections[workSecIndex] = {
+            ...workSec,
+            content: [
+              { ...firstItem, description: existingDesc },
+              ...workSec.content.slice(1),
+            ],
+          };
+        } else {
+          updatedSections[workSecIndex] = {
+            ...workSec,
+            content: [
+              {
+                id: `${workSec.id}-item-${Date.now()}`,
+                name: "Experience",
+                position: prev.content.basics.label || "Role",
+                startDate: "",
+                description: `• ${newBulletText}`,
+              },
+            ],
+          };
+        }
+        return {
+          ...prev,
+          content: {
+            ...prev.content,
+            sections: updatedSections,
+          },
+        };
+      }
+
+      const newSecId = `work-${Date.now()}`;
+      const createdWorkSection: ISection = {
+        id: newSecId,
+        type: SectionType.WORK,
+        title: "Professional Experience",
+        content: [
+          {
+            id: `${newSecId}-item-1`,
+            name: "Experience",
+            position: prev.content.basics.label || "Role",
+            startDate: "",
+            description: `• ${newBulletText}`,
+          },
+        ],
+      };
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          sections: [...prev.content.sections, createdWorkSection],
+          sectionOrder: [...prev.content.sectionOrder, newSecId],
+        },
+      };
+    });
+  };
+
   const orderedSections = useMemo(() => {
     const sections = resume?.content?.sections || [];
     const order = resume?.content?.sectionOrder || [];
@@ -2010,6 +2169,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <ArrowUturnRightIcon className="h-4 w-4" />
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAIAssistant((prev) => !prev)}
+              title="Open AI Resume Assistant"
+              data-testid="ai-assistant-toggle-btn"
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                showAIAssistant
+                  ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                  : "border-indigo-200 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100"
+              }`}
+            >
+              <SparklesIcon className="h-4 w-4" />
+              <span>AI Assistant</span>
+            </button>
 
             <button
               type="button"
@@ -2229,12 +2403,26 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             </div>
 
             <div>
-              <label
-                htmlFor="basics-summary"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Professional Summary
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label
+                  htmlFor="basics-summary"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Professional Summary
+                </label>
+                <button
+                  type="button"
+                  data-testid="open-ai-summary-btn"
+                  onClick={() => {
+                    setAiAssistantTab("summary");
+                    setShowAIAssistant(true);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  <SparklesIcon className="h-3.5 w-3.5" />
+                  <span>Generate with AI</span>
+                </button>
+              </div>
               <textarea
                 id="basics-summary"
                 rows={4}
@@ -2275,6 +2463,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   }}
                   onHide={handleToggleItemVisibility}
                   onRemove={handleRemoveItem}
+                  onOptimizeBullets={handleOpenBulletOptimizer}
                 />
               ))}
             </div>
@@ -2619,6 +2808,17 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AIAssistantDrawer
+        isOpen={showAIAssistant}
+        onClose={() => setShowAIAssistant(false)}
+        resume={resume}
+        initialTab={aiAssistantTab}
+        selectedBulletKey={selectedBulletKey}
+        onSelectBulletKey={setSelectedBulletKey}
+        onApplySummary={handleApplyAISummary}
+        onApplyBullet={handleApplyAIBullet}
+      />
 
       {effectiveResumeId && (
         <ShareModal
