@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PencilIcon,
@@ -173,6 +174,8 @@ const sectionOptions: SectionOption[] = [
 type SaveStatus = "unsaved_new" | "saving" | "saved" | "failed";
 type SaveOrigin = "autosave" | "manual" | "retry";
 type SaveResult = { ok: true; data: any } | { ok: false; error: unknown };
+
+const EXPORT_COOLDOWN_MS = 500;
 
 function extractCreatedResumeId(saved: any): string | undefined {
   return saved?._id || saved?.id || saved?.data?._id || saved?.data?.id;
@@ -726,6 +729,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [addContent, setAddContent] = useState<{
     type: SectionType;
     item: any;
@@ -760,6 +764,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const titleBeforeEditRef = useRef<string>(resume.title || "");
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
+  const isExportingRef = useRef(false);
+  const exportCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   const effectiveResumeId = resume._id || resume.id || persistedId;
 
@@ -1120,6 +1128,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (exportCooldownTimerRef.current !== null) {
+        clearTimeout(exportCooldownTimerRef.current);
+        exportCooldownTimerRef.current = null;
+      }
       debouncedAutoSave.flush();
     };
   }, [debouncedAutoSave]);
@@ -1163,6 +1175,39 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       }
     }
   };
+
+  const handleExport = useCallback(() => {
+    if (isExportingRef.current || loading) {
+      return;
+    }
+
+    isExportingRef.current = true;
+
+    flushSync(() => {
+      setIsExporting(true);
+      setShowOverflowMenu(false);
+      if (!isDesktop && activeView !== "preview") {
+        setActiveView("preview");
+      }
+    });
+
+    try {
+      if (typeof window !== "undefined" && typeof window.print === "function") {
+        window.print();
+      }
+    } finally {
+      if (exportCooldownTimerRef.current !== null) {
+        clearTimeout(exportCooldownTimerRef.current);
+      }
+      exportCooldownTimerRef.current = setTimeout(() => {
+        exportCooldownTimerRef.current = null;
+        isExportingRef.current = false;
+        if (isMountedRef.current) {
+          setIsExporting(false);
+        }
+      }, EXPORT_COOLDOWN_MS);
+    }
+  }, [activeView, isDesktop, loading]);
 
   const handleOpenShare = async () => {
     if (!effectiveResumeId) {
@@ -1685,11 +1730,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={() => {
-                      setShowOverflowMenu(false);
-                      window.print();
-                    }}
-                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                    data-testid="export-resume-btn"
+                    onClick={handleExport}
+                    disabled={loading || isExporting}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                   >
                     <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
                     <span>Export</span>
