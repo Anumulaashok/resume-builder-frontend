@@ -32,13 +32,13 @@ const CompactTemplateContent: React.FC = () => {
 
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
 
-  const hasLabel = readOnly
-    ? Boolean(basics.label && basics.label.trim())
-    : true;
+  const hasLabelText = Boolean(basics.label && basics.label.trim());
+  const hasLabel = readOnly ? hasLabelText : true;
 
   const hasEnabledSections = (resume.content?.sections || []).some(
     (sec) => sec && sec.enabled !== false
@@ -90,7 +90,10 @@ const CompactTemplateContent: React.FC = () => {
             />
             {hasLabel && (
               <>
-                <span className="text-slate-400 text-xs" aria-hidden="true">
+                <span
+                  className={`text-slate-400 text-xs ${!hasLabelText ? 'print:hidden' : ''}`}
+                  aria-hidden="true"
+                >
                   |
                 </span>
                 <InlineEdit
@@ -116,6 +119,7 @@ const CompactTemplateContent: React.FC = () => {
 
       {showSummary && (
         <section
+          className={!hasSummaryText ? 'print:hidden' : undefined}
           style={{
             marginBottom: hasEnabledSections
               ? 'var(--theme-section-spacing, 1rem)'

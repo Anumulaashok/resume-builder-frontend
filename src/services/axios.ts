@@ -54,9 +54,27 @@ export const AUTH_LOGOUT_EVENT = 'auth:logout';
 
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    let blobMessage: string | undefined;
+    if (
+      isAxiosError(error) &&
+      typeof Blob !== 'undefined' &&
+      error.response?.data instanceof Blob &&
+      typeof error.response.data.text === 'function'
+    ) {
+      try {
+        const rawText = await error.response.data.text();
+        const parsed = JSON.parse(rawText);
+        if (parsed && typeof parsed.message === 'string') {
+          blobMessage = parsed.message;
+        }
+      } catch {
+        // Ignore non-JSON blob error bodies
+      }
+    }
+
     const message = isAxiosError(error)
-      ? error.response?.data?.message || error.message || 'Request failed'
+      ? blobMessage || error.response?.data?.message || error.message || 'Request failed'
       : error?.message || 'Request failed';
 
     // A 401 from login/register means wrong credentials, not an expired session.
