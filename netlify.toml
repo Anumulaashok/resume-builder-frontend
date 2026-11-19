@@ -4,10 +4,13 @@
   command = "npm run build"
   publish = "build"
 
+[build.environment]
+  REACT_APP_API_URL = "https://resume-builder-backend-eight-swart.vercel.app"
+
 # API proxy rewrite rule: forward /api requests to backend service
 [[redirects]]
   from = "/api/*"
-  to = "http://localhost:10000/api/:splat"
+  to = "https://resume-builder-backend-eight-swart.vercel.app/api/:splat"
   status = 200
   force = true
 
