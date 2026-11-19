@@ -1,5 +1,6 @@
 import axios, { isAxiosError } from 'axios';
-import { getToken, removeToken } from '../utils/token';
+import { authEventBus } from '../utils/authEventBus';
+import { getStoredUser, getToken, removeToken } from '../utils/token';
 
 /**
  * Resolves the base URL for API requests.
@@ -58,14 +59,42 @@ axiosInstance.interceptors.response.use(
       ? error.response?.data?.message || error.message || 'Request failed'
       : error?.message || 'Request failed';
 
-    // A 401 from login means wrong credentials, not an expired session.
-    const isLoginRequest = isAxiosError(error) && error.config?.url?.includes('/api/auth/login');
-    if (isAxiosError(error) && error.response?.status === 401 && !isLoginRequest) {
+    // A 401 from login/register means wrong credentials, not an expired session.
+    const requestUrl = isAxiosError(error) ? error.config?.url || '' : '';
+    const isAuthRequest =
+      requestUrl.includes('/api/auth/login') ||
+      requestUrl.includes('/api/auth/register');
+    const isPublicShareRequest = requestUrl.includes('/api/resumes/share/');
+
+    const isExpiredSession =
+      isAxiosError(error) &&
+      error.response?.status === 401 &&
+      !isAuthRequest &&
+      !isPublicShareRequest;
+
+    if (isExpiredSession) {
+      const previousUser = getStoredUser();
       removeToken();
       window.dispatchEvent(new Event(AUTH_LOGOUT_EVENT));
+      authEventBus.emitSessionExpired({
+        email: previousUser?.email,
+        message,
+        url: requestUrl,
+      });
     }
 
-    return Promise.reject(new Error(message));
+    const normalizedError = new Error(message) as Error & {
+      status?: number;
+      isUnauthorized?: boolean;
+    };
+    if (isAxiosError(error) && error.response?.status !== undefined) {
+      normalizedError.status = error.response.status;
+    }
+    if (isExpiredSession) {
+      normalizedError.isUnauthorized = true;
+    }
+
+    return Promise.reject(normalizedError);
   }
 );
 
