@@ -72,6 +72,9 @@ import SectionEditors, { DialogBox } from "./sections";
 import ShareModal from "./ShareModal";
 import ReauthModal from "./ReauthModal";
 import VersionHistoryDrawer from "./VersionHistoryDrawer";
+import ResumeCheckerDrawer from "./ResumeCheckerDrawer";
+import { useResumeCheck } from "../hooks/useResumeCheck";
+import { ResumeCheckIssue } from "../utils/resumeChecker";
 import { formatResumeDate } from "../utils/date";
 import { triggerFileDownload } from "../utils/download";
 import {
@@ -491,6 +494,8 @@ function useIsDesktop(): boolean {
 interface SortableItemProps {
   id: string;
   section: ISection;
+  highlightedSectionId?: string;
+  highlightedItemId?: string;
   onAddItem: (section: ISection) => void;
   onDeleteSection: (section: ISection) => void;
   onRemove: (sectionId: string, itemId: string) => void;
@@ -501,6 +506,8 @@ interface SortableItemProps {
 const SortableItem: React.FC<SortableItemProps> = ({
   id,
   section,
+  highlightedSectionId,
+  highlightedItemId,
   onAddItem,
   onDeleteSection,
   onRemove,
@@ -524,13 +531,22 @@ const SortableItem: React.FC<SortableItemProps> = ({
   };
 
   const itemCount = section.content?.length || 0;
+  const isSectionHighlighted =
+    highlightedSectionId === section.id && !highlightedItemId;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-xl border border-gray-200 shadow-sm transition-shadow ${
-        isDragging ? "ring-2 ring-blue-500 shadow-lg opacity-90" : "hover:shadow-md"
+      id={`editor-section-${section.id}`}
+      data-section-id={section.id}
+      data-highlighted={isSectionHighlighted ? "true" : undefined}
+      className={`bg-white rounded-xl border shadow-sm transition-all ${
+        isDragging
+          ? "border-gray-200 ring-2 ring-blue-500 shadow-lg opacity-90"
+          : isSectionHighlighted
+          ? "border-blue-500 ring-2 ring-blue-500 shadow-md"
+          : "border-gray-200 hover:shadow-md"
       }`}
     >
       {/* Section Header */}
@@ -588,12 +604,19 @@ const SortableItem: React.FC<SortableItemProps> = ({
                 item
               );
               const isHidden = item.enabled === false;
+              const isItemHighlighted = highlightedItemId === item.id;
 
               return (
                 <div
                   key={item.id}
-                  className={`px-3.5 py-3 border rounded-lg transition-colors flex items-center justify-between gap-3 ${
-                    isHidden
+                  id={`editor-item-${item.id}`}
+                  data-section-id={section.id}
+                  data-item-id={item.id}
+                  data-highlighted={isItemHighlighted ? "true" : undefined}
+                  className={`px-3.5 py-3 border rounded-lg transition-all flex items-center justify-between gap-3 ${
+                    isItemHighlighted
+                      ? "border-blue-500 ring-2 ring-blue-500 bg-blue-50/40"
+                      : isHidden
                       ? "border-gray-200 bg-neutral-50 opacity-65"
                       : "border-gray-200 bg-white hover:border-blue-300 hover:bg-neutral-50/50"
                   }`}
@@ -698,6 +721,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
   const [showShareModal, setShowShareModal] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showAtsChecker, setShowAtsChecker] = useState(false);
+  const [previewPageCount, setPreviewPageCount] = useState(1);
+  const [highlightedTarget, setHighlightedTarget] = useState<{
+    sectionId?: string;
+    itemId?: string;
+  } | null>(null);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
@@ -745,6 +774,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const titleBeforeEditRef = useRef<string>(resume.title || "");
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
+  const editorScrollContainerRef = useRef<HTMLDivElement>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isExportingRef = useRef(false);
   const isExportingTxtRef = useRef(false);
   const exportCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -1256,6 +1287,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       if (exportCooldownTimerRef.current !== null) {
         clearTimeout(exportCooldownTimerRef.current);
         exportCooldownTimerRef.current = null;
+      }
+      if (highlightTimerRef.current !== null) {
+        clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
       }
       if (!sessionExpiredRef.current) {
         debouncedAutoSave.flush();
@@ -1825,6 +1860,148 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const summaryValue =
     resume.content?.basics?.summary ?? resume.summary ?? "";
 
+  const checkerThemeInput = useMemo(
+    () => ({
+      ...(resume.themeConfig || {}),
+      templateId: resume.templateId,
+      pageCount: previewPageCount > 1 ? previewPageCount : undefined,
+    }),
+    [resume.themeConfig, resume.templateId, previewPageCount]
+  );
+
+  const atsCheckResult = useResumeCheck(resume, checkerThemeInput, 300);
+
+  const findEditorDomTarget = useCallback(
+    (sectionId?: string, itemId?: string): HTMLElement | null => {
+      const root = editorScrollContainerRef.current || document;
+      if (itemId) {
+        const items = Array.from(
+          root.querySelectorAll<HTMLElement>("[data-item-id]")
+        );
+        const matchedItem = items.find(
+          (el) => el.getAttribute("data-item-id") === itemId
+        );
+        if (matchedItem) return matchedItem;
+      }
+      if (sectionId) {
+        const sections = Array.from(
+          root.querySelectorAll<HTMLElement>("[data-section-id]")
+        );
+        const matchedSection = sections.find(
+          (el) => el.getAttribute("data-section-id") === sectionId
+        );
+        if (matchedSection) return matchedSection;
+      }
+      return null;
+    },
+    []
+  );
+
+  const resolveBasicsInputId = (issueId: string): string => {
+    if (issueId.indexOf("name") !== -1) return "basics-name";
+    if (issueId.indexOf("email") !== -1) return "basics-email";
+    if (issueId.indexOf("phone") !== -1) return "basics-phone";
+    if (issueId.indexOf("location") !== -1) return "basics-location";
+    if (issueId.indexOf("link") !== -1) return "basics-url";
+    if (issueId.indexOf("summary") !== -1) return "basics-summary";
+    return "basics-name";
+  };
+
+  const handleSelectAtsIssue = useCallback(
+    (issue: ResumeCheckIssue) => {
+      if (!issue.sectionId && !issue.itemId) return;
+
+      if (!isDesktop && activeView !== "editor") {
+        flushSync(() => {
+          setActiveView("editor");
+          setShowAtsChecker(false);
+        });
+      }
+
+      setHighlightedTarget({
+        sectionId: issue.sectionId,
+        itemId: issue.itemId,
+      });
+
+      if (highlightTimerRef.current !== null) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      highlightTimerRef.current = setTimeout(() => {
+        highlightTimerRef.current = null;
+        if (isMountedRef.current) {
+          setHighlightedTarget(null);
+        }
+      }, 3000);
+
+      const targetEl = findEditorDomTarget(issue.sectionId, issue.itemId);
+      if (targetEl && typeof targetEl.scrollIntoView === "function") {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    },
+    [activeView, findEditorDomTarget, isDesktop]
+  );
+
+  const handleEditAtsIssueInForm = useCallback(
+    (issue: ResumeCheckIssue) => {
+      flushSync(() => {
+        setShowAtsChecker(false);
+        if (!isDesktop && activeView !== "editor") {
+          setActiveView("editor");
+        }
+      });
+
+      handleSelectAtsIssue(issue);
+
+      if (issue.sectionId === "basics") {
+        const inputId = resolveBasicsInputId(issue.id);
+        const inputEl = document.getElementById(inputId) as HTMLElement | null;
+        if (inputEl) {
+          inputEl.focus();
+        }
+        return;
+      }
+
+      if (issue.sectionId && issue.itemId) {
+        const targetSection = (latestResumeRef.current.content?.sections || []).find(
+          (sec) => sec.id === issue.sectionId
+        );
+        const targetItem = targetSection?.content?.find(
+          (it: any) => it && it.id === issue.itemId
+        );
+        if (targetSection && targetItem) {
+          setAddContent({
+            type: targetSection.type,
+            item: targetItem,
+            sectionId: targetSection.id,
+          });
+        }
+      }
+    },
+    [activeView, handleSelectAtsIssue, isDesktop]
+  );
+
+  const basicsLocationDisplay = useMemo(() => {
+    const loc = resume.content.basics.location;
+    if (!loc) return "";
+    if (typeof loc === "string") return loc;
+    const cityCountry = [loc.city, (loc as any).region, loc.countryCode]
+      .filter((v) => typeof v === "string" && v.trim().length > 0)
+      .join(", ");
+    return cityCountry || loc.address || "";
+  }, [resume.content.basics.location]);
+
+  const basicsUrlDisplay = useMemo(() => {
+    const b = resume.content.basics as Record<string, any>;
+    if (typeof b.url === "string" && b.url) return b.url;
+    if (typeof b.website === "string" && b.website) return b.website;
+    if (typeof b.linkedin === "string" && b.linkedin) return b.linkedin;
+    if (typeof b.github === "string" && b.github) return b.github;
+    if (Array.isArray(b.profiles) && b.profiles[0]?.url) {
+      return String(b.profiles[0].url);
+    }
+    return "";
+  }, [resume.content.basics]);
+
   const editorToolbar = (
     <div
       data-testid="resume-editor-toolbar"
@@ -2089,9 +2266,23 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const editorPanelContent = (
     <div className="h-full min-h-0 flex flex-col bg-neutral-50 text-gray-900 print:hidden">
       {/* Scrollable Editor Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-5 pb-10 space-y-4">
+      <div
+        ref={editorScrollContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-5 pb-10 space-y-4"
+      >
         {/* Basic Information Card */}
-        <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <section
+          id="editor-section-basics"
+          data-section-id="basics"
+          data-highlighted={
+            highlightedTarget?.sectionId === "basics" ? "true" : undefined
+          }
+          className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
+            highlightedTarget?.sectionId === "basics"
+              ? "border-blue-500 ring-2 ring-blue-500 shadow-md"
+              : "border-gray-200"
+          }`}
+        >
           <div className="px-4 sm:px-5 py-3.5 bg-neutral-50/80 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-900">
               Basic Information
@@ -2187,6 +2378,70 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
+
+              <div>
+                <label
+                  htmlFor="basics-location"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Location
+                </label>
+                <input
+                  id="basics-location"
+                  type="text"
+                  value={basicsLocationDisplay}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const parts = raw.split(",").map((p) => p.trim());
+                    let city = raw;
+                    let countryCode =
+                      resume.content.basics.location?.countryCode || "";
+                    if (
+                      parts.length >= 2 &&
+                      /^[A-Za-z]{2,3}$/.test(parts[parts.length - 1])
+                    ) {
+                      countryCode = parts[parts.length - 1].toUpperCase();
+                      city = parts.slice(0, -1).join(", ");
+                    }
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      location: {
+                        ...(resume.content.basics.location || {}),
+                        city,
+                        countryCode: raw.trim() ? countryCode : "",
+                        address: raw.trim()
+                          ? resume.content.basics.location?.address || ""
+                          : "",
+                      },
+                    });
+                  }}
+                  placeholder="e.g. San Francisco, US"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-url"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Website / Profile Link
+                </label>
+                <input
+                  id="basics-url"
+                  type="url"
+                  value={basicsUrlDisplay}
+                  onChange={(e) =>
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      url: e.target.value,
+                      website: e.target.value,
+                    })
+                  }
+                  placeholder="https://linkedin.com/in/yourprofile"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
             </div>
 
             <div>
@@ -2229,6 +2484,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   key={section.id}
                   id={section.id}
                   section={section}
+                  highlightedSectionId={highlightedTarget?.sectionId}
+                  highlightedItemId={highlightedTarget?.itemId}
                   onAddItem={handleAddNewItem}
                   onDeleteSection={setDeletableSection}
                   onEdit={(type, content, sectionId) => {
@@ -2350,6 +2607,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   isPrinting={isExporting}
                   onExportTxt={handleExportTxt}
                   isExportingTxt={isExportingTxt}
+                  atsCheckResult={atsCheckResult}
+                  onOpenAtsChecker={() => setShowAtsChecker(true)}
+                  isAtsCheckerOpen={showAtsChecker}
+                  onPageCountChange={setPreviewPageCount}
                 />
               </div>
             </Panel>
@@ -2365,6 +2626,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               isPrinting={isExporting}
               onExportTxt={handleExportTxt}
               isExportingTxt={isExportingTxt}
+              atsCheckResult={atsCheckResult}
+              onOpenAtsChecker={() => setShowAtsChecker(true)}
+              isAtsCheckerOpen={showAtsChecker}
+              onPageCountChange={setPreviewPageCount}
             />
           </div>
         )}
@@ -2600,6 +2865,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         currentResume={resume}
         onClose={() => setShowVersionHistory(false)}
         onRestoreVersion={handleRestoreVersion}
+      />
+
+      <ResumeCheckerDrawer
+        isOpen={showAtsChecker}
+        result={atsCheckResult}
+        onClose={() => setShowAtsChecker(false)}
+        onSelectIssue={handleSelectAtsIssue}
+        onEditIssueInForm={handleEditAtsIssueInForm}
       />
 
       {!hasGlobalModal && (
