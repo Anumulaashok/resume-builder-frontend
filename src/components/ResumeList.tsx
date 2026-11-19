@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   PencilIcon,
   TrashIcon,
   DocumentDuplicateIcon,
+  DocumentTextIcon,
   PlusIcon,
   SparklesIcon,
   ShareIcon,
@@ -10,6 +11,7 @@ import {
 import { Resume, resumeService } from "../services/resume.service";
 import toast from "react-hot-toast";
 import ShareModal from "./ShareModal";
+import { Skeleton } from "./ui/skeleton";
 
 interface ResumeWithMeta extends Resume {
   id: string;
@@ -25,6 +27,41 @@ interface ResumeListProps {
   onResumesLoad?: (resumes: ResumeWithMeta[]) => void;
 }
 
+const getResumeInitials = (resume: ResumeWithMeta): string => {
+  const source =
+    resume.content?.basics?.name?.trim() ||
+    resume.title?.trim() ||
+    "Resume";
+  const words = source.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  }
+  return source.slice(0, 2).toUpperCase();
+};
+
+const getTemplateLabel = (resume: ResumeWithMeta): string => {
+  const raw =
+    resume.templateId ||
+    (resume as unknown as { template?: string }).template ||
+    "modern";
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "professional") return "Professional";
+  if (normalized === "modern") return "Modern";
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+};
+
+const formatUpdatedDate = (updatedAt?: string, createdAt?: string): string => {
+  const raw = updatedAt || createdAt;
+  if (!raw) return "Recently";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "Recently";
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 export default function ResumeList({
   onEditResume,
   onNewResume,
@@ -34,20 +71,26 @@ export default function ResumeList({
   const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [sharingResume, setSharingResume] = useState<ResumeWithMeta | null>(null);
+  const onResumesLoadRef = useRef(onResumesLoad);
+
+  useEffect(() => {
+    onResumesLoadRef.current = onResumesLoad;
+  }, [onResumesLoad]);
 
   const loadResumes = useCallback(async () => {
     try {
       const data = await resumeService.getResumes();
-      setResumes(data || []);
-      onResumesLoad?.(data || []);
+      const next = data || [];
+      setResumes(next);
+      onResumesLoadRef.current?.(next);
     } catch (error) {
       toast.error("Failed to load resumes");
       setResumes([]);
-      onResumesLoad?.([]);
+      onResumesLoadRef.current?.([]);
     } finally {
       setLoading(false);
     }
-  }, [onResumesLoad]);
+  }, []);
 
   useEffect(() => {
     loadResumes();
@@ -64,7 +107,11 @@ export default function ResumeList({
     try {
       await resumeService.deleteResume(id);
       toast.success("Resume deleted successfully");
-      setResumes(resumes.filter((resume) => resume.id !== id));
+      const next = resumes.filter(
+        (resume) => (resume.id || resume._id) !== id
+      );
+      setResumes(next);
+      onResumesLoadRef.current?.(next);
     } catch (error) {
       toast.error("Failed to delete resume");
     }
@@ -78,7 +125,9 @@ export default function ResumeList({
         title: `${cloneData.title} (Copy)`,
       });
       toast.success("Resume cloned successfully");
-      setResumes((prev) => [...prev, clonedResume]);
+      const next = [...resumes, clonedResume];
+      setResumes(next);
+      onResumesLoadRef.current?.(next);
     } catch (error) {
       toast.error("Failed to clone resume");
     }
@@ -86,50 +135,85 @@ export default function ResumeList({
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div
+        role="status"
+        aria-label="Loading resumes"
+        data-testid="resume-list-skeleton"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
+      >
+        <span className="sr-only">Loading resumes...</span>
+        {[0, 1, 2].map((index) => (
+          <div
+            key={index}
+            className="bg-white rounded-card border border-neutral-200/90 shadow-card overflow-hidden flex flex-col"
+          >
+            <div className="bg-neutral-100/80 border-b border-neutral-200/70 px-4 pt-4 pb-0">
+              <div className="flex items-center justify-between mb-3">
+                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <div className="bg-white rounded-t-lg border border-b-0 border-neutral-200/80 px-3.5 py-3 flex items-center gap-3">
+                <Skeleton className="h-9 w-9 rounded-control shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-2.5 w-20" />
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-3/5" />
+                <Skeleton className="h-3.5 w-2/5" />
+              </div>
+              <div className="flex items-center gap-2 pt-3 border-t border-neutral-100">
+                <Skeleton className="h-9 flex-1 rounded-control" />
+                <Skeleton className="h-9 w-20 rounded-control" />
+                <Skeleton className="h-9 w-20 rounded-control" />
+                <Skeleton className="h-9 w-9 rounded-control shrink-0" />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
 
   if (!resumes || resumes.length === 0) {
     return (
-      <div className="text-center py-12 px-4">
+      <div
+        data-testid="resume-empty-state"
+        className="bg-white rounded-panel border border-dashed border-neutral-300 shadow-card px-6 py-14 sm:py-16 text-center"
+      >
         <div className="max-w-md mx-auto">
-          <svg
-            className="mx-auto h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-          <h3 className="mt-4 text-lg font-medium text-gray-900">
+          <div className="relative w-16 h-16 mx-auto mb-5">
+            <div className="w-16 h-16 rounded-card bg-primary-50 text-primary-600 ring-1 ring-inset ring-primary-100 flex items-center justify-center">
+              <DocumentTextIcon className="h-8 w-8" aria-hidden="true" />
+            </div>
+            <span className="absolute -bottom-1 -right-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-600 text-white shadow-sm ring-2 ring-white">
+              <SparklesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+          </div>
+          <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">
             No resumes yet
-          </h3>
-          <p className="mt-2 text-sm text-gray-500">
-            Get started by creating a new resume or let AI help you generate
-            one.
+          </h2>
+          <p className="mt-2 text-sm text-neutral-600">
+            Start from a clean template or generate a tailored resume with AI in seconds.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
             <button
+              type="button"
               onClick={onNewResume}
-              className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="inline-flex items-center justify-center h-10 px-4 border border-transparent rounded-control shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors focus-ring"
             >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Create New Resume
+              <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+              New Resume
             </button>
             <button
+              type="button"
               onClick={onAIGenerate}
-              className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="inline-flex items-center justify-center h-10 px-4 border border-transparent rounded-control shadow-sm text-sm font-medium text-white bg-accent-600 hover:bg-accent-700 transition-colors focus-ring"
             >
-              <SparklesIcon className="h-5 w-5 mr-2" />
+              <SparklesIcon className="h-4 w-4 mr-2" aria-hidden="true" />
               AI Generate
             </button>
           </div>
@@ -139,55 +223,115 @@ export default function ResumeList({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-      {resumes?.map((resume) => (
-        <div
-          key={resume.id}
-          className="bg-white overflow-hidden shadow-lg rounded-lg hover:shadow-xl transition-shadow duration-300"
-        >
-          <div className="p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 line-clamp-1">
-              {resume.title}
-            </h3>
-            <p className="text-xs sm:text-sm text-gray-500 mb-4">
-              Last updated:{" "}
-              {new Date(
-                resume.updatedAt || resume?.createdAt
-              ).toLocaleDateString()}
-            </p>
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              <button
-                onClick={() => onEditResume(resume)}
-                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <PencilIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                Edit
-              </button>
-              <button
-                onClick={() => setSharingResume(resume)}
-                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <ShareIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                Share
-              </button>
-              <button
-                onClick={() => handleClone(resume)}
-                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <DocumentDuplicateIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                Clone
-              </button>
-              <button
-                onClick={() => handleDelete(resume.id)}
-                className="flex-1 inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                Delete
-              </button>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+      {resumes.map((resume) => {
+        const resumeId = resume.id || resume._id || "";
+        const initials = getResumeInitials(resume);
+        const templateName = getTemplateLabel(resume);
+        const updatedLabel = formatUpdatedDate(
+          resume.updatedAt,
+          resume.createdAt
+        );
+        const candidateName =
+          resume.content?.basics?.name?.trim() ||
+          resume.title ||
+          "Untitled Resume";
+        const candidateRole =
+          resume.content?.basics?.label?.trim() || `${templateName} layout`;
+
+        return (
+          <article
+            key={resumeId || resume.title}
+            data-testid="resume-card"
+            className="bg-white rounded-card border border-neutral-200/90 shadow-card hover:shadow-card-hover transition-all duration-200 flex flex-col overflow-hidden"
+          >
+            {/* Visual Thumbnail / Preview Area */}
+            <div
+              data-testid="resume-card-preview"
+              className="bg-gradient-to-br from-primary-50/80 via-neutral-50 to-accent-50/70 border-b border-neutral-200/80 px-4 pt-3.5 pb-0"
+            >
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/95 text-primary-700 ring-1 ring-inset ring-primary-200/80 shadow-sm">
+                  {templateName}
+                </span>
+                <span className="text-xs text-neutral-500 truncate">
+                  Updated {updatedLabel}
+                </span>
+              </div>
+
+              <div className="bg-white rounded-t-lg border border-b-0 border-neutral-200/90 shadow-sm px-3.5 py-3 flex items-center gap-3">
+                <div
+                  aria-hidden="true"
+                  className="h-9 w-9 rounded-control bg-primary-600 text-white text-xs font-bold tracking-wide flex items-center justify-center shrink-0 shadow-sm"
+                >
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-neutral-800 truncate">
+                    {candidateName}
+                  </p>
+                  <p className="text-[11px] text-neutral-500 truncate">
+                    {candidateRole}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-1.5" aria-hidden="true">
+                    <span className="h-1 w-12 rounded-full bg-neutral-200" />
+                    <span className="h-1 w-8 rounded-full bg-neutral-100" />
+                    <span className="h-1 w-6 rounded-full bg-neutral-100" />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      ))}
+
+            {/* Card Body & Actions */}
+            <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-neutral-900 line-clamp-1">
+                  {resume.title || "Untitled Resume"}
+                </h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {templateName} template · Last updated: {updatedLabel}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => onEditResume(resume)}
+                  className="flex-1 h-9 px-3 inline-flex items-center justify-center gap-1.5 border border-transparent text-sm font-medium rounded-control text-white bg-primary-600 hover:bg-primary-700 shadow-sm transition-colors focus-ring"
+                >
+                  <PencilIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSharingResume(resume)}
+                  className="h-9 px-3 inline-flex items-center justify-center gap-1.5 border border-neutral-300 text-sm font-medium rounded-control text-neutral-700 bg-white hover:bg-neutral-50 hover:text-neutral-900 transition-colors focus-ring"
+                >
+                  <ShareIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Share</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleClone(resume)}
+                  className="h-9 px-3 inline-flex items-center justify-center gap-1.5 border border-neutral-300 text-sm font-medium rounded-control text-neutral-700 bg-white hover:bg-neutral-50 hover:text-neutral-900 transition-colors focus-ring"
+                >
+                  <DocumentDuplicateIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Clone</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(resumeId)}
+                  aria-label="Delete resume"
+                  title="Delete resume"
+                  className="h-9 w-9 shrink-0 inline-flex items-center justify-center border border-neutral-200 rounded-control text-neutral-500 bg-white hover:text-red-600 hover:bg-red-50 hover:border-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                >
+                  <TrashIcon className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          </article>
+        );
+      })}
 
       {sharingResume && (
         <ShareModal

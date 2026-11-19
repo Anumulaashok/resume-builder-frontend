@@ -15,19 +15,20 @@ export interface ButtonProps
 }
 
 const variantClasses: Record<string, string> = {
-  default: "bg-blue-600 text-white hover:bg-blue-700",
-  destructive: "bg-red-600 text-white hover:bg-red-700",
-  outline: "border border-gray-300 bg-white hover:bg-gray-50 text-gray-700",
-  secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200",
-  ghost: "bg-transparent text-gray-700 hover:bg-gray-100",
-  link: "text-blue-600 underline hover:text-blue-800",
+  default: "bg-primary-600 text-white hover:bg-primary-700 shadow-sm",
+  destructive: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
+  outline:
+    "border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-neutral-900",
+  secondary: "bg-neutral-100 text-neutral-800 hover:bg-neutral-200",
+  ghost: "bg-transparent text-neutral-700 hover:bg-neutral-100",
+  link: "text-primary-600 underline hover:text-primary-800",
 };
 
 const sizeClasses: Record<string, string> = {
   default: "h-10 px-4 py-2",
-  sm: "h-9 rounded-md px-3",
-  lg: "h-11 rounded-md px-8",
-  icon: "h-10 w-10 p-0",
+  sm: "h-9 px-3",
+  lg: "h-11 px-8",
+  icon: "h-9 w-9 p-0",
 };
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -45,7 +46,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
-        className={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+        className={`inline-flex items-center justify-center whitespace-nowrap rounded-control text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary-500 disabled:pointer-events-none disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
         {...props}
       />
     );

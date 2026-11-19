@@ -72,8 +72,8 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
       type="button"
       onClick={() => !context.disabled && context.setIsOpen(!context.isOpen)}
       disabled={context.disabled}
-      className={`flex items-center justify-between w-full px-3 py-2 text-sm bg-white border rounded-md ${
-        context.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+      className={`flex items-center justify-between w-full px-3 py-2 text-sm bg-white border border-neutral-300 rounded-control text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors ${
+        context.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-neutral-50"
       } ${className}`}
     >
       {children}
@@ -110,7 +110,7 @@ export const SelectContent: React.FC<SelectContentProps> = ({
   return (
     <div
       ref={ref}
-      className={`absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg ${className}`}
+      className={`absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-control shadow-card-hover ${className}`}
     >
       {children}
     </div>
@@ -144,8 +144,8 @@ export const SelectItem: React.FC<SelectItemProps> = ({
     <button
       type="button"
       onClick={() => context.onChange(value)}
-      className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-100 ${
-        context.value === value ? "bg-gray-50" : ""
+      className={`w-full px-3 py-2 text-sm text-left text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:bg-primary-50 focus:text-primary-700 focus:ring-2 focus:ring-inset focus:ring-primary-500 ${
+        context.value === value ? "bg-primary-50 text-primary-700 font-medium" : ""
       } ${className}`}
     >
       {children}

@@ -71,9 +71,16 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`cursor-pointer hover:bg-gray-100 hover:ring-2 hover:ring-blue-300 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-gray-400 italic' : ''}`}
+            className={`cursor-pointer hover:bg-neutral-100 hover:ring-2 hover:ring-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-neutral-400 italic' : ''}`}
             style={style}
+            tabIndex={0}
             onClick={() => setIsEditing(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsEditing(true);
+              }
+            }}
           >
             {value || placeholder}
           </motion.div>
@@ -93,7 +100,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
                 style={style}
-                className={`w-full bg-white border border-blue-500 rounded px-2 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${textClassName}`}
+                className={`w-full bg-white border border-primary-500 rounded px-2 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none ${textClassName}`}
                 rows={Math.max(3, tempValue.split('\n').length)}
               />
             ) : (
@@ -105,7 +112,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
                 style={style}
-                className={`w-full bg-white border border-blue-500 rounded px-2 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${textClassName}`}
+                className={`w-full bg-white border border-primary-500 rounded px-2 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${textClassName}`}
               />
             )}
           </motion.div>

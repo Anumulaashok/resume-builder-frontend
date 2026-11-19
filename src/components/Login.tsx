@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import {
   EnvelopeIcon,
   LockClosedIcon,
@@ -43,7 +43,6 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
 
       toast.success(response.message);
       onLoginSuccess();
-      // Redirect to dashboard or home page
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -64,42 +63,45 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen flex flex-col pt-16 bg-gradient-to-br from-primary-50 via-neutral-50 to-accent-100">
       <Header />
-      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
         <div className="max-w-md w-full">
-          <div className="bg-white p-8 rounded-2xl shadow-2xl space-y-8">
+          <div
+            data-testid="auth-card"
+            className="bg-white p-7 sm:p-8 rounded-panel shadow-auth border border-neutral-200/80 space-y-6"
+          >
             <div>
-              <div className="mx-auto w-24 h-24 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
-                <LockClosedIcon className="h-12 w-12 text-white" />
+              <div className="mx-auto w-14 h-14 bg-gradient-to-br from-primary-600 to-accent-600 rounded-card shadow-sm flex items-center justify-center">
+                <LockClosedIcon className="h-7 w-7 text-white" aria-hidden="true" />
               </div>
-              <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+              <h2 className="mt-5 text-center text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
                 Welcome Back
               </h2>
-              <p className="mt-2 text-center text-sm text-gray-600">
+              <p className="mt-1.5 text-center text-sm text-neutral-600">
                 Please sign in to your account
               </p>
             </div>
 
-            <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+            <form className="space-y-5" onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>
                   <label
                     htmlFor="email"
-                    className="block text-sm font-medium text-gray-700"
+                    className="block text-sm font-medium text-neutral-700"
                   >
                     Email address
                   </label>
-                  <div className="mt-1 relative">
+                  <div className="mt-1.5 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <EnvelopeIcon className="h-5 w-5 text-gray-400" />
+                      <EnvelopeIcon className="h-5 w-5 text-neutral-400" aria-hidden="true" />
                     </div>
                     <input
                       id="email"
                       name="email"
                       type="email"
                       required
-                      className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm"
+                      className="appearance-none block w-full pl-10 pr-3 py-2.5 border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-colors"
                       placeholder="you@example.com"
                       value={formData.email}
                       onChange={handleChange}
@@ -110,33 +112,34 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                 <div>
                   <label
                     htmlFor="password"
-                    className="block text-sm font-medium text-gray-700"
+                    className="block text-sm font-medium text-neutral-700"
                   >
                     Password
                   </label>
-                  <div className="mt-1 relative">
+                  <div className="mt-1.5 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <LockClosedIcon className="h-5 w-5 text-gray-400" />
+                      <LockClosedIcon className="h-5 w-5 text-neutral-400" aria-hidden="true" />
                     </div>
                     <input
                       id="password"
                       name="password"
                       type={showPassword ? "text" : "password"}
                       required
-                      className="appearance-none block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm"
+                      className="appearance-none block w-full pl-10 pr-10 py-2.5 border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-colors"
                       placeholder="••••••••"
                       value={formData.password}
                       onChange={handleChange}
                     />
                     <button
                       type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute inset-y-0 right-1.5 my-auto h-8 w-8 flex items-center justify-center rounded-control text-neutral-400 hover:text-neutral-600 focus-ring transition-colors"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
-                        <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                        <EyeSlashIcon className="h-5 w-5" aria-hidden="true" />
                       ) : (
-                        <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                        <EyeIcon className="h-5 w-5" aria-hidden="true" />
                       )}
                     </button>
                   </div>
@@ -149,11 +152,11 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                     id="remember-me"
                     name="remember-me"
                     type="checkbox"
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-primary-600 border-neutral-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                   />
                   <label
                     htmlFor="remember-me"
-                    className="ml-2 block text-sm text-gray-900"
+                    className="ml-2 block text-sm text-neutral-700"
                   >
                     Remember me
                   </label>
@@ -165,7 +168,7 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                     onClick={() =>
                       alert("Password reset functionality coming soon!")
                     }
-                    className="font-medium text-blue-600 hover:text-blue-500"
+                    className="font-medium text-primary-600 hover:text-primary-700 rounded px-1 py-0.5 focus-ring transition-colors"
                   >
                     Forgot your password?
                   </button>
@@ -176,7 +179,7 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-11 flex items-center justify-center px-4 border border-transparent text-sm font-semibold rounded-control text-white bg-primary-600 hover:bg-primary-700 shadow-sm focus-ring transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <svg
@@ -206,12 +209,13 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
               </div>
             </form>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
+            <div className="pt-1 text-center">
+              <p className="text-sm text-neutral-600">
+                Don&apos;t have an account?{" "}
                 <button
+                  type="button"
                   onClick={onToggleAuth}
-                  className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
+                  className="font-semibold text-primary-600 hover:text-primary-700 rounded px-1 py-0.5 focus-ring transition-colors"
                 >
                   Sign up now
                 </button>
@@ -219,8 +223,7 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
             </div>
           </div>
         </div>
-      </div>
-      <Toaster position="top-right" />
+      </main>
     </div>
   );
 };
