@@ -382,8 +382,8 @@ export function extractHighlights(item: Record<string, any>): string[] {
     .filter(Boolean);
 }
 
-export function normalizeHref(rawUrl?: string): string {
-  if (!rawUrl) return '';
+export function normalizeHref(rawUrl?: unknown): string {
+  if (typeof rawUrl !== 'string') return '';
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
   if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) {
@@ -392,12 +392,142 @@ export function normalizeHref(rawUrl?: string): string {
   return `https://${trimmed}`;
 }
 
-export function formatLinkLabel(rawUrl?: string): string {
-  if (!rawUrl) return '';
+export function formatLinkLabel(rawUrl?: unknown): string {
+  if (typeof rawUrl !== 'string') return '';
   return rawUrl
     .trim()
     .replace(/^https?:\/\/(www\.)?/i, '')
     .replace(/\/$/, '');
+}
+
+export function formatSkillLevel(level: unknown): string {
+  if (typeof level === 'string') {
+    return level.trim();
+  }
+  if (typeof level === 'number' && Number.isFinite(level) && level > 0) {
+    if (level <= 5) {
+      return `Level ${level}/5`;
+    }
+    return `${Math.min(100, Math.round(level))}%`;
+  }
+  return '';
+}
+
+export function parseSkillLevelInput(raw: string): string | number {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const levelSlashMatch = trimmed.match(/^level\s*(\d+(?:\.\d+)?)\s*\/\s*5$/i);
+  if (levelSlashMatch) {
+    return Number(levelSlashMatch[1]);
+  }
+  const pctMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*%$/);
+  if (pctMatch) {
+    return Number(pctMatch[1]);
+  }
+  if (/^\d+$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  return trimmed;
+}
+
+export function buildSyncedFieldPatch(
+  item: Record<string, any> | null | undefined,
+  primaryField: string,
+  value: any,
+  aliasFields: string[] = []
+): Record<string, any> {
+  const patch: Record<string, any> = { [primaryField]: value };
+  if (!item || typeof item !== 'object') return patch;
+  aliasFields.forEach((alias) => {
+    if (alias !== primaryField && Object.prototype.hasOwnProperty.call(item, alias)) {
+      patch[alias] = value;
+    }
+  });
+  return patch;
+}
+
+const STANDARD_CUSTOM_ITEM_KEYS = new Set([
+  'id',
+  '_id',
+  'enabled',
+  'title',
+  'name',
+  'subtitle',
+  'position',
+  'role',
+  'company',
+  'organization',
+  'institution',
+  'issuer',
+  'publisher',
+  'awarder',
+  'course',
+  'degree',
+  'field',
+  'studyType',
+  'area',
+  'gpa',
+  'score',
+  'location',
+  'startDate',
+  'endDate',
+  'date',
+  'dateRange',
+  'period',
+  'current',
+  'isCurrent',
+  'url',
+  'website',
+  'link',
+  'liveUrl',
+  'description',
+  'summary',
+  'reference',
+  'highlights',
+  'keywords',
+  'subSkills',
+  'technologies',
+  'items',
+  'skills',
+  'level',
+  'fluency',
+  'proficiency',
+  'contact',
+  'email',
+  'phone',
+]);
+
+export function extractCustomExtraFields(
+  item: Record<string, any> | null | undefined
+): Array<{ key: string; label: string; value: string }> {
+  if (!item || typeof item !== 'object') return [];
+  const results: Array<{ key: string; label: string; value: string }> = [];
+
+  Object.entries(item).forEach(([key, rawVal]) => {
+    if (STANDARD_CUSTOM_ITEM_KEYS.has(key)) return;
+    if (rawVal === null || rawVal === undefined) return;
+    const strVal =
+      typeof rawVal === 'string'
+        ? rawVal.trim()
+        : typeof rawVal === 'number' || typeof rawVal === 'boolean'
+        ? String(rawVal)
+        : '';
+    if (!strVal) return;
+
+    const humanized = key
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    results.push({
+      key,
+      label: humanized || key,
+      value: strVal,
+    });
+  });
+
+  return results;
 }
 
 export interface ContactLinkItem {

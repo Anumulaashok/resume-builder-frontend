@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { dateFields } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
 import {
+  buildSyncedFieldPatch,
   formatItemLocation,
   formatLinkLabel,
   normalizeHref,
@@ -26,6 +27,9 @@ export interface ItemHeaderProps {
   showSubtitleWhenEmptyInEdit?: boolean;
   extraSubtitle?: React.ReactNode;
   url?: string;
+  urlField?: string;
+  urlPlaceholder?: string;
+  onUrlChange?: (val: string) => void;
   urlPlacement?: 'title' | 'subtitle';
   item?: Record<string, any>;
   startDate?: string | Partial<dateFields>;
@@ -51,6 +55,9 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
   showSubtitleWhenEmptyInEdit = false,
   extraSubtitle,
   url,
+  urlField,
+  urlPlaceholder,
+  onUrlChange,
   urlPlacement = 'subtitle',
   item,
   startDate,
@@ -64,6 +71,21 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
   const ctx = useTemplateContext();
   const isReadOnly = readOnly ?? ctx.readOnly;
   const formattedLocation = formatItemLocation(location);
+  const safeUrl = typeof url === 'string' ? url.trim() : '';
+
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [tempUrl, setTempUrl] = useState(safeUrl);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTempUrl(safeUrl);
+  }, [safeUrl]);
+
+  useEffect(() => {
+    if (isEditingUrl && urlInputRef.current) {
+      urlInputRef.current.focus();
+    }
+  }, [isEditingUrl]);
 
   const handleTitleEdit =
     onTitleChange ||
@@ -77,19 +99,99 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
       ? (val: string) => ctx.updateSectionItem(sectionId, itemId, subtitleField, val)
       : undefined);
 
+  const resolvedUrlField =
+    urlField ||
+    (item?.url !== undefined
+      ? 'url'
+      : item?.website !== undefined
+      ? 'website'
+      : item?.link !== undefined
+      ? 'link'
+      : item?.liveUrl !== undefined
+      ? 'liveUrl'
+      : 'url');
+
+  const canEditUrl = Boolean(!isReadOnly && (onUrlChange || (sectionId && itemId)));
+
+  const commitUrlEdit = () => {
+    setIsEditingUrl(false);
+    const nextUrl = tempUrl.trim();
+    if (nextUrl === safeUrl) return;
+    if (onUrlChange) {
+      onUrlChange(nextUrl);
+      return;
+    }
+    if (sectionId && itemId) {
+      const patch = buildSyncedFieldPatch(item, resolvedUrlField, nextUrl, [
+        'url',
+        'website',
+        'link',
+        'liveUrl',
+      ]);
+      ctx.updateSectionItemPatch(sectionId, itemId, patch);
+    }
+  };
+
   const renderLink = () => {
-    if (!url || !url.trim()) return null;
+    if (canEditUrl && isEditingUrl) {
+      return (
+        <input
+          ref={urlInputRef}
+          type="text"
+          value={tempUrl}
+          onChange={(e) => setTempUrl(e.target.value)}
+          onBlur={commitUrlEdit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitUrlEdit();
+            } else if (e.key === 'Escape') {
+              setTempUrl(safeUrl);
+              setIsEditingUrl(false);
+            }
+          }}
+          placeholder="https://..."
+          aria-label="Edit URL"
+          className="bg-white border border-primary-500 rounded px-2 py-0.5 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 min-w-[180px]"
+        />
+      );
+    }
+
+    if (!safeUrl) {
+      if (canEditUrl && urlPlaceholder) {
+        return (
+          <button
+            type="button"
+            onClick={() => setIsEditingUrl(true)}
+            className="text-xs text-neutral-400 italic hover:text-slate-600 transition-colors print:hidden"
+          >
+            {urlPlaceholder}
+          </button>
+        );
+      }
+      return null;
+    }
+
     return (
       <a
-        href={normalizeHref(url)}
+        href={normalizeHref(safeUrl)}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={
+          canEditUrl
+            ? (e) => {
+                if (!e.metaKey && !e.ctrlKey) {
+                  e.preventDefault();
+                  setIsEditingUrl(true);
+                }
+              }
+            : undefined
+        }
         className={`text-xs font-medium ${linkClassName}`}
         style={{
           color: 'var(--theme-accent, var(--theme-primary, #2563eb))',
         }}
       >
-        {formatLinkLabel(url)}
+        {formatLinkLabel(safeUrl)}
       </a>
     );
   };
@@ -101,13 +203,13 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
   const hasPrintSecondaryContent = Boolean(
     (subtitle && subtitle.trim()) ||
       extraSubtitle ||
-      (urlPlacement === 'subtitle' && url && url.trim()) ||
+      (urlPlacement === 'subtitle' && safeUrl) ||
       formattedLocation
   );
   const showSecondaryRow = Boolean(
     showSubtitleNode ||
       extraSubtitle ||
-      (urlPlacement === 'subtitle' && url) ||
+      (urlPlacement === 'subtitle' && (safeUrl || (canEditUrl && urlPlaceholder))) ||
       formattedLocation
   );
 
