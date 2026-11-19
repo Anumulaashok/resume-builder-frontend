@@ -44,13 +44,26 @@ class ResumeService {
       throw new Error("Failed to retrieve ID for AI draft resume");
     }
 
-    const response = await axiosInstance.post<AIGenerateResponse>(
-      `/api/resumes/${resumeId}/generate`,
-      {
-        prompt,
+    try {
+      const response = await axiosInstance.post<AIGenerateResponse>(
+        `/api/resumes/${resumeId}/generate`,
+        {
+          prompt,
+        }
+      );
+      const generatedResume = response.data?.data;
+      if (!generatedResume) {
+        throw new Error("Failed to generate resume content");
       }
-    );
-    return response.data.data;
+      return generatedResume;
+    } catch (generateError) {
+      try {
+        await this.deleteResume(resumeId);
+      } catch {
+        // Ignore cleanup failure so the original generation error is preserved
+      }
+      throw generateError;
+    }
   }
 
   async createResume(resumeData: Partial<Resume>): Promise<ResumeWithMeta> {
