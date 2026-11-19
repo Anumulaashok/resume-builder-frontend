@@ -23,21 +23,24 @@ axiosInstance.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+export const AUTH_LOGOUT_EVENT = 'auth:logout';
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const message = isAxiosError(error)
+      ? error.response?.data?.message || error.message || 'Request failed'
+      : error?.message || 'Request failed';
+
+    // A 401 from login means wrong credentials, not an expired session.
+    const isLoginRequest = isAxiosError(error) && error.config?.url?.includes('/api/auth/login');
+    if (isAxiosError(error) && error.response?.status === 401 && !isLoginRequest) {
       removeToken();
-      // Don't redirect, let the component handle it
-      throw new Error('Authentication failed');
+      window.dispatchEvent(new Event(AUTH_LOGOUT_EVENT));
     }
-    if (isAxiosError(error)) {
-      return new Error(error.response?.data?.message || 'An error occurred');
 
-    }
-    throw new Error(error.response?.data?.message || 'Request failed');
+    return Promise.reject(new Error(message));
   }
-
 );
 
 

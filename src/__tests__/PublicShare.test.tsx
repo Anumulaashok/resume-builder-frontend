@@ -169,7 +169,7 @@ describe('Public Share & Privacy Controls', () => {
         },
       });
 
-      render(<PublicResumeView token="invalid_token" />);
+      render(<PublicResumeView shareToken="invalid_token" />);
 
       // Should show loading then error
       await waitFor(() => {
@@ -231,7 +231,7 @@ describe('Public Share & Privacy Controls', () => {
 
       (resumeService.getPublicResume as jest.Mock).mockResolvedValueOnce(publicResumeData);
 
-      render(<PublicResumeView token="tok_valid_redacted" />);
+      render(<PublicResumeView shareToken="tok_valid_redacted" />);
 
       await waitFor(() => {
         expect(screen.getByText('Jane Doe')).toBeInTheDocument();
