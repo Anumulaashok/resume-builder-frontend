@@ -1,7 +1,8 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import ShareModal from '../components/ShareModal';
 import PublicResumeView from '../components/PublicResumeView';
+import { A4_WIDTH_PX } from '../components/ResumePreview';
 import { resumeService } from '../services/resume.service';
 import { SectionType } from '../types/resume';
 
@@ -161,7 +162,62 @@ describe('Public Share & Privacy Controls', () => {
   });
 
   describe('PublicResumeView Component', () => {
-    it('shows error screen with friendly message for invalid or revoked token without redirecting', async () => {
+    type ResizeCallback = (
+      entries: Array<{ target: Element; contentRect: { width: number; height: number } }>
+    ) => void;
+
+    let observers: Array<{ callback: ResizeCallback; elements: Set<Element> }> = [];
+    const originalResizeObserver = (window as any).ResizeObserver;
+
+    beforeEach(() => {
+      observers = [];
+      (window as any).ResizeObserver = class MockResizeObserver {
+        callback: ResizeCallback;
+        elements: Set<Element> = new Set();
+
+        constructor(cb: ResizeCallback) {
+          this.callback = cb;
+          observers.push(this);
+        }
+
+        observe(el: Element) {
+          this.elements.add(el);
+        }
+
+        unobserve(el: Element) {
+          this.elements.delete(el);
+        }
+
+        disconnect() {
+          this.elements.clear();
+        }
+      };
+    });
+
+    afterEach(() => {
+      (window as any).ResizeObserver = originalResizeObserver;
+    });
+
+    it('renders loading skeleton while shared resume is being fetched', () => {
+      (resumeService.getPublicResume as jest.Mock).mockReturnValueOnce(
+        new Promise(() => {})
+      );
+
+      render(<PublicResumeView shareToken="tok_loading" />);
+
+      expect(screen.getByTestId('public-resume-loading')).toBeInTheDocument();
+      expect(
+        screen.getByRole('status', { name: /loading shared resume/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('Made with Smart CV & Portfolio')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('public-resume-print-btn')
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows error screen with friendly message and home link for invalid or revoked token without redirecting', async () => {
       (resumeService.getPublicResume as jest.Mock).mockRejectedValueOnce({
         response: {
           status: 404,
@@ -171,20 +227,63 @@ describe('Public Share & Privacy Controls', () => {
 
       render(<PublicResumeView shareToken="invalid_token" />);
 
-      // Should show loading then error
       await waitFor(() => {
-        expect(
-          screen.getByText('Resume Unavailable')
-        ).toBeInTheDocument();
+        expect(screen.getByText('Resume Unavailable')).toBeInTheDocument();
       });
 
+      const errorView = screen.getByTestId('public-resume-error');
+      expect(errorView.querySelector('svg')).toBeInTheDocument();
       expect(
-        screen.getByText(/This shared resume link is invalid, has expired, or has been revoked by the owner/i)
+        screen.getByText(
+          /This shared resume link is invalid, has expired, or has been revoked by the owner/i
+        )
       ).toBeInTheDocument();
-      expect(screen.getByText('Go to Resume Builder')).toBeInTheDocument();
+
+      const homeLink = screen.getByRole('link', { name: /go to home/i });
+      expect(homeLink).toHaveAttribute('href', '/');
     });
 
-    it('renders shared resume in read-only mode and strictly omits redacted contact fields', async () => {
+    it('renders contextual friendly error states for expired and private links', async () => {
+      (resumeService.getPublicResume as jest.Mock).mockRejectedValueOnce(
+        new Error('This shared resume link has expired.')
+      );
+
+      const { unmount } = render(<PublicResumeView shareToken="expired_token" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Link Expired')).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText('This shared resume link has expired.')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: /go to home/i })
+      ).toHaveAttribute('href', '/');
+
+      unmount();
+
+      (resumeService.getPublicResume as jest.Mock).mockRejectedValueOnce(
+        new Error('This resume is private and sharing has been disabled.')
+      );
+
+      render(<PublicResumeView shareToken="private_token" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Resume Is Private')).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText('This resume is private and sharing has been disabled.')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: /go to home/i })
+      ).toHaveAttribute('href', '/');
+    });
+
+    it('renders branded top bar, Print/Download button calling window.print, read-only resume without editor controls, and omits redacted fields', async () => {
+      const printSpy = jest
+        .spyOn(window, 'print')
+        .mockImplementation(() => undefined);
+
       const publicResumeData = {
         _id: 'res-shared-1',
         title: 'Senior Developer Resume',
@@ -229,7 +328,9 @@ describe('Public Share & Privacy Controls', () => {
         },
       };
 
-      (resumeService.getPublicResume as jest.Mock).mockResolvedValueOnce(publicResumeData);
+      (resumeService.getPublicResume as jest.Mock).mockResolvedValueOnce(
+        publicResumeData
+      );
 
       render(<PublicResumeView shareToken="tok_valid_redacted" />);
 
@@ -237,18 +338,114 @@ describe('Public Share & Privacy Controls', () => {
         expect(screen.getByText('Jane Doe')).toBeInTheDocument();
       });
 
-      // Name, title, and public metadata should be visible
+      // Branded top bar + link to home
+      const brandLink = screen.getByRole('link', {
+        name: /Made with Smart CV & Portfolio/i,
+      });
+      expect(brandLink).toHaveAttribute('href', '/');
+
+      // Print / Download button triggers window.print
+      const printBtn = screen.getByRole('button', {
+        name: /print \/ download/i,
+      });
+      fireEvent.click(printBtn);
+      expect(printSpy).toHaveBeenCalledTimes(1);
+
+      // Editor-only toolbar controls must not appear on the public viewer
+      expect(screen.queryByText('Templates')).not.toBeInTheDocument();
+      expect(screen.queryByText('Customize Theme')).not.toBeInTheDocument();
+
+      // Resume content should be visible
       expect(screen.getByText('Full Stack Engineer')).toBeInTheDocument();
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
       expect(screen.getByText('Lead Developer')).toBeInTheDocument();
-      expect(screen.getByText('Built microservices architecture')).toBeInTheDocument();
-      expect(screen.getByText('Read Only')).toBeInTheDocument();
-      expect(screen.getByText('Contact Privacy Protected')).toBeInTheDocument();
+      expect(
+        screen.getByText('Built microservices architecture')
+      ).toBeInTheDocument();
 
       // Redacted fields should NOT be in the document
       expect(screen.queryByText('jane@example.com')).not.toBeInTheDocument();
       expect(screen.queryByText('+1-555-0199')).not.toBeInTheDocument();
       expect(screen.queryByText('123 Private St')).not.toBeInTheDocument();
+
+      printSpy.mockRestore();
+    });
+
+    it('scales the centred resume page to fit narrow mobile viewports and strips non-resume chrome in print styles', async () => {
+      const publicResumeData = {
+        _id: 'res-shared-2',
+        title: 'Mobile & Print Resume',
+        templateId: 'professional',
+        content: {
+          basics: {
+            name: 'Alex Rivera',
+            label: 'Staff Product Designer',
+            summary: 'Designing accessible design systems.',
+          },
+          sections: [],
+          sectionOrder: [],
+        },
+      };
+
+      (resumeService.getPublicResume as jest.Mock).mockResolvedValueOnce(
+        publicResumeData
+      );
+
+      render(<PublicResumeView token="tok_mobile_print" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Alex Rivera')).toBeInTheDocument();
+      });
+
+      // Professional template uses 'Profile' heading for summary
+      expect(screen.getByText('Profile')).toBeInTheDocument();
+
+      const topBar = screen.getByTestId('public-resume-topbar');
+      const viewport = screen.getByTestId('resume-preview-viewport');
+      const scaler = screen.getByTestId('resume-preview-scaler');
+      const page = screen.getByTestId('resume-preview-page');
+
+      // Simulate narrow 350px mobile viewport
+      act(() => {
+        observers.forEach((obs) => {
+          if (obs.elements.has(viewport)) {
+            obs.callback([
+              {
+                target: viewport,
+                contentRect: { width: 350, height: 740 },
+              },
+            ]);
+          }
+        });
+      });
+
+      const expectedMobileScale = Number(((350 - 2) / A4_WIDTH_PX).toFixed(4));
+      expect(page.style.transform).toBe(`scale(${expectedMobileScale})`);
+      expect(parseInt(scaler.style.width, 10)).toBeLessThanOrEqual(350);
+
+      // Simulate widening to 1100px desktop viewport -> caps scale at 1
+      act(() => {
+        observers.forEach((obs) => {
+          if (obs.elements.has(viewport)) {
+            obs.callback([
+              {
+                target: viewport,
+                contentRect: { width: 1100, height: 900 },
+              },
+            ]);
+          }
+        });
+      });
+      expect(page.style.transform).toBe('scale(1)');
+
+      // Print output classes hide top bar and reset canvas/page transforms & shadows
+      expect(topBar.className).toContain('print:hidden');
+      expect(page.contains(topBar)).toBe(false);
+      expect(viewport.className).toContain('print:!p-0');
+      expect(viewport.className).toContain('print:!bg-white');
+      expect(scaler.className).toContain('print:!w-full');
+      expect(page.className).toContain('print:!transform-none');
+      expect(page.className).toContain('print:!shadow-none');
     });
   });
 });
