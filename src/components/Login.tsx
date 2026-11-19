@@ -6,7 +6,7 @@ import {
   EyeIcon,
   EyeSlashIcon,
 } from "@heroicons/react/24/outline";
-import { authService } from "../services/auth.service";
+import { authService, AuthUser } from "../services/auth.service";
 import Header from "./common/Header";
 
 interface LoginFormData {
@@ -16,7 +16,7 @@ interface LoginFormData {
 
 interface LoginProps {
   onToggleAuth: () => void;
-  onLoginSuccess: () => void;
+  onLoginSuccess: (user?: AuthUser) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
@@ -42,7 +42,7 @@ const Login: React.FC<LoginProps> = ({ onToggleAuth, onLoginSuccess }) => {
       });
 
       toast.success(response.message);
-      onLoginSuccess();
+      onLoginSuccess(response.user);
     } catch (error) {
       toast.error(
         error instanceof Error

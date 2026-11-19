@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PencilIcon,
@@ -6,6 +6,10 @@ import {
   DocumentDuplicateIcon,
   DocumentArrowDownIcon,
   ArrowLeftIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  ExclamationCircleIcon,
   PlusIcon,
   XMarkIcon,
   EyeIcon,
@@ -18,7 +22,6 @@ import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
-import { debounce } from "lodash";
 import toast from "react-hot-toast";
 import {
   DndContext,
@@ -166,6 +169,74 @@ const sectionOptions: SectionOption[] = [
       "List your programming languages, tools, and technical expertise.",
   },
 ];
+
+type SaveStatus = "unsaved_new" | "saving" | "saved" | "failed";
+type SaveOrigin = "autosave" | "manual" | "retry";
+type SaveResult = { ok: true; data: any } | { ok: false; error: unknown };
+
+function extractCreatedResumeId(saved: any): string | undefined {
+  return saved?._id || saved?.id || saved?.data?._id || saved?.data?.id;
+}
+
+function serializeResumeSnapshot(input: IResume): string {
+  return JSON.stringify({
+    title: input.title ?? "",
+    summary: input.summary ?? "",
+    templateId: input.templateId ?? "",
+    themeConfig: input.themeConfig ?? null,
+    sharing: input.sharing ?? null,
+    content: input.content,
+  });
+}
+
+function createDebouncedCallback<T extends (...args: any[]) => void>(
+  fn: T,
+  delayMs: number
+) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let pendingArgs: Parameters<T> | null = null;
+
+  const cancel = () => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    pendingArgs = null;
+  };
+
+  const flush = () => {
+    if (timeoutId !== null && pendingArgs !== null) {
+      const args = pendingArgs;
+      clearTimeout(timeoutId);
+      timeoutId = null;
+      pendingArgs = null;
+      fn(...args);
+    }
+  };
+
+  const pending = () => timeoutId !== null;
+
+  const debounced = (...args: Parameters<T>) => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+    pendingArgs = args;
+    timeoutId = setTimeout(() => {
+      const args = pendingArgs;
+      timeoutId = null;
+      pendingArgs = null;
+      if (args !== null) {
+        fn(...args);
+      }
+    }, delayMs);
+  };
+
+  debounced.cancel = cancel;
+  debounced.flush = flush;
+  debounced.pending = pending;
+
+  return debounced;
+}
 
 export function normalizeResume(input?: IResume): IResume {
   const source = input || defaultResume;
@@ -633,6 +704,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
   const isDesktop = useIsDesktop();
   const [loading, setLoading] = useState(false);
+  const [persistedId, setPersistedId] = useState<string | undefined>(
+    () => initialResume?._id
+  );
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(() =>
+    initialResume?._id ? "saved" : "unsaved_new"
+  );
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -652,16 +729,205 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const prevInitialResumeRef = useRef<IResume | undefined>(initialResume);
   const isInitialMountRef = useRef(true);
+  const isMountedRef = useRef(true);
+  const latestResumeRef = useRef<IResume>(resume);
+  latestResumeRef.current = resume;
+  const persistedIdRef = useRef<string | undefined>(persistedId);
+  persistedIdRef.current = persistedId;
+  const saveStatusRef = useRef<SaveStatus>(saveStatus);
+  saveStatusRef.current = saveStatus;
+  const initialBlankSnapshotRef = useRef<string>(
+    serializeResumeSnapshot(resume)
+  );
+  const lastSavedSnapshotRef = useRef<string | null>(
+    initialResume?._id ? serializeResumeSnapshot(resume) : null
+  );
+  const hasShownAutoSaveErrorToastRef = useRef(false);
+  const isSavingRef = useRef(false);
+  const queuedSaveRef = useRef<{
+    resume: IResume;
+    origin: SaveOrigin;
+    resolvers: Array<(result: SaveResult) => void>;
+  } | null>(null);
   const titleBeforeEditRef = useRef<string>(resume.title || "");
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
 
+  const effectiveResumeId = resume._id || persistedId;
+
+  const updateSaveStatus = useCallback((next: SaveStatus) => {
+    saveStatusRef.current = next;
+    if (isMountedRef.current) {
+      setSaveStatus(next);
+    }
+  }, []);
+
+  const enqueueSave = useCallback(
+    (targetResume: IResume, origin: SaveOrigin): Promise<SaveResult> => {
+      return new Promise((resolve) => {
+        if (isSavingRef.current) {
+          if (!queuedSaveRef.current) {
+            queuedSaveRef.current = {
+              resume: targetResume,
+              origin,
+              resolvers: [resolve],
+            };
+          } else {
+            queuedSaveRef.current.resume = targetResume;
+            if (origin === "manual") {
+              queuedSaveRef.current.origin = "manual";
+            } else if (
+              origin === "retry" &&
+              queuedSaveRef.current.origin === "autosave"
+            ) {
+              queuedSaveRef.current.origin = "retry";
+            }
+            queuedSaveRef.current.resolvers.push(resolve);
+          }
+
+          if (origin === "manual" || origin === "retry") {
+            updateSaveStatus("saving");
+          }
+          return;
+        }
+
+        isSavingRef.current = true;
+        if (
+          origin === "manual" ||
+          origin === "retry" ||
+          saveStatusRef.current !== "failed"
+        ) {
+          updateSaveStatus("saving");
+        }
+
+        const runLoop = async (
+          firstResume: IResume,
+          firstOrigin: SaveOrigin,
+          firstResolvers: Array<(result: SaveResult) => void>
+        ) => {
+          let currentResume = firstResume;
+          let currentOrigin = firstOrigin;
+          let currentResolvers = firstResolvers;
+
+          while (true) {
+            const activeId = currentResume._id || persistedIdRef.current;
+
+            if (!activeId && currentOrigin === "autosave") {
+              for (let i = 0; i < currentResolvers.length; i += 1) {
+                currentResolvers[i]({ ok: true, data: currentResume });
+              }
+            } else {
+              const snapshotAttempted = serializeResumeSnapshot(currentResume);
+              try {
+                let savedData: any;
+                if (activeId) {
+                  const payload = currentResume._id
+                    ? currentResume
+                    : { ...currentResume, _id: activeId };
+                  savedData = await resumeService.updateResume(
+                    activeId,
+                    payload
+                  );
+                } else {
+                  savedData = await resumeService.createResume(currentResume);
+                  const createdId = extractCreatedResumeId(savedData);
+                  if (createdId) {
+                    persistedIdRef.current = createdId;
+                    if (isMountedRef.current) {
+                      setPersistedId(createdId);
+                    }
+                  }
+                }
+
+                lastSavedSnapshotRef.current = snapshotAttempted;
+                hasShownAutoSaveErrorToastRef.current = false;
+
+                if (!queuedSaveRef.current) {
+                  updateSaveStatus("saved");
+                }
+                for (let i = 0; i < currentResolvers.length; i += 1) {
+                  currentResolvers[i]({ ok: true, data: savedData });
+                }
+              } catch (error) {
+                if (
+                  currentOrigin === "autosave" &&
+                  !hasShownAutoSaveErrorToastRef.current
+                ) {
+                  hasShownAutoSaveErrorToastRef.current = true;
+                  toast.error("Auto-save failed");
+                }
+                if (!queuedSaveRef.current) {
+                  updateSaveStatus("failed");
+                }
+                for (let i = 0; i < currentResolvers.length; i += 1) {
+                  currentResolvers[i]({ ok: false, error });
+                }
+              }
+            }
+
+            if (queuedSaveRef.current) {
+              const nextBatch = queuedSaveRef.current;
+              queuedSaveRef.current = null;
+              currentResume = nextBatch.resume;
+              currentOrigin = nextBatch.origin;
+              currentResolvers = nextBatch.resolvers;
+              if (
+                currentOrigin === "manual" ||
+                currentOrigin === "retry" ||
+                saveStatusRef.current !== "failed"
+              ) {
+                updateSaveStatus("saving");
+              }
+            } else {
+              isSavingRef.current = false;
+              break;
+            }
+          }
+        };
+
+        void runLoop(targetResume, origin, [resolve]);
+      });
+    },
+    [updateSaveStatus]
+  );
+
+  const debouncedAutoSave = useMemo(
+    () =>
+      createDebouncedCallback((resumeToSave: IResume) => {
+        const activeId = resumeToSave._id || persistedIdRef.current;
+        if (!activeId) return;
+        void enqueueSave(resumeToSave, "autosave");
+      }, 2000),
+    [enqueueSave]
+  );
+
+  const hasUnsavedChanges = useCallback((): boolean => {
+    if (isSavingRef.current || debouncedAutoSave.pending()) {
+      return true;
+    }
+    const currentSnapshot = serializeResumeSnapshot(latestResumeRef.current);
+    if (lastSavedSnapshotRef.current !== null) {
+      return currentSnapshot !== lastSavedSnapshotRef.current;
+    }
+    return currentSnapshot !== initialBlankSnapshotRef.current;
+  }, [debouncedAutoSave]);
+
   useEffect(() => {
     if (initialResume && initialResume !== prevInitialResumeRef.current) {
       prevInitialResumeRef.current = initialResume;
-      setResume(normalizeResume(initialResume));
+      debouncedAutoSave.cancel();
+      const normalized = normalizeResume(initialResume);
+      const nextId = normalized._id;
+      persistedIdRef.current = nextId;
+      setPersistedId(nextId);
+      const snap = serializeResumeSnapshot(normalized);
+      initialBlankSnapshotRef.current = snap;
+      lastSavedSnapshotRef.current = nextId ? snap : null;
+      hasShownAutoSaveErrorToastRef.current = false;
+      updateSaveStatus(nextId ? "saved" : "unsaved_new");
+      setResume(normalized);
     }
-  }, [initialResume, setResume]);
+  }, [initialResume, setResume, debouncedAutoSave, updateSaveStatus]);
 
   useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
@@ -816,63 +1082,93 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     toast.success("Custom section added");
   };
 
-  const debouncedAutoSave = useMemo(
-    () =>
-      debounce(async (currentResume: IResume) => {
-        if (!currentResume._id) return;
-        try {
-          await resumeService.updateResume(currentResume._id, currentResume);
-        } catch (error) {
-          console.error("Auto-save failed", error);
-        }
-      }, 2000),
-    []
-  );
-
   useEffect(() => {
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       return;
     }
-    debouncedAutoSave(resume);
-    return () => {
+
+    const activeId = resume._id || persistedIdRef.current;
+    if (!activeId) {
+      return;
+    }
+
+    const currentSnapshot = serializeResumeSnapshot(resume);
+    if (
+      !isSavingRef.current &&
+      lastSavedSnapshotRef.current !== null &&
+      currentSnapshot === lastSavedSnapshotRef.current
+    ) {
       debouncedAutoSave.cancel();
-    };
+      return;
+    }
+
+    debouncedAutoSave(resume);
   }, [resume, debouncedAutoSave]);
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      debouncedAutoSave.flush();
+    };
+  }, [debouncedAutoSave]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const dirtyBeforeFlush = hasUnsavedChanges();
+      debouncedAutoSave.flush();
+      if (dirtyBeforeFlush || hasUnsavedChanges()) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [debouncedAutoSave, hasUnsavedChanges]);
+
+  const handleRetrySave = () => {
+    debouncedAutoSave.cancel();
+    void enqueueSave(latestResumeRef.current, "retry");
+  };
+
   const handleSave = async () => {
+    debouncedAutoSave.cancel();
     setLoading(true);
     try {
-      let savedResume;
-      if (resume?._id) {
-        savedResume = await resumeService.updateResume(resume._id, resume);
-      } else {
-        savedResume = await resumeService.createResume(resume);
+      const result = await enqueueSave(latestResumeRef.current, "manual");
+      if (!result.ok) {
+        throw result.error;
       }
       toast.success("Resume saved successfully!");
-      onSave?.(savedResume);
+      onSave?.(result.data);
     } catch (error) {
       toast.error("Failed to save resume");
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleOpenShare = async () => {
-    if (!resume._id) {
+    if (!effectiveResumeId) {
       toast("Saving resume before opening share settings...", { icon: "ℹ️" });
+      debouncedAutoSave.cancel();
       setLoading(true);
-      try {
-        const savedResume: any = await resumeService.createResume(resume);
-        setResume((prev) => ({
-          ...prev,
-          _id: savedResume.id || savedResume._id,
-        }));
-        setShowShareModal(true);
-      } catch (error) {
-        toast.error("Failed to save resume before sharing");
-      } finally {
+      const result = await enqueueSave(latestResumeRef.current, "manual");
+      if (isMountedRef.current) {
         setLoading(false);
+      }
+      if (result.ok) {
+        if (isMountedRef.current) {
+          setShowShareModal(true);
+        }
+      } else {
+        toast.error("Failed to save resume before sharing");
       }
       return;
     }
@@ -1237,6 +1533,56 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div
+              data-testid="save-status-indicator"
+              role="status"
+              aria-live="polite"
+              className="inline-flex items-center text-xs font-medium"
+            >
+              {saveStatus === "saving" && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-primary-50 text-primary-700 border border-primary-200">
+                  <ArrowPathIcon
+                    className="h-3.5 w-3.5 text-primary-600 animate-spin shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>Saving…</span>
+                </span>
+              )}
+              {saveStatus === "saved" && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-neutral-50 text-neutral-600 border border-neutral-200">
+                  <CheckCircleIcon
+                    className="h-3.5 w-3.5 text-emerald-600 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>All changes saved</span>
+                </span>
+              )}
+              {saveStatus === "failed" && (
+                <button
+                  type="button"
+                  onClick={handleRetrySave}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-colors focus-ring"
+                >
+                  <ExclamationCircleIcon
+                    className="h-3.5 w-3.5 text-red-600 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span className="underline underline-offset-2">
+                    Save failed - Retry
+                  </span>
+                </button>
+              )}
+              {saveStatus === "unsaved_new" && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-neutral-100 text-neutral-600 border border-neutral-200">
+                  <ClockIcon
+                    className="h-3.5 w-3.5 text-neutral-500 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>Not saved yet</span>
+                </span>
+              )}
+            </div>
+
             <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white shadow-sm">
               <button
                 type="button"
@@ -1786,11 +2132,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         )}
       </AnimatePresence>
 
-      {resume._id && (
+      {effectiveResumeId && (
         <ShareModal
           isOpen={showShareModal}
           onClose={() => setShowShareModal(false)}
-          resumeId={resume._id}
+          resumeId={effectiveResumeId}
           resumeTitle={resume.title}
           initialSharing={resume.sharing}
           onSharingUpdated={(sharing) =>

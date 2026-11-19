@@ -6,7 +6,7 @@ import PublicResumeView from './components/PublicResumeView';
 import { PortfolioPublicView } from './components/portfolio/PortfolioPublicView';
 import { Toaster } from 'react-hot-toast';
 import { useIsSmUp } from './components/common/Header';
-import { isAuthenticated } from './utils/token';
+import { getStoredUser, isAuthenticated, StoredUser } from './utils/token';
 import { AUTH_LOGOUT_EVENT } from './services/axios';
 
 export const getShareTokenFromLocation = (): string | null => {
@@ -23,6 +23,9 @@ export const getShareTokenFromLocation = (): string | null => {
 function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [user, setUser] = useState<StoredUser | null>(() =>
+    isAuthenticated() ? getStoredUser() : null
+  );
   const [shareToken, setShareToken] = useState<string | null>(null);
   const isSmUp = useIsSmUp();
   const toastPosition = isSmUp ? 'top-center' : 'bottom-center';
@@ -37,10 +40,15 @@ function App() {
     hash.startsWith('#/portfolio/');
 
   useEffect(() => {
-    setAuthenticated(isAuthenticated());
+    const authed = isAuthenticated();
+    setAuthenticated(authed);
+    setUser(authed ? getStoredUser() : null);
     setShareToken(getShareTokenFromLocation());
 
-    const handleLogout = () => setAuthenticated(false);
+    const handleLogout = () => {
+      setAuthenticated(false);
+      setUser(null);
+    };
     window.addEventListener(AUTH_LOGOUT_EVENT, handleLogout);
     return () => window.removeEventListener(AUTH_LOGOUT_EVENT, handleLogout);
   }, []);
@@ -72,7 +80,13 @@ function App() {
   if (authenticated) {
     return (
       <div className="App w-full min-h-screen">
-        <HomePage onLogout={() => setAuthenticated(false)} />
+        <HomePage
+          user={user}
+          onLogout={() => {
+            setUser(null);
+            setAuthenticated(false);
+          }}
+        />
         <Toaster position={toastPosition} />
       </div>
     );
@@ -81,7 +95,13 @@ function App() {
   return (
     <div className="App w-full min-h-screen">
       {isLogin ? (
-        <Login onToggleAuth={toggleAuth} onLoginSuccess={() => setAuthenticated(true)} />
+        <Login
+          onToggleAuth={toggleAuth}
+          onLoginSuccess={(loggedInUser) => {
+            setUser(loggedInUser || getStoredUser());
+            setAuthenticated(true);
+          }}
+        />
       ) : (
         <Signup onToggleAuth={toggleAuth} />
       )}

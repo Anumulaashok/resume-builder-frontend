@@ -97,4 +97,82 @@ describe('<JobMatch />', () => {
     render(<JobMatch />);
     expect(await screen.findByText(/create a resume first/i)).toBeInTheDocument();
   });
+
+  it('renders page header, friendly empty state before analysis, focus rings, and design tokens', async () => {
+    const { container } = render(<JobMatch />);
+    await screen.findByRole('option', { name: 'Frontend Resume' });
+
+    expect(screen.getByRole('heading', { level: 1, name: /job match/i })).toBeInTheDocument();
+    expect(screen.getByTestId('job-match-empty-state')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /ready to check your match/i })).toBeInTheDocument();
+    expect(container.querySelector('.page-container')).toBeInTheDocument();
+    expect(container.querySelector('.rounded-card.shadow-card')).toBeInTheDocument();
+
+    expect(screen.getByLabelText(/target resume/i)).toHaveClass('focus-ring');
+    expect(screen.getByLabelText(/job title/i)).toHaveClass('focus-ring');
+    expect(screen.getByLabelText(/job description text/i)).toHaveClass('focus-ring');
+    expect(screen.getByRole('button', { name: /analyze match/i })).toHaveClass('focus-ring');
+  });
+
+  it('shows a loading skeleton while analyzing and replaces it with score ring, breakdown bars, chips, and checklist', async () => {
+    let resolveAnalysis!: (value: typeof analysis) => void;
+    (resumeService.analyzeJobMatch as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAnalysis = resolve;
+        })
+    );
+
+    render(<JobMatch />);
+    await screen.findByRole('option', { name: 'Frontend Resume' });
+
+    fireEvent.change(screen.getByLabelText(/job description text/i), { target: { value: JD } });
+    fireEvent.click(screen.getByRole('button', { name: /analyze match/i }));
+
+    expect(screen.getByTestId('job-match-skeleton')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /analyzing job match/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('job-match-empty-state')).not.toBeInTheDocument();
+
+    resolveAnalysis(analysis);
+
+    expect(await screen.findByRole('img', { name: /match score 60%/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('job-match-skeleton')).not.toBeInTheDocument();
+
+    expect(screen.getByRole('progressbar', { name: /core skills/i })).toHaveAttribute('aria-valuenow', '50');
+    expect(screen.getByRole('progressbar', { name: /experience keywords/i })).toHaveAttribute('aria-valuenow', '70');
+    expect(screen.getByRole('progressbar', { name: /title alignment/i })).toHaveAttribute('aria-valuenow', '100');
+
+    const matchedChips = screen.getAllByTestId('matched-keyword-chip');
+    const missingChips = screen.getAllByTestId('missing-keyword-chip');
+    expect(matchedChips).toHaveLength(1);
+    expect(matchedChips[0]).toHaveTextContent('React');
+    expect(missingChips).toHaveLength(1);
+    expect(missingChips[0]).toHaveTextContent('GraphQL');
+
+    // Interactive suggestions checklist
+    expect(screen.getByText('0 of 1 done')).toBeInTheDocument();
+    const checkbox = screen.getByRole('checkbox', { name: /add graphql to your skills section/i });
+    expect(checkbox).not.toBeChecked();
+    expect(checkbox).toHaveClass('focus-ring');
+
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    expect(screen.getByText('1 of 1 done')).toBeInTheDocument();
+  });
+
+  it('validates minimum job description length and supports clearing the input', async () => {
+    render(<JobMatch />);
+    await screen.findByRole('option', { name: 'Frontend Resume' });
+
+    const jdInput = screen.getByLabelText(/job description text/i);
+    fireEvent.change(jdInput, { target: { value: 'Too short JD' } });
+
+    expect(screen.getByText(/add at least 30 characters/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /analyze match/i })).toBeDisabled();
+
+    const clearBtn = screen.getByRole('button', { name: /clear job description/i });
+    expect(clearBtn).toHaveClass('focus-ring');
+    fireEvent.click(clearBtn);
+    expect(jdInput).toHaveValue('');
+  });
 });
