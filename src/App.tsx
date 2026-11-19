@@ -5,6 +5,7 @@ import HomePage from './components/HomePage';
 import PublicResumeView from './components/PublicResumeView';
 import { PortfolioPublicView } from './components/portfolio/PortfolioPublicView';
 import { Toaster } from 'react-hot-toast';
+import { useIsSmUp } from './components/common/Header';
 import { isAuthenticated } from './utils/token';
 import { AUTH_LOGOUT_EVENT } from './services/axios';
 
@@ -23,6 +24,8 @@ function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const isSmUp = useIsSmUp();
+  const toastPosition = isSmUp ? 'top-center' : 'bottom-center';
 
   // Detect unauthenticated public portfolio view
   const pathname = window.location.pathname;
@@ -47,7 +50,7 @@ function App() {
     return (
       <div className="App w-full min-h-screen">
         <PortfolioPublicView />
-        <Toaster position="top-right" />
+        <Toaster position={toastPosition} />
       </div>
     );
   }
@@ -61,7 +64,7 @@ function App() {
     return (
       <div className="App w-full min-h-screen">
         <PublicResumeView shareToken={shareToken} />
-        <Toaster position="top-right" />
+        <Toaster position={toastPosition} />
       </div>
     );
   }
@@ -70,7 +73,7 @@ function App() {
     return (
       <div className="App w-full min-h-screen">
         <HomePage onLogout={() => setAuthenticated(false)} />
-        <Toaster position="top-right" />
+        <Toaster position={toastPosition} />
       </div>
     );
   }
@@ -82,7 +85,7 @@ function App() {
       ) : (
         <Signup onToggleAuth={toggleAuth} />
       )}
-      <Toaster position="top-right" />
+      <Toaster position={toastPosition} />
     </div>
   );
 }
