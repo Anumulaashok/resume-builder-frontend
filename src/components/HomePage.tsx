@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
 import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
+import CoverLettersWorkspace from './coverLetters/CoverLettersWorkspace';
 import JobMatch from './jobMatch/JobMatch';
 import JobTracker from './jobTracker/JobTracker';
 import { CheckMatchPrefill } from './jobTracker/ApplicationDrawer';
@@ -39,7 +40,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const tabParam = urlParams?.get('tab');
   const initialTab: AppTab =
-    tabParam === 'portfolios' || tabParam === 'job-match' || tabParam === 'job-tracker'
+    tabParam === 'cover-letters' || tabParam === 'portfolios' || tabParam === 'job-match' || tabParam === 'job-tracker'
       ? tabParam
       : 'resumes';
   const initialView = urlParams?.get('view') === 'editor' ? 'editor' : 'list';
@@ -48,6 +49,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [portfolioView, setPortfolioView] = useState<'list' | 'editor'>(initialView);
   const [jobMatchPrefill, setJobMatchPrefill] = useState<CheckMatchPrefill | null>(null);
+  const [coverLetterResetKey, setCoverLetterResetKey] = useState(0);
 
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [selectedPortfolio, setSelectedPortfolio] = useState<IPortfolio | null>(null);
@@ -122,6 +124,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
             setActiveTab(tab);
             if (tab === 'portfolios') setPortfolioView('list');
             if (tab === 'resumes') setActiveView('list');
+            if (tab === 'cover-letters') setCoverLetterResetKey((k) => k + 1);
           }}
         />
       )}
@@ -186,6 +189,10 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
             />
           )}
         </>
+      )}
+
+      {activeTab === 'cover-letters' && (
+        <CoverLettersWorkspace user={user} resetSignal={coverLetterResetKey} />
       )}
 
       {activeTab === 'job-match' && (
