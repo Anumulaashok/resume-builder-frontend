@@ -5,6 +5,8 @@ import { Resume, resumeService } from '../services/resume.service';
 import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
 import JobMatch from './jobMatch/JobMatch';
+import JobTracker from './jobTracker/JobTracker';
+import { CheckMatchPrefill } from './jobTracker/ApplicationDrawer';
 import ResumeEditor from './ResumeEditor';
 import ResumeList from './ResumeList';
 import { PortfolioList } from './portfolio/PortfolioList';
@@ -36,12 +38,16 @@ const formatResumeCountSubtitle = (count: number | null): string => {
 export default function HomePage({ onLogout, user }: HomePageProps) {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const tabParam = urlParams?.get('tab');
-  const initialTab: AppTab = tabParam === 'portfolios' || tabParam === 'job-match' ? tabParam : 'resumes';
+  const initialTab: AppTab =
+    tabParam === 'portfolios' || tabParam === 'job-match' || tabParam === 'job-tracker'
+      ? tabParam
+      : 'resumes';
   const initialView = urlParams?.get('view') === 'editor' ? 'editor' : 'list';
 
   const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [portfolioView, setPortfolioView] = useState<'list' | 'editor'>(initialView);
+  const [jobMatchPrefill, setJobMatchPrefill] = useState<CheckMatchPrefill | null>(null);
 
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [selectedPortfolio, setSelectedPortfolio] = useState<IPortfolio | null>(null);
@@ -184,7 +190,22 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
 
       {activeTab === 'job-match' && (
         <Container as="main" className="pt-24 sm:pt-28 pb-12">
-          <JobMatch />
+          <JobMatch
+            initialResumeId={jobMatchPrefill?.resumeId}
+            initialJobDescription={jobMatchPrefill?.jobDescription}
+            initialJobTitle={jobMatchPrefill?.jobTitle}
+          />
+        </Container>
+      )}
+
+      {activeTab === 'job-tracker' && (
+        <Container as="main" className="pt-24 sm:pt-28 pb-12">
+          <JobTracker
+            onCheckMatch={(prefill) => {
+              setJobMatchPrefill(prefill);
+              setActiveTab('job-match');
+            }}
+          />
         </Container>
       )}
 
