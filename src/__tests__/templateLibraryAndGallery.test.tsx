@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ResumePreview from '../components/ResumePreview';
+import { TemplateGalleryModal } from '../components/templates/TemplateGalleryModal';
 import {
   getTemplate,
   mergeTemplateTheme,
@@ -18,7 +19,7 @@ import {
   SkillStyleVariant,
   TemplateProvider,
 } from '../components/templates/shared';
-import { IResume, SectionType } from '../types/resume';
+import { IResume, SectionType, ThemeConfig } from '../types/resume';
 
 describe('Template Library, Shared Primitives, Design Controls, and Gallery', () => {
   describe('1. Template Registry & Theme Merge', () => {
@@ -307,6 +308,131 @@ describe('Template Library, Shared Primitives, Design Controls, and Gallery', ()
           }),
         })
       );
+    });
+
+    it('renders each gallery card with its own merged template theme instead of the active template saved defaults, while preserving explicitly customised keys', () => {
+      const creativeSidebarDefaults = getTemplate('creative-sidebar').defaultTheme;
+      const classicDefaults = getTemplate('classic').defaultTheme;
+
+      const studioSidebarResume: IResume = {
+        ...sampleResume,
+        templateId: 'creative-sidebar',
+        themeConfig: { ...creativeSidebarDefaults },
+      };
+
+      const { unmount } = render(
+        <TemplateGalleryModal
+          isOpen
+          activeTemplateId="creative-sidebar"
+          resume={studioSidebarResume}
+          onSelect={jest.fn()}
+          onClose={jest.fn()}
+        />
+      );
+
+      // Classic card page root uses Classic's own defaults, not Studio Sidebar's pill/bars/purple
+      const classicPageRoot = screen.getByTestId('template-thumbnail-canvas-classic');
+      expect(classicPageRoot).toHaveStyle({
+        '--theme-heading-style': 'underline',
+        '--theme-skill-style': 'comma',
+        '--theme-primary': classicDefaults.primaryColor,
+      });
+      expect(
+        classicPageRoot.querySelector('[data-heading-variant="underline"]')
+      ).toBeInTheDocument();
+      expect(
+        classicPageRoot.querySelector('[data-skill-variant="comma"]')
+      ).toBeInTheDocument();
+
+      // Active Studio Sidebar card keeps its own pill/bars defaults
+      const studioPageRoot = screen.getByTestId(
+        'template-thumbnail-canvas-creative-sidebar'
+      );
+      expect(studioPageRoot).toHaveStyle({
+        '--theme-heading-style': 'pill',
+        '--theme-skill-style': 'bars',
+        '--theme-primary': creativeSidebarDefaults.primaryColor,
+      });
+
+      unmount();
+
+      // Explicitly customised key (e.g. primaryColor) is preserved on every card,
+      // even when its value matches the active template's default or is a custom colour
+      const customPrimaryResume: IResume = {
+        ...sampleResume,
+        templateId: 'creative-sidebar',
+        themeConfig: {
+          ...creativeSidebarDefaults,
+          primaryColor: '#dc2626',
+        },
+      };
+      const customisedKeys = new Set<keyof ThemeConfig>(['primaryColor']);
+
+      render(
+        <TemplateGalleryModal
+          isOpen
+          activeTemplateId="creative-sidebar"
+          resume={customPrimaryResume}
+          customisedKeys={customisedKeys}
+          onSelect={jest.fn()}
+          onClose={jest.fn()}
+        />
+      );
+
+      templateRegistry.forEach((entry) => {
+        const cardRoot = screen.getByTestId(`template-thumbnail-canvas-${entry.id}`);
+        expect(cardRoot).toHaveStyle({
+          '--theme-primary': '#dc2626',
+        });
+      });
+
+      // Non-customised keys on Classic still reflect Classic's own defaults
+      expect(screen.getByTestId('template-thumbnail-canvas-classic')).toHaveStyle({
+        '--theme-heading-style': 'underline',
+        '--theme-skill-style': 'comma',
+      });
+    });
+
+    it('forwards customisedKeys from ResumePreview so explicitly chosen active-default colours stay preserved across all gallery cards', () => {
+      const creativeSidebarDefaults = getTemplate('creative-sidebar').defaultTheme;
+
+      const StatefulPreviewHarness: React.FC = () => {
+        const [currentResume, setCurrentResume] = React.useState<IResume>({
+          ...sampleResume,
+          templateId: 'creative-sidebar',
+          themeConfig: { ...creativeSidebarDefaults },
+        });
+        return <ResumePreview resume={currentResume} onChange={setCurrentResume} />;
+      };
+
+      render(<StatefulPreviewHarness />);
+
+      // Explicitly select Purple Violet (#7c3aed — same hex as Studio Sidebar's default!)
+      fireEvent.click(screen.getByTestId('theme-customization-btn'));
+      fireEvent.click(screen.getByTestId('color-option-violet'));
+
+      // Open Template Gallery
+      fireEvent.click(screen.getByTestId('open-template-gallery-btn'));
+      const dialog = screen.getByRole('dialog', { name: /template gallery/i });
+
+      // Every card preserves the explicitly chosen #7c3aed primaryColor,
+      // while Classic still uses its own underline headings and comma skills
+      templateRegistry.forEach((entry) => {
+        const cardRoot = within(dialog).getByTestId(
+          `template-thumbnail-canvas-${entry.id}`
+        );
+        expect(cardRoot).toHaveStyle({
+          '--theme-primary': '#7c3aed',
+        });
+      });
+
+      const classicRoot = within(dialog).getByTestId(
+        'template-thumbnail-canvas-classic'
+      );
+      expect(classicRoot).toHaveStyle({
+        '--theme-heading-style': 'underline',
+        '--theme-skill-style': 'comma',
+      });
     });
   });
 

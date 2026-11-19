@@ -7,6 +7,15 @@ import {
 } from "../types/resume";
 import axiosInstance from "../services/axios";
 import { JobMatchResult } from "../types/jobMatch";
+import {
+  buildFallbackExportFilename,
+  parseContentDispositionFilename,
+} from "../utils/download";
+
+export interface ExportedDocument {
+  blob: Blob;
+  filename: string;
+}
 
 export type Resume = BaseResume;
 
@@ -213,6 +222,28 @@ class ResumeService {
       data: ISharing;
     }>(`/api/resumes/${resumeId}/share`, settings);
     return response.data?.data;
+  }
+
+  async exportResumeTxt(
+    resumeId: string,
+    fallbackTitle?: string
+  ): Promise<ExportedDocument> {
+    const response = await axiosInstance.get<Blob>(
+      `/api/resumes/${resumeId}/export.txt`,
+      {
+        responseType: "blob",
+      }
+    );
+    const fallback = buildFallbackExportFilename(fallbackTitle, "txt");
+    const filename = parseContentDispositionFilename(
+      response.headers?.["content-disposition"],
+      fallback
+    );
+    const blob =
+      response.data instanceof Blob
+        ? response.data
+        : new Blob([response.data], { type: "text/plain;charset=utf-8" });
+    return { blob, filename };
   }
 }
 

@@ -1,8 +1,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { XMarkIcon, CheckCircleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
-import { IResume } from '../../types/resume';
+import { IResume, ThemeConfig } from '../../types/resume';
 import { getThemeStyles } from '../../constants/themeConstants';
 import {
+  getTemplate,
+  mergeTemplateTheme,
   TemplateCategory,
   TemplateDefinition,
   TemplateLayout,
@@ -66,7 +68,7 @@ const LayoutIcon: React.FC<{ layout: TemplateLayout }> = ({ layout }) => {
 interface MiniTemplateThumbnailProps {
   template: TemplateDefinition;
   previewResume: IResume;
-  resumeThemeConfig: IResume['themeConfig'];
+  cardThemeConfig: ThemeConfig;
   previewStyles: React.CSSProperties;
   isSelected: boolean;
 }
@@ -74,7 +76,7 @@ interface MiniTemplateThumbnailProps {
 const MiniTemplateThumbnail: React.FC<MiniTemplateThumbnailProps> = ({
   template,
   previewResume,
-  resumeThemeConfig,
+  cardThemeConfig,
   previewStyles,
   isSelected,
 }) => {
@@ -141,10 +143,7 @@ const MiniTemplateThumbnail: React.FC<MiniTemplateThumbnailProps> = ({
           resume={{
             ...previewResume,
             templateId: template.id,
-            themeConfig: {
-              ...template.defaultTheme,
-              ...(resumeThemeConfig || {}),
-            },
+            themeConfig: cardThemeConfig,
           }}
           readOnly
         />
@@ -167,6 +166,7 @@ export interface TemplateGalleryModalProps {
   isOpen: boolean;
   activeTemplateId: string;
   resume: IResume;
+  customisedKeys?: ReadonlySet<keyof ThemeConfig>;
   onSelect: (template: TemplateDefinition) => void;
   onClose: () => void;
 }
@@ -175,6 +175,7 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
   isOpen,
   activeTemplateId,
   resume,
+  customisedKeys,
   onSelect,
   onClose,
 }) => {
@@ -238,6 +239,11 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
   const previewResume = useMemo(
     () => (usingSampleData ? sampleResume : resume),
     [usingSampleData, resume]
+  );
+
+  const activeTemplate = useMemo(
+    () => getTemplate(activeTemplateId),
+    [activeTemplateId]
   );
 
   const filteredTemplates = useMemo(() => {
@@ -326,8 +332,14 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredTemplates.map((template) => {
               const isSelected = template.id === activeTemplateId;
-              const previewStyles = getThemeStyles(
+              const cardThemeConfig = mergeTemplateTheme(
                 resume.themeConfig,
+                activeTemplate.defaultTheme,
+                template.defaultTheme,
+                customisedKeys
+              );
+              const previewStyles = getThemeStyles(
+                cardThemeConfig,
                 template.defaultTheme
               );
 
@@ -348,7 +360,7 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
                   <MiniTemplateThumbnail
                     template={template}
                     previewResume={previewResume}
-                    resumeThemeConfig={resume.themeConfig}
+                    cardThemeConfig={cardThemeConfig}
                     previewStyles={previewStyles}
                     isSelected={isSelected}
                   />

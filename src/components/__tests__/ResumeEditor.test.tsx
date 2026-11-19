@@ -27,6 +27,7 @@ jest.mock("../../services/resume.service", () => ({
     createResume: jest.fn(),
     getShareSettings: jest.fn(),
     updateShareSettings: jest.fn(),
+    exportResumeTxt: jest.fn(),
   },
 }));
 
