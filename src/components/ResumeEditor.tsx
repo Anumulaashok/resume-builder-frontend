@@ -32,6 +32,7 @@ import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
   SparklesIcon,
+  CodeBracketIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -73,6 +74,7 @@ import AIAssistantDrawer, {
   extractResumeBullets,
 } from "./AIAssistantDrawer";
 import ReauthModal from "./ReauthModal";
+import VersionHistoryDrawer from "./VersionHistoryDrawer";
 import { formatResumeDate } from "../utils/date";
 import { triggerFileDownload } from "../utils/download";
 import {
@@ -81,6 +83,7 @@ import {
   isUnauthorizedError,
 } from "../utils/authEventBus";
 import { getStoredUser } from "../utils/token";
+import { downloadResumeAsJson } from "../utils/importers";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -769,6 +772,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     () => getStoredUser()?.email || initialResume?.content?.basics?.email || ""
   );
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
@@ -1452,6 +1456,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   }, [activeView, isDesktop, loading]);
 
+  const handleExportJson = useCallback(() => {
+    setShowOverflowMenu(false);
+    try {
+      downloadResumeAsJson(latestResumeRef.current);
+      toast.success("Resume exported as JSON");
+    } catch {
+      toast.error("Failed to export JSON Resume");
+    }
+  }, []);
+
   const handleExportTxt = useCallback(async () => {
     if (isExportingTxtRef.current || loading) {
       return;
@@ -1510,6 +1524,85 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       }
     }
   }, [debouncedAutoSave, enqueueSave, hasUnsavedChanges, loading]);
+
+  const applyServerResumeState = useCallback(
+    (serverResume: IResume) => {
+      debouncedAutoSave.cancel();
+      const normalized = normalizeResume(serverResume);
+      const nextId = normalized._id || normalized.id || persistedIdRef.current;
+      if (nextId) {
+        persistedIdRef.current = nextId;
+        if (isMountedRef.current) {
+          setPersistedId(nextId);
+        }
+      }
+      const snap = serializeResumeSnapshot(normalized);
+      lastSavedSnapshotRef.current = nextId ? snap : null;
+      hasShownAutoSaveErrorToastRef.current = false;
+      updateSaveStatus(nextId ? "saved" : "unsaved_new");
+      setResume(normalized);
+    },
+    [debouncedAutoSave, setResume, updateSaveStatus]
+  );
+
+  const handleRestoreVersion = useCallback(
+    async (index: number) => {
+      const targetId =
+        latestResumeRef.current._id ||
+        latestResumeRef.current.id ||
+        persistedIdRef.current;
+      if (!targetId) return;
+
+      try {
+        const { resume: restoredResume, previousSnapshotIndex } =
+          await resumeService.restoreResumeVersion(targetId, index);
+        applyServerResumeState(restoredResume);
+        setShowVersionHistory(false);
+
+        toast(
+          (t) => (
+            <div className="flex items-center gap-3 text-sm">
+              <span className="font-medium text-neutral-900">
+                Version restored
+              </span>
+              {typeof previousSnapshotIndex === "number" && (
+                <button
+                  type="button"
+                  data-testid="undo-restore-toast-btn"
+                  onClick={async () => {
+                    toast.dismiss(t.id);
+                    try {
+                      const undoResult =
+                        await resumeService.restoreResumeVersion(
+                          targetId,
+                          previousSnapshotIndex
+                        );
+                      applyServerResumeState(undoResult.resume);
+                      toast.success("Restored previous state");
+                    } catch {
+                      toast.error("Failed to undo version restore");
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-md text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors"
+                >
+                  Undo
+                </button>
+              )}
+            </div>
+          ),
+          { duration: 8000 }
+        );
+      } catch (error: any) {
+        toast.error(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Failed to restore version"
+        );
+        throw error;
+      }
+    },
+    [applyServerResumeState]
+  );
 
   const handleAddNewItem = (section: ISection) => {
     let newItem: any = {
@@ -2133,8 +2226,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <div
                   role="menu"
                   aria-label="Secondary resume actions"
-                  className="absolute right-0 mt-1.5 w-44 rounded-lg bg-white border border-gray-200 shadow-lg py-1 z-30"
+                  className="absolute right-0 mt-1.5 w-48 rounded-lg bg-white border border-gray-200 shadow-lg py-1 z-30"
                 >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="version-history-menu-item"
+                    onClick={() => {
+                      setShowOverflowMenu(false);
+                      setShowVersionHistory(true);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                  >
+                    <ClockIcon className="h-4 w-4 text-gray-500" />
+                    <span>Version history</span>
+                  </button>
                   <button
                     type="button"
                     role="menuitem"
@@ -2174,6 +2280,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   >
                     <DocumentTextIcon className="h-4 w-4 text-gray-500" />
                     <span>Download ATS text</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="export-json-resume-btn"
+                    onClick={handleExportJson}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                  >
+                    <CodeBracketIcon className="h-4 w-4 text-gray-500" />
+                    <span>Export JSON</span>
                   </button>
                 </div>
               )}
@@ -2716,6 +2832,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           }
         />
       )}
+
+      <VersionHistoryDrawer
+        isOpen={showVersionHistory}
+        resumeId={effectiveResumeId}
+        currentResume={resume}
+        onClose={() => setShowVersionHistory(false)}
+        onRestoreVersion={handleRestoreVersion}
+      />
 
       {!hasGlobalModal && (
         <ReauthModal

@@ -23,11 +23,40 @@ export interface IPrivacySettings {
   hideAddress: boolean;
 }
 
+export interface IDailyView {
+  date: string;
+  count: number;
+}
+
+export interface IShareStats {
+  viewCount: number;
+  lastViewedAt: string | null;
+  dailyViews: IDailyView[];
+  isPublic?: boolean;
+  slug?: string | null;
+}
+
+export interface ISlugAvailability {
+  slug: string;
+  available: boolean;
+  reason?: string;
+}
+
 export interface ISharing {
   isPublic: boolean;
   shareToken?: string | null;
+  slug?: string | null;
+  viewCount?: number;
+  lastViewedAt?: string | null;
+  dailyViews?: IDailyView[];
   privacy: IPrivacySettings;
   privacySettings?: IPrivacySettings;
+}
+
+export interface ResumeProfile {
+  network?: string;
+  username?: string;
+  url?: string;
 }
 
 export interface IResume {
@@ -44,17 +73,41 @@ export interface IResume {
       label?: string;
       email?: string;
       phone?: string;
+      url?: string;
+      website?: string;
+      image?: string;
       summary?: string;
       location?: {
         address?: string;
         city?: string;
+        region?: string;
         countryCode?: string;
         postalCode?: string;
       };
+      profiles?: ResumeProfile[];
     };
     sections: ISection[];
     sectionOrder: string[];
   };
+}
+
+export interface IResumeHistorySummaryItem {
+  index: number;
+  updatedAt: string;
+  title: string;
+  summary: string;
+  sectionCount: number;
+  wordCount: number;
+}
+
+export interface IResumeHistorySnapshot {
+  index: number;
+  title?: string;
+  summary?: string;
+  templateId?: string;
+  content: IResume['content'];
+  themeConfig?: ThemeConfig;
+  updatedAt: string;
 }
 
 
@@ -71,33 +124,43 @@ export interface dateFields {
 
 export interface WorkItem extends BaseSection {
   name: string;
+  company?: string;
   position: string;
+  url?: string;
   startDate: string;
   endDate?: string;
   current?: boolean;
   location?: string;
   description?: string;
+  highlights?: string[];
 }
 
 export interface EducationItem extends BaseSection {
+  institution?: string;
   degree: string;
   field: string;
+  url?: string;
   startDate?: dateFields;
   endDate?: dateFields;
   current?: boolean;
   location?: string;
+  score?: string;
+  courses?: string[];
   description?: string;
+  highlights?: string[];
 }
 
 export interface SkillItem extends BaseSection {
   name: string;
-  level?: number;
+  level?: number | string;
   subSkills?: string[];
 }
 
 export interface LanguageItem extends BaseSection {
   name: string;
+  language?: string;
   level?: string;
+  fluency?: string;
   proficiency?: number;
 }
 
@@ -106,24 +169,32 @@ export interface CertificateItem extends BaseSection {
   issuer?: string;
   date?: string;
   url?: string;
+  description?: string;
 }
 
 export interface InterestItem extends BaseSection {
   name: string;
   description?: string;
+  keywords?: string[];
 }
 
 export interface ProjectItem extends BaseSection {
   name: string;
   description?: string;
+  highlights?: string[];
   startDate?: string;
   endDate?: string;
+  current?: boolean;
   url?: string;
   technologies?: string[];
+  position?: string;
+  company?: string;
+  type?: string;
 }
 
 export interface CourseItem extends BaseSection {
   name: string;
+  course?: string;
   institution?: string;
   date?: string;
   description?: string;
@@ -131,18 +202,24 @@ export interface CourseItem extends BaseSection {
 
 export interface AwardItem extends BaseSection {
   name: string;
+  title?: string;
   issuer?: string;
+  awarder?: string;
   date?: string;
   description?: string;
 }
 
 export interface OrganizationItem extends BaseSection {
   name: string;
+  organization?: string;
   position?: string;
+  url?: string;
   startDate?: string;
   endDate?: string;
   current?: boolean;
+  location?: string;
   description?: string;
+  highlights?: string[];
 }
 
 export interface PublicationItem extends BaseSection {
@@ -158,6 +235,7 @@ export interface ReferenceItem extends BaseSection {
   company?: string;
   position?: string;
   contact?: string;
+  reference?: string;
   description?: string;
 }
 
