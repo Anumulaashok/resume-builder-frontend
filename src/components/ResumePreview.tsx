@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { IResume, ThemeConfig } from "../types/resume";
 import {
@@ -6,6 +6,7 @@ import {
   DocumentTextIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
+  ShieldCheckIcon,
   SwatchIcon,
   PaintBrushIcon,
   PrinterIcon,
@@ -21,6 +22,9 @@ import {
   TemplateDefinition,
 } from "./templates/registry";
 import { TemplateGalleryModal } from "./templates/TemplateGalleryModal";
+import { useResumeCheck } from "../hooks/useResumeCheck";
+import { ResumeCheckResult } from "../utils/resumeChecker";
+import ResumeCheckerDrawer, { getGradeTone } from "./ResumeCheckerDrawer";
 
 interface ResumePreviewProps {
   resume: IResume;
@@ -30,6 +34,10 @@ interface ResumePreviewProps {
   isPrinting?: boolean;
   onExportTxt?: () => Promise<void> | void;
   isExportingTxt?: boolean;
+  atsCheckResult?: ResumeCheckResult;
+  onOpenAtsChecker?: () => void;
+  isAtsCheckerOpen?: boolean;
+  onPageCountChange?: (pageCount: number) => void;
 }
 
 export const A4_WIDTH_PX = 794; // 21cm at 96dpi
@@ -65,6 +73,10 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   isPrinting = false,
   onExportTxt,
   isExportingTxt,
+  atsCheckResult,
+  onOpenAtsChecker,
+  isAtsCheckerOpen,
+  onPageCountChange,
 }) => {
   const externalTemplateId =
     resume.templateId || (resume as any).template;
@@ -76,8 +88,34 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
+  const [localAtsDrawerOpen, setLocalAtsDrawerOpen] = useState(false);
   const [internalExportingTxt, setInternalExportingTxt] =
     useState<boolean>(false);
+
+  const measuredPageCount = Math.max(
+    1,
+    Math.ceil((pageHeight - 24) / A4_HEIGHT_PX)
+  );
+
+  const standaloneThemeInput = useMemo(
+    () => ({
+      ...(resume.themeConfig || {}),
+      templateId: activeTemplateId,
+      pageCount: measuredPageCount > 1 ? measuredPageCount : undefined,
+    }),
+    [resume.themeConfig, activeTemplateId, measuredPageCount]
+  );
+
+  const internalAtsResult = useResumeCheck(resume, standaloneThemeInput, 300);
+  const effectiveAtsResult = atsCheckResult ?? internalAtsResult;
+  const effectiveAtsOpen =
+    isAtsCheckerOpen !== undefined ? isAtsCheckerOpen : localAtsDrawerOpen;
+
+  useEffect(() => {
+    if (onPageCountChange) {
+      onPageCountChange(measuredPageCount);
+    }
+  }, [measuredPageCount, onPageCountChange]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -327,6 +365,42 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             Fit
           </button>
 
+          {!readOnly && (
+            <button
+              type="button"
+              data-testid="ats-check-btn"
+              aria-haspopup="dialog"
+              aria-expanded={effectiveAtsOpen}
+              onClick={() => {
+                if (onOpenAtsChecker) {
+                  onOpenAtsChecker();
+                } else {
+                  setLocalAtsDrawerOpen(true);
+                }
+              }}
+              title="Open ATS & Resume Quality Check"
+              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium border rounded-md transition-colors inline-flex items-center gap-1.5 ${
+                effectiveAtsOpen
+                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                  : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
+              }`}
+            >
+              <ShieldCheckIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>ATS check</span>
+              <span
+                data-testid="ats-score-badge"
+                aria-label={`ATS score ${effectiveAtsResult.score} out of 100, grade ${effectiveAtsResult.grade}`}
+                className={`ml-0.5 px-1.5 py-0.5 text-[11px] font-bold rounded-full tabular-nums leading-none ${
+                  effectiveAtsOpen
+                    ? "bg-white/20 text-white ring-1 ring-inset ring-white/40"
+                    : getGradeTone(effectiveAtsResult.grade).badgeClass
+                }`}
+              >
+                {effectiveAtsResult.score}
+              </span>
+            </button>
+          )}
+
           <button
             type="button"
             data-testid="export-txt-btn"
@@ -455,6 +529,14 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
           </div>
         </div>
       </div>
+
+      {!readOnly && !onOpenAtsChecker && (
+        <ResumeCheckerDrawer
+          isOpen={localAtsDrawerOpen}
+          result={effectiveAtsResult}
+          onClose={() => setLocalAtsDrawerOpen(false)}
+        />
+      )}
     </div>
   );
 };
