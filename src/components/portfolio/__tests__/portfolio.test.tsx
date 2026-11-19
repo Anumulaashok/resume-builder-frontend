@@ -7,7 +7,7 @@ import { PortfolioPublicView } from '../PortfolioPublicView';
 import { ImportProjectsModal } from '../ImportProjectsModal';
 import { portfolioService } from '../../../services/portfolio.service';
 import { resumeService } from '../../../services/resume.service';
-import { IPortfolio, defaultPortfolio } from '../../../types/portfolio';
+import { IPortfolio } from '../../../types/portfolio';
 
 jest.mock('../../../services/portfolio.service');
 jest.mock('../../../services/resume.service');
@@ -29,7 +29,11 @@ const mockPortfolio: IPortfolio = {
     title: 'Senior Product Designer',
     email: 'alex@example.com',
     location: 'San Francisco, CA',
-    bio: 'Designing user-centered enterprise experiences.'
+    bio: 'Designing user-centered enterprise experiences.',
+    socialLinks: {
+      github: 'https://github.com/alexrivera',
+      linkedin: 'https://linkedin.com/in/alexrivera'
+    }
   },
   sections: [
     {
@@ -58,9 +62,16 @@ const mockPortfolio: IPortfolio = {
         { id: 's2', name: 'TypeScript' }
       ],
       enabled: true
+    },
+    {
+      id: 'contact',
+      type: 'contact',
+      title: 'Get In Touch',
+      content: [],
+      enabled: true
     }
   ],
-  sectionOrder: ['projects', 'skills']
+  sectionOrder: ['projects', 'skills', 'contact']
 };
 
 describe('Frontend Portfolio Platform Components', () => {
@@ -78,6 +89,8 @@ describe('Frontend Portfolio Platform Components', () => {
       render(<PortfolioList onEditPortfolio={onEdit} onNewPortfolio={onNew} />);
 
       expect(screen.getByText(/Loading your portfolios/i)).toBeInTheDocument();
+      expect(screen.getByTestId('portfolio-list-skeleton')).toBeInTheDocument();
+      expect(screen.getByRole('status', { name: /Loading portfolios/i })).toBeInTheDocument();
 
       await waitFor(() => {
         expect(screen.getByText('Alex Designer Portfolio')).toBeInTheDocument();
@@ -85,6 +98,10 @@ describe('Frontend Portfolio Platform Components', () => {
 
       expect(screen.getByText('/p/alex-design')).toBeInTheDocument();
       expect(screen.getByText('Published')).toBeInTheDocument();
+      expect(screen.getByTestId('portfolio-card')).toBeInTheDocument();
+      expect(screen.getByTestId('portfolio-card-preview')).toBeInTheDocument();
+      expect(screen.getByText('AR')).toBeInTheDocument();
+      expect(screen.getByTestId('portfolios-count-subtitle')).toHaveTextContent(/1 portfolio\b/i);
     });
 
     it('renders empty state when user has no portfolios', async () => {
@@ -99,9 +116,40 @@ describe('Frontend Portfolio Platform Components', () => {
         expect(screen.getByText(/No portfolios yet/i)).toBeInTheDocument();
       });
 
+      expect(screen.getByTestId('portfolio-empty-state')).toBeInTheDocument();
+      expect(screen.getByTestId('portfolios-count-subtitle')).toHaveTextContent(/0 portfolios/i);
+
       const createBtn = screen.getByRole('button', { name: /Build My First Portfolio/i });
+      expect(createBtn).toHaveClass('focus-ring');
       fireEvent.click(createBtn);
       expect(onNew).toHaveBeenCalledTimes(1);
+    });
+
+    it('supports confirm-based deletion and updates count', async () => {
+      (portfolioService.getPortfolios as jest.Mock).mockResolvedValueOnce([mockPortfolio]);
+      (portfolioService.deletePortfolio as jest.Mock).mockResolvedValueOnce(undefined);
+      const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValueOnce(true);
+
+      render(<PortfolioList onEditPortfolio={jest.fn()} onNewPortfolio={jest.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('portfolio-card')).toBeInTheDocument();
+      });
+
+      const deleteBtn = screen.getByRole('button', { name: /delete portfolio/i });
+      fireEvent.click(deleteBtn);
+
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'Are you sure you want to delete portfolio "Alex Designer Portfolio"?'
+      );
+      await waitFor(() => {
+        expect(portfolioService.deletePortfolio).toHaveBeenCalledWith('portfolio-123');
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('portfolio-empty-state')).toBeInTheDocument();
+      });
+
+      confirmSpy.mockRestore();
     });
   });
 
@@ -120,9 +168,12 @@ describe('Frontend Portfolio Platform Components', () => {
       expect(screen.getByDisplayValue('alex-design')).toBeInTheDocument();
       expect(screen.getByText('Live & Published')).toBeInTheDocument();
 
-      // Check left panel (workspace controls)
+      // Check left panel (workspace controls & associated labels)
       expect(screen.getByText('Basics & Hero Profile')).toBeInTheDocument();
       expect(screen.getByText('Portfolio Sections Order')).toBeInTheDocument();
+      expect(screen.getByLabelText(/Your Full Name/i)).toHaveValue('Alex Rivera');
+      expect(screen.getByLabelText(/Professional Title/i)).toHaveValue('Senior Product Designer');
+      expect(screen.getByLabelText(/Contact Email/i)).toHaveValue('alex@example.com');
 
       // Check right panel (live canvas header & canvas content)
       expect(screen.getByText(/Live Visual Preview Canvas/i)).toBeInTheDocument();
@@ -130,7 +181,12 @@ describe('Frontend Portfolio Platform Components', () => {
       expect(screen.getByText('Senior Product Designer')).toBeInTheDocument();
     });
 
-    it('toggles publish status between draft and published', () => {
+    it('toggles publish status between draft and published', async () => {
+      (portfolioService.updatePortfolio as jest.Mock).mockResolvedValueOnce({
+        ...mockPortfolio,
+        isPublished: true
+      });
+
       render(
         <PortfolioEditor
           initialPortfolio={{ ...mockPortfolio, isPublished: false }}
@@ -141,7 +197,32 @@ describe('Frontend Portfolio Platform Components', () => {
 
       expect(screen.getByText('Draft (Private)')).toBeInTheDocument();
       const publishBtn = screen.getByRole('button', { name: /Publish to Web/i });
+      expect(publishBtn).toHaveClass('focus-ring');
       fireEvent.click(publishBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Live & Published')).toBeInTheDocument();
+      });
+    });
+
+    it('switches mobile pane between Workspace Form and Live Preview', () => {
+      render(
+        <PortfolioEditor
+          initialPortfolio={mockPortfolio}
+          onSave={jest.fn()}
+          onBack={jest.fn()}
+        />
+      );
+
+      const workspaceBtn = screen.getByRole('button', { name: /Workspace Form/i });
+      const previewBtn = screen.getByRole('button', { name: /Live Preview/i });
+
+      expect(workspaceBtn).toHaveAttribute('aria-pressed', 'true');
+      expect(previewBtn).toHaveAttribute('aria-pressed', 'false');
+
+      fireEvent.click(previewBtn);
+      expect(previewBtn).toHaveAttribute('aria-pressed', 'true');
+      expect(workspaceBtn).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('validates file upload media types and enforces 5MB limit', async () => {
@@ -218,6 +299,9 @@ describe('Frontend Portfolio Platform Components', () => {
         />
       );
 
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+
       await waitFor(() => {
         expect(screen.getByText('Cloud Storage App')).toBeInTheDocument();
       });
@@ -239,22 +323,91 @@ describe('Frontend Portfolio Platform Components', () => {
       );
       expect(onClose).toHaveBeenCalled();
     });
+
+    it('renders skeleton while loading, empty state when no projects exist, traps Tab focus, and closes on Escape', async () => {
+      let resolveResumes: (val: any[]) => void = () => {};
+      (resumeService.getResumes as jest.Mock).mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveResumes = resolve;
+        })
+      );
+
+      const onClose = jest.fn();
+      render(
+        <ImportProjectsModal
+          isOpen={true}
+          onClose={onClose}
+          onImport={jest.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('import-projects-skeleton')).toBeInTheDocument();
+      expect(screen.getByRole('status', { name: /Loading resume projects/i })).toBeInTheDocument();
+
+      resolveResumes([]);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('import-projects-empty-state')).toBeInTheDocument();
+      });
+
+      const closeBtn = screen.getByRole('button', { name: /Close modal/i });
+      const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
+      const importBtn = screen.getByRole('button', { name: /Import Selected/i });
+      expect(importBtn).toBeDisabled();
+
+      // Focus trap: Shift+Tab from first focusable element wraps to last enabled element (Cancel)
+      closeBtn.focus();
+      expect(document.activeElement).toBe(closeBtn);
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+      expect(document.activeElement).toBe(cancelBtn);
+
+      // Focus trap: Tab from last enabled element wraps back to first focusable element (Close)
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: false });
+      expect(document.activeElement).toBe(closeBtn);
+
+      // Escape closes modal
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('PortfolioPublicView Component (Unauthenticated Access)', () => {
-    it('renders published portfolio content for public visitors via slug', async () => {
-      (portfolioService.getPublicPortfolio as jest.Mock).mockResolvedValueOnce(mockPortfolio);
+    it('renders skeleton while loading and published portfolio content via slug', async () => {
+      let resolvePortfolio: (val: IPortfolio) => void = () => {};
+      (portfolioService.getPublicPortfolio as jest.Mock).mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolvePortfolio = resolve;
+        })
+      );
 
-      render(<PortfolioPublicView slug="alex-design" />);
+      const { container } = render(<PortfolioPublicView slug="alex-design" />);
+
+      expect(screen.getByTestId('portfolio-public-skeleton')).toBeInTheDocument();
+      expect(screen.getByRole('status', { name: /Loading portfolio/i })).toBeInTheDocument();
+
+      resolvePortfolio(mockPortfolio);
 
       await waitFor(() => {
         expect(screen.getAllByText('Alex Rivera')[0]).toBeInTheDocument();
       });
 
+      // Uses shared Container (.page-container)
+      expect(container.querySelector('header .page-container')).toBeInTheDocument();
+      expect(container.querySelector('main.page-container')).toBeInTheDocument();
+
       expect(screen.getByText('Senior Product Designer')).toBeInTheDocument();
       expect(screen.getByText('Design System Platform')).toBeInTheDocument();
       expect(screen.getByText('A scalable multi-brand component library for modern web apps.')).toBeInTheDocument();
       expect(screen.getByText('Live Demo')).toBeInTheDocument();
+      expect(screen.getByText('Source Code')).toBeInTheDocument();
+      expect(screen.getByTestId('portfolio-hero-contacts')).toBeInTheDocument();
+
+      // Open image preview lightbox and close with Escape
+      fireEvent.click(screen.getByRole('button', { name: /Preview Design System Platform image/i }));
+      expect(screen.getByRole('dialog', { name: /Project image preview/i })).toBeInTheDocument();
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(screen.queryByRole('dialog', { name: /Project image preview/i })).not.toBeInTheDocument();
     });
 
     it('renders error message when portfolio is unpublished or not found', async () => {
@@ -268,6 +421,7 @@ describe('Frontend Portfolio Platform Components', () => {
         expect(screen.getByText(/Portfolio Unavailable/i)).toBeInTheDocument();
       });
 
+      expect(screen.getByTestId('portfolio-unavailable-card')).toBeInTheDocument();
       expect(screen.getByText(/This portfolio is currently private or does not exist./i)).toBeInTheDocument();
     });
   });
