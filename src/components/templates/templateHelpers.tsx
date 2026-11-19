@@ -308,6 +308,10 @@ export function formatItemDateRange(
     return `${start} - ${displayEnd}`;
   }
 
+  if (item.current || item.isCurrent) {
+    return 'Present';
+  }
+
   if (end) {
     return end;
   }
