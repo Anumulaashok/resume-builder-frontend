@@ -67,6 +67,7 @@ import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
 import ShareModal from "./ShareModal";
 import ReauthModal from "./ReauthModal";
+import VersionHistoryDrawer from "./VersionHistoryDrawer";
 import { formatResumeDate } from "../utils/date";
 import { triggerFileDownload } from "../utils/download";
 import {
@@ -746,6 +747,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     () => getStoredUser()?.email || initialResume?.content?.basics?.email || ""
   );
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
@@ -1483,6 +1485,85 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   }, [debouncedAutoSave, enqueueSave, hasUnsavedChanges, loading]);
 
+  const applyServerResumeState = useCallback(
+    (serverResume: IResume) => {
+      debouncedAutoSave.cancel();
+      const normalized = normalizeResume(serverResume);
+      const nextId = normalized._id || normalized.id || persistedIdRef.current;
+      if (nextId) {
+        persistedIdRef.current = nextId;
+        if (isMountedRef.current) {
+          setPersistedId(nextId);
+        }
+      }
+      const snap = serializeResumeSnapshot(normalized);
+      lastSavedSnapshotRef.current = nextId ? snap : null;
+      hasShownAutoSaveErrorToastRef.current = false;
+      updateSaveStatus(nextId ? "saved" : "unsaved_new");
+      setResume(normalized);
+    },
+    [debouncedAutoSave, setResume, updateSaveStatus]
+  );
+
+  const handleRestoreVersion = useCallback(
+    async (index: number) => {
+      const targetId =
+        latestResumeRef.current._id ||
+        latestResumeRef.current.id ||
+        persistedIdRef.current;
+      if (!targetId) return;
+
+      try {
+        const { resume: restoredResume, previousSnapshotIndex } =
+          await resumeService.restoreResumeVersion(targetId, index);
+        applyServerResumeState(restoredResume);
+        setShowVersionHistory(false);
+
+        toast(
+          (t) => (
+            <div className="flex items-center gap-3 text-sm">
+              <span className="font-medium text-neutral-900">
+                Version restored
+              </span>
+              {typeof previousSnapshotIndex === "number" && (
+                <button
+                  type="button"
+                  data-testid="undo-restore-toast-btn"
+                  onClick={async () => {
+                    toast.dismiss(t.id);
+                    try {
+                      const undoResult =
+                        await resumeService.restoreResumeVersion(
+                          targetId,
+                          previousSnapshotIndex
+                        );
+                      applyServerResumeState(undoResult.resume);
+                      toast.success("Restored previous state");
+                    } catch {
+                      toast.error("Failed to undo version restore");
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-md text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors"
+                >
+                  Undo
+                </button>
+              )}
+            </div>
+          ),
+          { duration: 8000 }
+        );
+      } catch (error: any) {
+        toast.error(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Failed to restore version"
+        );
+        throw error;
+      }
+    },
+    [applyServerResumeState]
+  );
+
   const handleAddNewItem = (section: ISection) => {
     let newItem: any = {
       id: `${section.id}-item-${Date.now()}`,
@@ -1959,8 +2040,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <div
                   role="menu"
                   aria-label="Secondary resume actions"
-                  className="absolute right-0 mt-1.5 w-44 rounded-lg bg-white border border-gray-200 shadow-lg py-1 z-30"
+                  className="absolute right-0 mt-1.5 w-48 rounded-lg bg-white border border-gray-200 shadow-lg py-1 z-30"
                 >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="version-history-menu-item"
+                    onClick={() => {
+                      setShowOverflowMenu(false);
+                      setShowVersionHistory(true);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                  >
+                    <ClockIcon className="h-4 w-4 text-gray-500" />
+                    <span>Version history</span>
+                  </button>
                   <button
                     type="button"
                     role="menuitem"
@@ -2516,6 +2610,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           }
         />
       )}
+
+      <VersionHistoryDrawer
+        isOpen={showVersionHistory}
+        resumeId={effectiveResumeId}
+        currentResume={resume}
+        onClose={() => setShowVersionHistory(false)}
+        onRestoreVersion={handleRestoreVersion}
+      />
 
       {!hasGlobalModal && (
         <ReauthModal

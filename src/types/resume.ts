@@ -80,6 +80,25 @@ export interface IResume {
   };
 }
 
+export interface IResumeHistorySummaryItem {
+  index: number;
+  updatedAt: string;
+  title: string;
+  summary: string;
+  sectionCount: number;
+  wordCount: number;
+}
+
+export interface IResumeHistorySnapshot {
+  index: number;
+  title?: string;
+  summary?: string;
+  templateId?: string;
+  content: IResume['content'];
+  themeConfig?: ThemeConfig;
+  updatedAt: string;
+}
+
 
 // Section type interfaces
 export interface BaseSection {
