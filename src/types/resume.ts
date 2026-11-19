@@ -23,9 +23,32 @@ export interface IPrivacySettings {
   hideAddress: boolean;
 }
 
+export interface IDailyView {
+  date: string;
+  count: number;
+}
+
+export interface IShareStats {
+  viewCount: number;
+  lastViewedAt: string | null;
+  dailyViews: IDailyView[];
+  isPublic?: boolean;
+  slug?: string | null;
+}
+
+export interface ISlugAvailability {
+  slug: string;
+  available: boolean;
+  reason?: string;
+}
+
 export interface ISharing {
   isPublic: boolean;
   shareToken?: string | null;
+  slug?: string | null;
+  viewCount?: number;
+  lastViewedAt?: string | null;
+  dailyViews?: IDailyView[];
   privacy: IPrivacySettings;
   privacySettings?: IPrivacySettings;
 }

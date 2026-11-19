@@ -18,6 +18,7 @@ import {
 interface PublicResumeViewProps {
   shareToken?: string;
   token?: string;
+  slug?: string;
 }
 
 const DEFAULT_ERROR_MESSAGE =
@@ -148,8 +149,10 @@ const TopBar: React.FC<{
 export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
   shareToken: propShareToken,
   token,
+  slug,
 }) => {
   const activeToken = propShareToken || token || "";
+  const activeSlug = (slug || "").trim().toLowerCase();
   const [resume, setResume] = useState<IResume | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -164,14 +167,17 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     setLoading(true);
     setError(null);
 
-    if (!activeToken) {
+    if (!activeSlug && !activeToken) {
       setLoading(false);
       setError("This shared resume link is invalid, has expired, or has been revoked by the owner.");
       return;
     }
 
-    resumeService
-      .getPublicResume(activeToken)
+    const requestPromise = activeSlug
+      ? resumeService.getPublicResumeBySlug(activeSlug)
+      : resumeService.getPublicResume(activeToken);
+
+    requestPromise
       .then((data) => {
         if (isMounted) {
           if (data) {
@@ -200,7 +206,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeToken]);
+  }, [activeSlug, activeToken]);
 
   const hasResume = !loading && !error && Boolean(resume);
   const rawTemplateId =
