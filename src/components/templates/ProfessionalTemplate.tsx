@@ -217,6 +217,7 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({
     const enabledItems = section.content.filter(
       (item: any) => item && item.enabled !== false
     );
+    if (!enabledItems.length) return null;
 
     return enabledItems.map((item: any, idx: number) => {
       const dateRange = formatItemDateRange(item);
