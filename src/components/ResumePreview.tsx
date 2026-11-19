@@ -354,7 +354,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
-                className="min-h-full"
+                className="min-h-full print:!opacity-100 print:!transform-none"
                 style={themeStyles}
               >
                 <ActiveTemplateComponent

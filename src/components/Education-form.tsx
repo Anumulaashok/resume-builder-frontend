@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { LinkIcon } from "@heroicons/react/24/outline";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { EducationItem } from "../types/resume";
+import { dateFields, EducationItem } from "../types/resume";
 import { SectionFormProps } from "./sectionForms/types";
 import {
   ERROR_INPUT_CLASSNAME,
@@ -16,6 +16,27 @@ import {
   isEndDateBeforeStartDate,
   parseToDateFields,
 } from "./sectionForms/primitives";
+
+const EMPTY_DATE: dateFields = { month: "", year: "" };
+
+const normalizeDateFields = (
+  date?: string | Partial<dateFields> | null
+): dateFields => {
+  if (!date) {
+    return { ...EMPTY_DATE };
+  }
+  if (typeof date === "string") {
+    return parseToDateFields(date);
+  }
+  if (typeof date === "object") {
+    const parsed = parseToDateFields(date);
+    return {
+      month: typeof parsed.month === "string" ? parsed.month : "",
+      year: typeof parsed.year === "string" ? parsed.year : "",
+    };
+  }
+  return { ...EMPTY_DATE };
+};
 
 export default function EducationForm({
   initialContent,
@@ -29,8 +50,8 @@ export default function EducationForm({
       field: "",
       location: "",
       current: false,
-      startDate: { month: "", year: "" },
-      endDate: { month: "", year: "" },
+      startDate: { ...EMPTY_DATE },
+      endDate: { ...EMPTY_DATE },
       description: "",
     };
     return {
@@ -40,29 +61,38 @@ export default function EducationForm({
       field: base.field || (base as any).institution || "",
       location: base.location || "",
       current: Boolean(base.current),
-      startDate: parseToDateFields(base.startDate),
-      endDate: parseToDateFields(base.endDate),
+      startDate: normalizeDateFields(base.startDate),
+      endDate: normalizeDateFields(base.endDate),
       description: base.description || "",
     };
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const clearFieldErrors = (field: string) => {
+    setErrors((prev) => {
+      if (!prev[field] && !prev.dateRange) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[field];
+      if (
+        field === "startDate" ||
+        field === "endDate" ||
+        field === "current"
+      ) {
+        delete next.dateRange;
+      }
+      return next;
+    });
+  };
+
   const handleChange = (field: keyof EducationItem | string, value: any) => {
     setContent((prevContent) => ({
       ...prevContent,
       [field]: value,
     }));
-    if (errors[field] || errors.dateRange) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        if (field === "startDate" || field === "endDate" || field === "current") {
-          delete next.dateRange;
-        }
-        return next;
-      });
-    }
+    clearFieldErrors(field);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -87,16 +117,19 @@ export default function EducationForm({
       return;
     }
 
+    const normalizedStart = normalizeDateFields(content.startDate);
+    const normalizedEnd = content.current
+      ? { ...EMPTY_DATE }
+      : normalizeDateFields(content.endDate);
+
     const prepared: any = {
       ...content,
       degree: content.degree.trim(),
       field: content.field.trim(),
       location: (content.location || "").trim(),
       description: (content.description || "").trim(),
-      startDate: content.startDate || { month: "", year: "" },
-      endDate: content.current
-        ? { month: "", year: "" }
-        : content.endDate || { month: "", year: "" },
+      startDate: normalizedStart,
+      endDate: normalizedEnd,
     };
 
     if ("institution" in (initialContent || {})) {
@@ -169,56 +202,62 @@ export default function EducationForm({
         <div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label
-                htmlFor="edu-start-month"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Start Date
               </label>
               <MonthYearSelector
-                idPrefix="edu-start"
-                labelPrefix="Start Date"
                 selectedMonth={content.startDate?.month}
                 selectedYear={content.startDate?.year}
-                onMonthChange={(value) =>
-                  handleChange("startDate", {
-                    ...(content.startDate || { month: "", year: "" }),
-                    month: value,
-                  })
-                }
-                onYearChange={(value) =>
-                  handleChange("startDate", {
-                    ...(content.startDate || { month: "", year: "" }),
-                    year: value,
-                  })
-                }
+                onMonthChange={(value) => {
+                  setContent((prevContent) => ({
+                    ...prevContent,
+                    startDate: {
+                      ...normalizeDateFields(prevContent.startDate),
+                      month: value,
+                    },
+                  }));
+                  clearFieldErrors("startDate");
+                }}
+                onYearChange={(value) => {
+                  setContent((prevContent) => ({
+                    ...prevContent,
+                    startDate: {
+                      ...normalizeDateFields(prevContent.startDate),
+                      year: value,
+                    },
+                  }));
+                  clearFieldErrors("startDate");
+                }}
               />
             </div>
             <div>
-              <label
-                htmlFor="edu-end-month"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 End Date
               </label>
               <MonthYearSelector
-                idPrefix="edu-end"
-                labelPrefix="End Date"
                 selectedMonth={content.endDate?.month}
                 selectedYear={content.endDate?.year}
                 disabled={Boolean(content.current)}
-                onMonthChange={(value) =>
-                  handleChange("endDate", {
-                    ...(content.endDate || { month: "", year: "" }),
-                    month: value,
-                  })
-                }
-                onYearChange={(value) =>
-                  handleChange("endDate", {
-                    ...(content.endDate || { month: "", year: "" }),
-                    year: value,
-                  })
-                }
+                onMonthChange={(value) => {
+                  setContent((prevContent) => ({
+                    ...prevContent,
+                    endDate: {
+                      ...normalizeDateFields(prevContent.endDate),
+                      month: value,
+                    },
+                  }));
+                  clearFieldErrors("endDate");
+                }}
+                onYearChange={(value) => {
+                  setContent((prevContent) => ({
+                    ...prevContent,
+                    endDate: {
+                      ...normalizeDateFields(prevContent.endDate),
+                      year: value,
+                    },
+                  }));
+                  clearFieldErrors("endDate");
+                }}
               />
               <label
                 htmlFor="edu-current"

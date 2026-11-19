@@ -179,17 +179,19 @@ export const FormField: React.FC<{
 }> = ({ id, label, required = false, error, hint, children }) => {
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-gray-700 mb-1"
-      >
-        {label}
+      <div className="flex items-center gap-0.5 mb-1">
+        <label
+          htmlFor={id}
+          className="block text-sm font-medium text-gray-700"
+        >
+          {label}
+        </label>
         {required && (
-          <span className="text-red-500 ml-0.5" aria-hidden="true">
+          <span className="text-sm font-medium text-red-500" aria-hidden="true">
             *
           </span>
         )}
-      </label>
+      </div>
       {children}
       {hint && !error && (
         <p className="mt-1 text-xs text-gray-500">{hint}</p>
@@ -217,7 +219,7 @@ export const MonthYearSelector: React.FC<{
   onYearChange: (value: string) => void;
 }> = ({
   idPrefix,
-  labelPrefix = "Date",
+  labelPrefix,
   selectedMonth,
   selectedYear,
   disabled = false,
@@ -238,7 +240,7 @@ export const MonthYearSelector: React.FC<{
       >
         <SelectTrigger
           id={idPrefix ? `${idPrefix}-month` : undefined}
-          aria-label={`${labelPrefix} Month`}
+          aria-label={labelPrefix ? `${labelPrefix} Month` : undefined}
           className="border-gray-300 text-gray-900"
         >
           <SelectValue placeholder="Month" />
@@ -259,7 +261,7 @@ export const MonthYearSelector: React.FC<{
       >
         <SelectTrigger
           id={idPrefix ? `${idPrefix}-year` : undefined}
-          aria-label={`${labelPrefix} Year`}
+          aria-label={labelPrefix ? `${labelPrefix} Year` : undefined}
           className="border-gray-300 text-gray-900"
         >
           <SelectValue placeholder="Year" />
