@@ -37,15 +37,17 @@ const BoldHeaderTemplateContent: React.FC = () => {
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
-  const initials = extractInitials(basics.name) || (readOnly ? '' : 'YN');
+  const realInitials = extractInitials(basics.name);
+  const initials = realInitials || (readOnly ? '' : 'YN');
   const showPhoto = shouldRenderProfilePhoto(
     resume,
     resume.themeConfig?.photo,
     atsMode
   );
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
 
   const orderedSections = getOrderedSections(
@@ -93,6 +95,7 @@ const BoldHeaderTemplateContent: React.FC = () => {
 
         {showSummary && (
           <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
             style={{
               marginBottom:
                 orderedSections.length > 0
@@ -152,7 +155,9 @@ const BoldHeaderTemplateContent: React.FC = () => {
               <div
                 data-testid="bold-header-initials"
                 aria-hidden="true"
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none"
+                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none ${
+                  !realInitials ? 'print:hidden' : ''
+                }`}
                 style={{ fontFamily: 'var(--theme-heading-font)' }}
               >
                 {initials}
@@ -208,7 +213,7 @@ const BoldHeaderTemplateContent: React.FC = () => {
         {showSummary && (
           <section
             data-testid="bold-header-summary-card"
-            className="rounded-xl border border-slate-200 bg-slate-50/50 print:bg-white px-4 py-2 shadow-xs print:shadow-none break-inside-avoid [&_h2]:mb-1.5"
+            className={`rounded-xl border border-slate-200 bg-slate-50/50 print:bg-white px-4 py-2 shadow-xs print:shadow-none break-inside-avoid [&_h2]:mb-1.5 ${!hasSummaryText ? 'print:hidden' : ''}`}
             style={{
               borderTopWidth: '3px',
               borderTopColor:

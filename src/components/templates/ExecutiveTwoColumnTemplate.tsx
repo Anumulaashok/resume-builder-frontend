@@ -34,8 +34,9 @@ const ExecutiveTwoColumnContent: React.FC = () => {
 
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
 
   return (
@@ -79,6 +80,7 @@ const ExecutiveTwoColumnContent: React.FC = () => {
 
       {showSummary && (
         <section
+          className={!hasSummaryText ? 'print:hidden' : undefined}
           style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
         >
           <SectionHeading title="Executive Summary" />

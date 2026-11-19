@@ -7,6 +7,7 @@ import {
   PlusIcon,
   SparklesIcon,
   ShareIcon,
+  ArrowUpTrayIcon,
 } from "@heroicons/react/24/outline";
 import {
   Resume,
@@ -15,11 +16,13 @@ import {
 } from "../services/resume.service";
 import toast from "react-hot-toast";
 import ShareModal from "./ShareModal";
+import ImportResumeModal from "./ImportResumeModal";
 import { Skeleton } from "./ui/skeleton";
 
 interface ResumeListProps {
   onEditResume: (resume: Resume) => void;
   onNewResume?: () => void;
+  onImportResume?: () => void;
   onAIGenerate?: () => void;
   onResumesLoad?: (resumes: ResumeWithMeta[]) => void;
 }
@@ -62,13 +65,23 @@ const formatUpdatedDate = (updatedAt?: string, createdAt?: string): string => {
 export default function ResumeList({
   onEditResume,
   onNewResume,
+  onImportResume,
   onAIGenerate,
   onResumesLoad,
 }: ResumeListProps) {
   const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [sharingResume, setSharingResume] = useState<ResumeWithMeta | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const onResumesLoadRef = useRef(onResumesLoad);
+
+  const handleOpenImport = () => {
+    if (onImportResume) {
+      onImportResume();
+    } else {
+      setShowImportModal(true);
+    }
+  };
 
   useEffect(() => {
     onResumesLoadRef.current = onResumesLoad;
@@ -209,7 +222,7 @@ export default function ResumeList({
           <p className="mt-2 text-sm text-neutral-600">
             Start from a clean template or generate a tailored resume with AI in seconds.
           </p>
-          <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="mt-6 flex flex-col sm:flex-row sm:flex-wrap gap-3 justify-center">
             <button
               type="button"
               onClick={onNewResume}
@@ -217,6 +230,15 @@ export default function ResumeList({
             >
               <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
               New Resume
+            </button>
+            <button
+              type="button"
+              data-testid="import-resume-btn"
+              onClick={handleOpenImport}
+              className="inline-flex items-center justify-center h-10 px-4 border border-neutral-300 rounded-control shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 hover:text-neutral-900 transition-colors focus-ring"
+            >
+              <ArrowUpTrayIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+              Import
             </button>
             <button
               type="button"
@@ -228,6 +250,19 @@ export default function ResumeList({
             </button>
           </div>
         </div>
+        {!onImportResume && showImportModal && (
+          <ImportResumeModal
+            isOpen={showImportModal}
+            onClose={() => setShowImportModal(false)}
+            onImported={(createdResume) => {
+              setShowImportModal(false);
+              const next = [createdResume];
+              setResumes(next);
+              onResumesLoadRef.current?.(next);
+              onEditResume(createdResume);
+            }}
+          />
+        )}
       </div>
     );
   }

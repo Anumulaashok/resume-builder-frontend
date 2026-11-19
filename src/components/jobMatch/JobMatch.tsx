@@ -333,12 +333,22 @@ function PreAnalysisEmptyState() {
   );
 }
 
-export default function JobMatch() {
+export interface JobMatchProps {
+  initialResumeId?: string;
+  initialJobDescription?: string;
+  initialJobTitle?: string;
+}
+
+export default function JobMatch({
+  initialResumeId,
+  initialJobDescription,
+  initialJobTitle,
+}: JobMatchProps = {}) {
   const [resumes, setResumes] = useState<ResumeWithId[]>([]);
   const [loadingResumes, setLoadingResumes] = useState(true);
-  const [selectedId, setSelectedId] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
-  const [jobDescription, setJobDescription] = useState('');
+  const [selectedId, setSelectedId] = useState(initialResumeId || '');
+  const [jobTitle, setJobTitle] = useState(initialJobTitle || '');
+  const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<JobMatchResult | null>(null);
   const [addingSkill, setAddingSkill] = useState<string | null>(null);
@@ -348,12 +358,32 @@ export default function JobMatch() {
     resumeService
       .getResumes()
       .then((list) => {
-        setResumes(list as ResumeWithId[]);
-        if (list.length) setSelectedId(resumeIdOf(list[0] as ResumeWithId));
+        const typedList = list as ResumeWithId[];
+        setResumes(typedList);
+        if (typedList.length) {
+          const matchingInitial = initialResumeId
+            ? typedList.find((r) => resumeIdOf(r) === initialResumeId)
+            : undefined;
+          setSelectedId(resumeIdOf(matchingInitial || typedList[0]));
+        }
       })
       .catch((error: Error) => toast.error(error.message))
       .finally(() => setLoadingResumes(false));
-  }, []);
+  }, [initialResumeId]);
+
+  useEffect(() => {
+    if (initialJobDescription !== undefined) {
+      setJobDescription(initialJobDescription);
+      setResult(null);
+      setCheckedSuggestions({});
+    }
+  }, [initialJobDescription]);
+
+  useEffect(() => {
+    if (initialJobTitle !== undefined) {
+      setJobTitle(initialJobTitle);
+    }
+  }, [initialJobTitle]);
 
   const selectedResume = useMemo(
     () => resumes.find((r) => resumeIdOf(r) === selectedId),

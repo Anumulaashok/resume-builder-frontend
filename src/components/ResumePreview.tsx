@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { IResume, ThemeConfig } from "../types/resume";
 import {
+  ArrowPathIcon,
+  DocumentTextIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SwatchIcon,
@@ -8,7 +11,6 @@ import {
   PrinterIcon,
 } from "@heroicons/react/24/outline";
 import { motion } from "framer-motion";
-import toast from "react-hot-toast";
 import {
   FitToOnePageResult,
   ThemeCustomizationPanel,
@@ -23,6 +25,8 @@ import {
   getThemeStyles,
   resolveTemplateDefaultTheme,
 } from "../constants/themeConstants";
+import { resumeService } from "../services/resume.service";
+import { triggerFileDownload } from "../utils/download";
 import {
   getTemplate,
   mergeTemplateTheme,
@@ -36,6 +40,10 @@ interface ResumePreviewProps {
   resume: IResume;
   onChange?: (resume: IResume) => void;
   readOnly?: boolean;
+  onDownloadPdf?: () => void;
+  isPrinting?: boolean;
+  onExportTxt?: () => Promise<void> | void;
+  isExportingTxt?: boolean;
 }
 
 function computeFitScale(
@@ -80,6 +88,10 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   resume,
   onChange,
   readOnly = false,
+  onDownloadPdf,
+  isPrinting = false,
+  onExportTxt,
+  isExportingTxt,
 }) => {
   const externalTemplateId =
     resume.templateId || (resume as any).template;
@@ -94,6 +106,8 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const [pageCount, setPageCount] = useState<number>(1);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
+  const [internalExportingTxt, setInternalExportingTxt] =
+    useState<boolean>(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -163,9 +177,47 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
   const effectiveScale = manualScale ?? fitScale;
   const isFitMode = manualScale === null;
+  const isTxtBusy =
+    isExportingTxt !== undefined ? isExportingTxt : internalExportingTxt;
 
   const handlePrint = () => {
-    window.print();
+    if (isPrinting) return;
+    if (onDownloadPdf) {
+      onDownloadPdf();
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.print === "function") {
+      window.print();
+    }
+  };
+
+  const handleDownloadTxt = async () => {
+    if (isTxtBusy) return;
+
+    if (onExportTxt) {
+      await onExportTxt();
+      return;
+    }
+
+    const resumeId = resume._id || (resume as { id?: string }).id;
+    if (!resumeId) {
+      toast.error("Please save your resume before exporting");
+      return;
+    }
+
+    setInternalExportingTxt(true);
+    try {
+      const exported = await resumeService.exportResumeTxt(
+        resumeId,
+        resume.title
+      );
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success("ATS plain text downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to export TXT resume");
+    } finally {
+      setInternalExportingTxt(false);
+    }
   };
 
   const handleZoomIn = () => {
@@ -457,11 +509,41 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
           <button
             type="button"
-            onClick={handlePrint}
-            className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 rounded-md shadow-sm text-white hover:bg-blue-700 transition-colors inline-flex items-center gap-1.5"
+            data-testid="export-txt-btn"
+            onClick={() => {
+              void handleDownloadTxt();
+            }}
+            disabled={isTxtBusy}
+            aria-busy={isTxtBusy}
+            title="Download ATS plain text (.txt)"
+            className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-white border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
           >
-            <PrinterIcon className="h-4 w-4" />
-            <span>Print</span>
+            {isTxtBusy ? (
+              <>
+                <ArrowPathIcon
+                  className="h-4 w-4 animate-spin text-blue-600"
+                  aria-hidden="true"
+                />
+                <span>Exporting TXT…</span>
+              </>
+            ) : (
+              <>
+                <DocumentTextIcon className="h-4 w-4" aria-hidden="true" />
+                <span>Download ATS text</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            data-testid="export-pdf-btn"
+            onClick={handlePrint}
+            disabled={isPrinting}
+            title="Print or save preview as A4 PDF"
+            className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 rounded-md shadow-sm text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+          >
+            <PrinterIcon className="h-4 w-4" aria-hidden="true" />
+            <span>Download PDF</span>
           </button>
         </div>
       </div>
@@ -471,6 +553,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
         isOpen={showTemplateGallery}
         activeTemplateId={activeTemplate.id}
         resume={resume}
+        customisedKeys={customisedKeysRef.current}
         onSelect={handleTemplateSelect}
         onClose={() => setShowTemplateGallery(false)}
       />

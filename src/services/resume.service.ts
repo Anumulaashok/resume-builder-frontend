@@ -1,6 +1,23 @@
-import { IResume as BaseResume, ISharing, IPrivacySettings } from "../types/resume";
+import {
+  IResume as BaseResume,
+  ISharing,
+  IPrivacySettings,
+  IShareStats,
+  ISlugAvailability,
+  IResumeHistorySummaryItem,
+  IResumeHistorySnapshot,
+} from "../types/resume";
 import axiosInstance from "../services/axios";
 import { JobMatchResult } from "../types/jobMatch";
+import {
+  buildFallbackExportFilename,
+  parseContentDispositionFilename,
+} from "../utils/download";
+
+export interface ExportedDocument {
+  blob: Blob;
+  filename: string;
+}
 
 export type Resume = BaseResume;
 
@@ -15,6 +32,11 @@ export interface ResumeWithMeta extends Resume {
 export interface AIGenerateResponse {
   success: boolean;
   data: ResumeWithMeta;
+}
+
+export interface RestoreResumeVersionResult {
+  resume: ResumeWithMeta;
+  previousSnapshotIndex?: number;
 }
 
 export function normalizeResumeIdentifiers<T extends Partial<Resume>>(
@@ -139,8 +161,16 @@ class ResumeService {
     const response = await axiosInstance.get<{
       success: boolean;
       data: Resume;
-    }>(`/api/resumes/share/${shareToken}`);
-    return response.data?.data;
+    }>(`/api/resumes/share/${encodeURIComponent(shareToken)}`);
+    return response?.data?.data as Resume;
+  }
+
+  async getPublicResumeBySlug(slug: string): Promise<Resume> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: Resume;
+    }>(`/api/public/r/${encodeURIComponent(slug)}`);
+    return response?.data?.data as Resume;
   }
 
   async getShareSettings(resumeId: string): Promise<ISharing> {
@@ -148,7 +178,41 @@ class ResumeService {
       success: boolean;
       data: ISharing;
     }>(`/api/resumes/${resumeId}/share`);
-    return response.data?.data;
+    return response?.data?.data as ISharing;
+  }
+
+  async getShareStats(resumeId: string): Promise<IShareStats> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: IShareStats;
+    }>(`/api/resumes/${resumeId}/sharing/stats`);
+    return response?.data?.data as IShareStats;
+  }
+
+  async checkSlugAvailability(
+    resumeId: string,
+    slug: string
+  ): Promise<ISlugAvailability> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: ISlugAvailability;
+    }>(
+      `/api/resumes/${resumeId}/sharing/slug/check?slug=${encodeURIComponent(
+        slug
+      )}`
+    );
+    return response?.data?.data as ISlugAvailability;
+  }
+
+  async updateShareSlug(
+    resumeId: string,
+    slug: string | null
+  ): Promise<ISharing> {
+    const response = await axiosInstance.patch<{
+      success: boolean;
+      data: ISharing;
+    }>(`/api/resumes/${resumeId}/sharing/slug`, { slug });
+    return response?.data?.data as ISharing;
   }
 
   async updateShareSettings(
@@ -165,6 +229,77 @@ class ResumeService {
       data: ISharing;
     }>(`/api/resumes/${resumeId}/share`, settings);
     return response.data?.data;
+  }
+
+  async getResumeHistory(resumeId: string): Promise<IResumeHistorySummaryItem[]> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: IResumeHistorySummaryItem[];
+    }>(`/api/resumes/${resumeId}/history`);
+    return response.data?.data || [];
+  }
+
+  async getResumeHistorySnapshot(
+    resumeId: string,
+    index: number
+  ): Promise<IResumeHistorySnapshot> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: IResumeHistorySnapshot;
+    }>(`/api/resumes/${resumeId}/history/${index}`);
+    return response.data?.data;
+  }
+
+  async restoreResumeVersion(
+    resumeId: string,
+    index: number
+  ): Promise<RestoreResumeVersionResult> {
+    const response = await axiosInstance.post<{
+      success: boolean;
+      data: ResumeWithMeta & { history?: unknown[] };
+      previousSnapshotIndex?: number;
+    }>(`/api/resumes/${resumeId}/history/${index}/restore`);
+
+    const payload = response.data;
+    const rawResume =
+      payload && typeof payload === "object" && "data" in payload
+        ? payload.data
+        : (payload as ResumeWithMeta & { history?: unknown[] });
+    const fallbackPrevIndex =
+      Array.isArray(rawResume?.history) && rawResume.history.length > 0
+        ? rawResume.history.length - 1
+        : undefined;
+    const previousSnapshotIndex =
+      typeof payload?.previousSnapshotIndex === "number"
+        ? payload.previousSnapshotIndex
+        : fallbackPrevIndex;
+
+    return {
+      resume: unwrapResumeResponse(payload),
+      previousSnapshotIndex,
+    };
+  }
+
+  async exportResumeTxt(
+    resumeId: string,
+    fallbackTitle?: string
+  ): Promise<ExportedDocument> {
+    const response = await axiosInstance.get<Blob>(
+      `/api/resumes/${resumeId}/export.txt`,
+      {
+        responseType: "blob",
+      }
+    );
+    const fallback = buildFallbackExportFilename(fallbackTitle, "txt");
+    const filename = parseContentDispositionFilename(
+      response.headers?.["content-disposition"],
+      fallback
+    );
+    const blob =
+      response.data instanceof Blob
+        ? response.data
+        : new Blob([response.data], { type: "text/plain;charset=utf-8" });
+    return { blob, filename };
   }
 }
 

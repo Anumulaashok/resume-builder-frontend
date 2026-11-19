@@ -77,11 +77,17 @@ export const ContactRow: React.FC<ContactRowProps> = ({
 
   const extraLinks = extractExtraBasicsLinks(basics as Record<string, any>);
 
-  const entries: Array<{ key: string; icon: React.ReactNode; content: React.ReactNode }> = [];
+  const entries: Array<{
+    key: string;
+    icon: React.ReactNode;
+    content: React.ReactNode;
+    isEmptyPlaceholder?: boolean;
+  }> = [];
 
   if (!isEmailHidden && (basics.email || !isReadOnly)) {
     entries.push({
       key: 'email',
+      isEmptyPlaceholder: !basics.email || !basics.email.trim(),
       icon: <EnvelopeIcon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />,
       content:
         isReadOnly && basics.email ? (
@@ -106,6 +112,7 @@ export const ContactRow: React.FC<ContactRowProps> = ({
   if (!isPhoneHidden && (basics.phone || !isReadOnly)) {
     entries.push({
       key: 'phone',
+      isEmptyPlaceholder: !basics.phone || !basics.phone.trim(),
       icon: <PhoneIcon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />,
       content:
         isReadOnly && basics.phone ? (
@@ -156,18 +163,20 @@ export const ContactRow: React.FC<ContactRowProps> = ({
 
   if (!entries.length && !showPhoto) return null;
 
+  const hasAnyNonEmptyEntry = entries.some((entry) => !entry.isEmptyPlaceholder);
+
   if (effectiveVariant === 'stacked-right' || effectiveVariant === 'stacked-left') {
     const isRight = effectiveVariant === 'stacked-right';
     return (
       <div
         className={`flex items-center gap-3 shrink-0 ${
           isRight ? 'sm:justify-end' : 'justify-start'
-        } ${className}`}
+        } ${!hasAnyNonEmptyEntry && !showPhoto ? 'print:hidden' : ''} ${className}`}
       >
         <div
           className={`text-xs text-slate-600 space-y-1 ${
             isRight ? 'sm:text-right' : 'text-left'
-          }`}
+          } ${!hasAnyNonEmptyEntry ? 'print:hidden' : ''}`}
           style={isAtsMode ? { color: '#111827' } : undefined}
         >
           {entries.map((entry) => (
@@ -175,7 +184,7 @@ export const ContactRow: React.FC<ContactRowProps> = ({
               key={entry.key}
               className={`flex items-center gap-1.5 ${
                 isRight ? 'sm:justify-end' : 'justify-start'
-              }`}
+              } ${entry.isEmptyPlaceholder ? 'print:hidden' : ''}`}
             >
               {effectiveShowIcons && !isRight && entry.icon}
               {entry.content}
@@ -193,22 +202,41 @@ export const ContactRow: React.FC<ContactRowProps> = ({
 
   return (
     <div
-      className={`text-xs text-slate-600 flex flex-wrap ${justifyClass} items-center gap-x-2.5 gap-y-1 ${className}`}
+      className={`text-xs text-slate-600 flex flex-wrap ${justifyClass} items-center gap-x-2.5 gap-y-1 ${
+        !hasAnyNonEmptyEntry && !showPhoto ? 'print:hidden' : ''
+      } ${className}`}
       style={isAtsMode ? { color: '#111827' } : undefined}
     >
-      {entries.map((entry, idx) => (
-        <React.Fragment key={entry.key}>
-          {idx > 0 && (
-            <span className="text-slate-400" aria-hidden="true">
-              •
+      {entries.map((entry, idx) => {
+        const hasPriorPrintVisibleEntry = entries
+          .slice(0, idx)
+          .some((prev) => !prev.isEmptyPlaceholder);
+        const hideSeparatorInPrint =
+          Boolean(entry.isEmptyPlaceholder) || !hasPriorPrintVisibleEntry;
+
+        return (
+          <React.Fragment key={entry.key}>
+            {idx > 0 && (
+              <span
+                className={`text-slate-400 ${
+                  hideSeparatorInPrint ? 'print:hidden' : ''
+                }`}
+                aria-hidden="true"
+              >
+                •
+              </span>
+            )}
+            <span
+              className={`inline-flex items-center gap-1 ${
+                entry.isEmptyPlaceholder ? 'print:hidden' : ''
+              }`}
+            >
+              {effectiveShowIcons && entry.icon}
+              {entry.content}
             </span>
-          )}
-          <span className="inline-flex items-center gap-1">
-            {effectiveShowIcons && entry.icon}
-            {entry.content}
-          </span>
-        </React.Fragment>
-      ))}
+          </React.Fragment>
+        );
+      })}
       {showPhoto && <ProfilePhoto />}
     </div>
   );

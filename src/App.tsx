@@ -21,13 +21,33 @@ export const getShareTokenFromLocation = (): string | null => {
   return searchParams.get('shareToken') || null;
 };
 
+export const getPublicSlugFromLocation = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname || '';
+  const match = path.match(/^\/r\/([a-zA-Z0-9_-]+)\/?$/);
+  if (match && match[1]) {
+    return match[1].toLowerCase();
+  }
+  const hash = window.location.hash || '';
+  const hashMatch = hash.match(/^#\/r\/([a-zA-Z0-9_-]+)\/?$/);
+  if (hashMatch && hashMatch[1]) {
+    return hashMatch[1].toLowerCase();
+  }
+  return null;
+};
+
 function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [user, setUser] = useState<StoredUser | null>(() =>
     isAuthenticated() ? getStoredUser() : null
   );
-  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(() =>
+    getShareTokenFromLocation()
+  );
+  const [publicSlug, setPublicSlug] = useState<string | null>(() =>
+    getPublicSlugFromLocation()
+  );
   const [showReauthModal, setShowReauthModal] = useState(false);
   const [reauthEmail, setReauthEmail] = useState<string>('');
   const isSmUp = useIsSmUp();
@@ -58,6 +78,7 @@ function App() {
       setReauthEmail(storedUser.email);
     }
     setShareToken(getShareTokenFromLocation());
+    setPublicSlug(getPublicSlugFromLocation());
 
     const unsubscribeExpired = authEventBus.onSessionExpired((detail) => {
       if (!authenticatedRef.current) return;
@@ -101,7 +122,9 @@ function App() {
     return (
       <div className="App w-full min-h-screen">
         <PortfolioPublicView />
-        <Toaster position={toastPosition} />
+        <div className="print:hidden">
+          <Toaster position={toastPosition} />
+        </div>
       </div>
     );
   }
@@ -110,12 +133,17 @@ function App() {
     setIsLogin(!isLogin);
   };
 
-  // If viewing via a public share link, render read-only public viewer without requiring authentication
-  if (shareToken) {
+  // If viewing via a public share link or custom slug (/r/:slug), render read-only public viewer without requiring authentication
+  if (shareToken || publicSlug) {
     return (
       <div className="App w-full min-h-screen">
-        <PublicResumeView shareToken={shareToken} />
-        <Toaster position={toastPosition} />
+        <PublicResumeView
+          shareToken={shareToken || undefined}
+          slug={publicSlug || undefined}
+        />
+        <div className="print:hidden">
+          <Toaster position={toastPosition} />
+        </div>
       </div>
     );
   }
@@ -148,7 +176,9 @@ function App() {
               setShowReauthModal(false);
             }}
           />
-          <Toaster position={toastPosition} />
+          <div className="print:hidden">
+            <Toaster position={toastPosition} />
+          </div>
         </div>
       </AuthModalContext.Provider>
     );

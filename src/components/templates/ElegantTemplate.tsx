@@ -37,15 +37,17 @@ const ElegantTemplateContent: React.FC = () => {
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
-  const monogram = extractMonogram(basics.name) || (readOnly ? '' : 'YN');
+  const realMonogram = extractMonogram(basics.name);
+  const monogram = realMonogram || (readOnly ? '' : 'YN');
   const showPhoto = shouldRenderProfilePhoto(
     resume,
     resume.themeConfig?.photo,
     atsMode
   );
   const summaryValue = basics.summary ?? resume.summary ?? '';
+  const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
-    ? Boolean(summaryValue && summaryValue.trim())
+    ? hasSummaryText
     : basics.summary !== undefined || resume.summary !== undefined;
 
   const orderedSections = getOrderedSections(
@@ -83,7 +85,7 @@ const ElegantTemplateContent: React.FC = () => {
 
         {!atsMode && !showPhoto && monogram && (
           <div
-            className="flex items-center justify-center gap-3 mb-3"
+            className={`flex items-center justify-center gap-3 mb-3 ${!realMonogram ? 'print:hidden' : ''}`}
             aria-hidden="true"
           >
             <span
@@ -181,7 +183,7 @@ const ElegantTemplateContent: React.FC = () => {
 
       {showSummary && (
         <section
-          className="break-inside-avoid"
+          className={`break-inside-avoid ${!hasSummaryText ? 'print:hidden' : ''}`}
           style={{
             marginBottom:
               orderedSections.length > 0

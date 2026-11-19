@@ -673,7 +673,17 @@ describe("4. ATS Mode Toggle", () => {
     expect(pageEl.style.getPropertyValue("--theme-primary")).toBe("#7c3aed");
   });
 
-  it.each(["tech-split", "executive-two-column", "timeline", "bold-header"])(
+  it.each([
+    "tech-split",
+    "executive-two-column",
+    "timeline",
+    "bold-header",
+    "accent-sidebar",
+    "banded",
+    "developer",
+    "startup",
+    "academic",
+  ])(
     "collapses multi-column/decorative structure in '%s' when ATS mode is enabled",
     (templateId) => {
       const resume = buildResume({
@@ -706,6 +716,12 @@ describe("4. ATS Mode Toggle", () => {
       ).not.toBeInTheDocument();
       expect(
         within(pageEl).queryByTestId("bold-header-banner")
+      ).not.toBeInTheDocument();
+      expect(
+        within(pageEl).queryByTestId("accent-sidebar-print-bg")
+      ).not.toBeInTheDocument();
+      expect(
+        within(pageEl).queryByTestId("startup-two-tone-header")
       ).not.toBeInTheDocument();
       expect(within(pageEl).getByText("Maya Lin")).toBeInTheDocument();
       expect(within(pageEl).getByText("Northstar Cloud")).toBeInTheDocument();
