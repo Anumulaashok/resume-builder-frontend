@@ -460,10 +460,10 @@ const StartupTemplateContent: React.FC = () => {
         }
       >
         <main
-          className="flex-1 min-w-0 print:!py-0"
-          style={{ padding: 'var(--theme-page-margin, 1.25cm)' }}
+          className="flex-1 min-w-0 max-w-full [overflow-wrap:anywhere] print:!py-0"
+          style={{ padding: 'var(--theme-page-margin, 1.25cm)', overflowWrap: 'anywhere' }}
         >
-          <table role="presentation" className="w-full border-collapse">
+          <table role="presentation" className="w-full table-fixed border-collapse">
             <thead aria-hidden="true" className="hidden print:table-header-group">
               <tr>
                 <td
@@ -547,13 +547,14 @@ const StartupTemplateContent: React.FC = () => {
         {hasSidebarSections && (
           <aside
             data-testid="startup-sidebar"
-            className="shrink-0 print:!py-0"
+            className="shrink-0 min-w-0 max-w-full [overflow-wrap:anywhere] print:!py-0"
             style={{
               width: 'var(--theme-sidebar-width, 32%)',
               padding: 'var(--theme-page-margin, 1.25cm)',
+              overflowWrap: 'anywhere',
             }}
           >
-            <table role="presentation" className="w-full border-collapse">
+            <table role="presentation" className="w-full table-fixed border-collapse">
               <thead aria-hidden="true" className="hidden print:table-header-group">
                 <tr>
                   <td
@@ -564,10 +565,11 @@ const StartupTemplateContent: React.FC = () => {
               </thead>
               <tbody>
                 <tr>
-                  <td className="p-0 align-top">
+                  <td className="p-0 align-top w-full max-w-full">
                     <SectionRenderer
                       filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
                       tone="modern"
+                      narrow
                     />
                   </td>
                 </tr>

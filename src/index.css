@@ -28,7 +28,7 @@
     transition: transform 200ms ease;
   }
 
-  /* Print styles for the resume preview */
+  /* Print styles for the resume and cover letter previews */
   @media print {
     @page {
       size: A4;
@@ -55,6 +55,19 @@
       box-shadow: none !important;
       page-break-after: always;
       transform: scale(1) !important;
+    }
+
+    .cover-letter-print-sheet {
+      width: 21cm !important;
+      min-height: 29.7cm !important;
+      margin: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: white !important;
+      box-shadow: none !important;
+      transform: none !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
   }
 }

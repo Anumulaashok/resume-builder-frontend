@@ -113,10 +113,11 @@ const AccentSidebarContent: React.FC = () => {
 
       <aside
         data-testid="accent-sidebar-aside"
-        className="relative z-10 text-white [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-white/15 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
+        className="relative z-10 min-w-0 max-w-full [overflow-wrap:anywhere] text-white [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-white/15 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
         style={{
           backgroundColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
           padding: 'var(--theme-page-margin, 1.25cm)',
+          overflowWrap: 'anywhere',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
         }}
@@ -159,6 +160,7 @@ const AccentSidebarContent: React.FC = () => {
             filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
             tone="modern"
             accentHeadingBorder
+            narrow
           />
         </div>
       </aside>
