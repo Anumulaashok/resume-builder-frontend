@@ -287,6 +287,55 @@ describe("ResumeEditor light theme, layout, and bindings", () => {
       secondary: "Tech Lead · Mar 2020 – Aug 2023",
     });
   });
+
+  it("initializes new work experience items with empty string startDate and endDate and previews cleanly", async () => {
+    (resumeService.updateResume as jest.Mock).mockResolvedValueOnce({
+      _id: "res-101",
+    });
+
+    render(<ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add item to Professional Experience" })
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Professional Experience" });
+    const startDateInput = within(dialog).getByLabelText("Start Date") as HTMLInputElement;
+    const endDateInput = within(dialog).getByLabelText("End Date") as HTMLInputElement;
+
+    expect(startDateInput.value).toBe("");
+    expect(endDateInput.value).toBe("");
+
+    fireEvent.change(within(dialog).getByLabelText("Company"), {
+      target: { value: "Initech" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Position / Role"), {
+      target: { value: "Staff Engineer" },
+    });
+
+    // Save with untouched empty dates and verify startDate/endDate are persisted as "" strings (not {})
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    const toolbar = screen.getByTestId("resume-editor-toolbar");
+    fireEvent.click(within(toolbar).getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(resumeService.updateResume).toHaveBeenCalledTimes(1);
+    });
+
+    const savedPayload = (resumeService.updateResume as jest.Mock).mock.calls[0][1];
+    const workSection = savedPayload.content.sections.find(
+      (s: any) => s.id === "sec-work-1"
+    );
+    const createdWorkItem = workSection.content.find(
+      (item: any) => item.company === "Initech"
+    );
+
+    expect(createdWorkItem).toBeDefined();
+    expect(createdWorkItem.startDate).toBe("");
+    expect(createdWorkItem.endDate).toBe("");
+    expect(typeof createdWorkItem.startDate).toBe("string");
+    expect(typeof createdWorkItem.endDate).toBe("string");
+  });
 });
 
 describe("ResumeEditor autosave, toolbar status indicator, flush, and serialization", () => {
@@ -648,5 +697,144 @@ describe("ResumeEditor autosave, toolbar status indicator, flush, and serializat
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+});
+
+describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
+  const originalMatchMedia = window.matchMedia;
+  const originalPrint = window.print;
+  let printSpy: jest.Mock;
+
+  const mockViewport = (isDesktopViewport: boolean) => {
+    window.matchMedia = jest.fn().mockImplementation((query: string) => ({
+      matches: isDesktopViewport,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    printSpy = jest.fn();
+    Object.defineProperty(window, "print", {
+      configurable: true,
+      writable: true,
+      value: printSpy,
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    window.matchMedia = originalMatchMedia;
+    Object.defineProperty(window, "print", {
+      configurable: true,
+      writable: true,
+      value: originalPrint,
+    });
+  });
+
+  it("calls window.print when clicking the desktop toolbar Export button and closes the overflow menu", () => {
+    mockViewport(true);
+
+    render(
+      <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
+    );
+
+    expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    const exportBtn = screen.getByRole("menuitem", { name: /export/i });
+    fireEvent.click(exportBtn);
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("menuitem", { name: /export/i })
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
+  });
+
+  it("switches activeView to preview mode before calling window.print when clicking Export on mobile from the Editor tab", () => {
+    mockViewport(false);
+
+    let previewMountedDuringPrint = false;
+    printSpy.mockImplementation(() => {
+      previewMountedDuringPrint = Boolean(
+        document.querySelector('[data-testid="resume-preview-page"]')
+      );
+    });
+
+    render(
+      <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
+    );
+
+    // Initially on mobile Editor tab: preview page is not mounted
+    expect(
+      screen.queryByTestId("resume-preview-page")
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Full Name")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(previewMountedDuringPrint).toBe(true);
+    expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Full Name")).not.toBeInTheDocument();
+  });
+
+  it("calls window.print directly on mobile when Preview tab is already active", () => {
+    mockViewport(false);
+
+    render(
+      <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^preview$/i }));
+    expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
+  });
+
+  it("disables and debounces repeated Export clicks to prevent overlapping print dialogs, then re-enables after cooldown", () => {
+    mockViewport(true);
+
+    render(
+      <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
+    );
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    const firstExportBtn = screen.getByRole("menuitem", { name: /export/i });
+
+    // Rapid double-click on the same button instance
+    fireEvent.click(firstExportBtn);
+    fireEvent.click(firstExportBtn);
+    expect(printSpy).toHaveBeenCalledTimes(1);
+
+    // Re-opening overflow menu during cooldown shows Export disabled and blocks click
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    const cooldownExportBtn = screen.getByRole("menuitem", { name: /export/i });
+    expect(cooldownExportBtn).toBeDisabled();
+    fireEvent.click(cooldownExportBtn);
+    expect(printSpy).toHaveBeenCalledTimes(1);
+
+    // After cooldown window elapses, Export re-enables and allows printing again
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(cooldownExportBtn).not.toBeDisabled();
+    fireEvent.click(cooldownExportBtn);
+    expect(printSpy).toHaveBeenCalledTimes(2);
   });
 });

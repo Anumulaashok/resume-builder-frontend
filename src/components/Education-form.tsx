@@ -11,7 +11,19 @@ import {
   SelectValue,
 } from "./ui/select";
 import { LinkIcon } from "@heroicons/react/24/outline";
-import { EducationItem } from "../types/resume";
+import { dateFields, EducationItem } from "../types/resume";
+
+const EMPTY_DATE: dateFields = { month: "", year: "" };
+
+const normalizeDateFields = (date?: Partial<dateFields> | null): dateFields => {
+  if (!date || typeof date !== "object") {
+    return { ...EMPTY_DATE };
+  }
+  return {
+    month: typeof date.month === "string" ? date.month : "",
+    year: typeof date.year === "string" ? date.year : "",
+  };
+};
 
 const MONTHS = [
   { value: "Jan", label: "January" },
@@ -108,7 +120,11 @@ export default function EducationForm({
   );
 
   const handleSave = () => {
-    onSave(content);
+    onSave({
+      ...content,
+      startDate: normalizeDateFields(content.startDate),
+      endDate: normalizeDateFields(content.endDate),
+    });
   };
 
   const handleChange = (field: keyof EducationItem | string, value: any) => {
@@ -190,16 +206,22 @@ export default function EducationForm({
               selectedMonth={content.startDate?.month}
               selectedYear={content.startDate?.year}
               onMonthChange={(value) =>
-                handleChange("startDate", {
-                  ...(content.startDate || { month: "", year: "" }),
-                  month: value,
-                })
+                setContent((prevContent) => ({
+                  ...prevContent,
+                  startDate: {
+                    ...normalizeDateFields(prevContent.startDate),
+                    month: value,
+                  },
+                }))
               }
               onYearChange={(value) =>
-                handleChange("startDate", {
-                  ...(content.startDate || { month: "", year: "" }),
-                  year: value,
-                })
+                setContent((prevContent) => ({
+                  ...prevContent,
+                  startDate: {
+                    ...normalizeDateFields(prevContent.startDate),
+                    year: value,
+                  },
+                }))
               }
             />
           </div>
@@ -212,16 +234,22 @@ export default function EducationForm({
               selectedYear={content.endDate?.year}
               disabled={Boolean(content.current)}
               onMonthChange={(value) =>
-                handleChange("endDate", {
-                  ...(content.endDate || { month: "", year: "" }),
-                  month: value,
-                })
+                setContent((prevContent) => ({
+                  ...prevContent,
+                  endDate: {
+                    ...normalizeDateFields(prevContent.endDate),
+                    month: value,
+                  },
+                }))
               }
               onYearChange={(value) =>
-                handleChange("endDate", {
-                  ...(content.endDate || { month: "", year: "" }),
-                  year: value,
-                })
+                setContent((prevContent) => ({
+                  ...prevContent,
+                  endDate: {
+                    ...normalizeDateFields(prevContent.endDate),
+                    year: value,
+                  },
+                }))
               }
             />
             <label className="mt-2 inline-flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
