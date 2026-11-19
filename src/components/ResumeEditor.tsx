@@ -977,6 +977,25 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     };
   }, [showOverflowMenu]);
 
+  useEffect(() => {
+    if (!showSectionModal && !showCustomSectionModal) return;
+    const handleModalEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        event.preventDefault();
+        if (showCustomSectionModal) {
+          setShowCustomSectionModal(false);
+        } else if (showSectionModal) {
+          setShowSectionModal(false);
+          setSearchTerm("");
+        }
+      }
+    };
+    document.addEventListener("keydown", handleModalEscape);
+    return () => {
+      document.removeEventListener("keydown", handleModalEscape);
+    };
+  }, [showSectionModal, showCustomSectionModal]);
+
   const sensors = useSensors(
     useSensor(TouchSensor, {
       activationConstraint: {
@@ -2072,6 +2091,19 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                       Create a custom section to combine different elements or
                       add something unique.
                     </p>
+                  </button>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSectionModal(false);
+                      setSearchTerm("");
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
