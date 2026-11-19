@@ -1,11 +1,13 @@
 import React from 'react';
-import { DocumentTextIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, GlobeAltIcon, SparklesIcon } from '@heroicons/react/24/outline';
+
+export type AppTab = 'resumes' | 'job-match' | 'portfolios';
 
 interface HeaderProps {
   showLogout?: boolean;
   onLogout?: () => void;
-  activeTab?: 'resumes' | 'portfolios';
-  onTabChange?: (tab: 'resumes' | 'portfolios') => void;
+  activeTab?: AppTab;
+  onTabChange?: (tab: AppTab) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -37,6 +39,17 @@ const Header: React.FC<HeaderProps> = ({
                 >
                   <DocumentTextIcon className="w-4 h-4" />
                   <span>Resumes</span>
+                </button>
+                <button
+                  onClick={() => onTabChange('job-match')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center space-x-1.5 ${
+                    activeTab === 'job-match'
+                      ? 'bg-blue-50 text-blue-700 font-semibold'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <SparklesIcon className="w-4 h-4" />
+                  <span>Job Match</span>
                 </button>
                 <button
                   onClick={() => onTabChange('portfolios')}
