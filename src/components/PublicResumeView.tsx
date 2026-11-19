@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { resumeService } from "../services/resume.service";
 import { IResume } from "../types/resume";
 import { A4_WIDTH_PX, A4_HEIGHT_PX } from "./ResumePreview";
-import { ModernTemplate } from "./templates/ModernTemplate";
-import { ProfessionalTemplate } from "./templates/ProfessionalTemplate";
+import { getTemplate } from "./templates/registry";
 import { getThemeStyles } from "../constants/themeConstants";
 import { Container } from "./ui/container";
 import { Skeleton } from "./ui/skeleton";
@@ -23,11 +22,6 @@ interface PublicResumeViewProps {
 
 const DEFAULT_ERROR_MESSAGE =
   "This shared resume link is invalid, has expired, or has been revoked by the owner.";
-
-const templates = [
-  { id: "modern", component: ModernTemplate },
-  { id: "professional", component: ProfessionalTemplate },
-];
 
 function computeFitScale(availableWidth: number): number {
   if (!availableWidth || availableWidth <= 0) {
@@ -375,10 +369,12 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     );
   }
 
-  const ActiveTemplateComponent =
-    templates.find((t) => t.id === normalizedTemplateId)?.component ||
-    ModernTemplate;
-  const themeStyles = getThemeStyles(resume.themeConfig);
+  const activeTemplate = getTemplate(normalizedTemplateId);
+  const ActiveTemplateComponent = activeTemplate.component;
+  const themeStyles = getThemeStyles(
+    resume.themeConfig,
+    activeTemplate.defaultTheme
+  );
   const scaledWidth = Math.round(A4_WIDTH_PX * fitScale);
   const scaledHeight = Math.round(pageHeight * fitScale);
 

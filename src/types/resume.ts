@@ -3,10 +3,18 @@ export interface ThemeConfig {
   headingFont?: string;
   bodyFont?: string;
   primaryColor?: string;
+  accentColor?: string;
   textColor?: string;
   headingColor?: string;
+  fontScale?: number;
+  lineHeight?: number;
   sectionSpacing?: 'compact' | 'normal' | 'spacious' | string;
   fontSize?: 'sm' | 'base' | 'lg' | string;
+  pageMargins?: 'narrow' | 'normal' | 'wide';
+  headingStyle?: 'underline' | 'bar' | 'caps' | 'pill' | 'side-label';
+  skillStyle?: 'chips' | 'comma' | 'bars' | 'dots' | 'columns';
+  sidebarWidth?: number | string;
+  dateFormat?: 'MMM YYYY' | 'MM/YYYY' | 'YYYY';
 }
 
 export interface IPrivacySettings {

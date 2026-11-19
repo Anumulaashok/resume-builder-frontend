@@ -23,6 +23,50 @@ export interface SpacingOption {
   description: string;
 }
 
+export type PageMarginPreset = 'narrow' | 'normal' | 'wide';
+export type HeadingStyleOptionId = 'underline' | 'bar' | 'caps' | 'pill' | 'side-label';
+export type SkillStyleOptionId = 'chips' | 'comma' | 'bars' | 'dots' | 'columns';
+export type DateFormatOptionId = 'MMM YYYY' | 'MM/YYYY' | 'YYYY';
+
+export interface PageMarginOption {
+  id: PageMarginPreset;
+  name: string;
+  value: string;
+}
+
+export interface StyleVariantOption<T extends string> {
+  id: T;
+  name: string;
+}
+
+export const pageMarginOptions: PageMarginOption[] = [
+  { id: 'narrow', name: 'Narrow', value: '1.25cm' },
+  { id: 'normal', name: 'Normal', value: '1.75cm' },
+  { id: 'wide', name: 'Wide', value: '2.25cm' },
+];
+
+export const headingStyleOptions: StyleVariantOption<HeadingStyleOptionId>[] = [
+  { id: 'underline', name: 'Underline' },
+  { id: 'bar', name: 'Accent Bar' },
+  { id: 'caps', name: 'Minimal Caps' },
+  { id: 'pill', name: 'Pill Badge' },
+  { id: 'side-label', name: 'Side Rule' },
+];
+
+export const skillStyleOptions: StyleVariantOption<SkillStyleOptionId>[] = [
+  { id: 'chips', name: 'Chips' },
+  { id: 'comma', name: 'Inline' },
+  { id: 'bars', name: 'Bars' },
+  { id: 'dots', name: 'Dots' },
+  { id: 'columns', name: 'Columns' },
+];
+
+export const dateFormatOptions: StyleVariantOption<DateFormatOptionId>[] = [
+  { id: 'MMM YYYY', name: 'MMM YYYY' },
+  { id: 'MM/YYYY', name: 'MM/YYYY' },
+  { id: 'YYYY', name: 'YYYY' },
+];
+
 export const fontPairingOptions: FontPairingOption[] = [
   {
     id: 'modern-sans',
@@ -100,24 +144,108 @@ export const defaultThemeConfig: ThemeConfig = {
   fontSize: 'base',
 };
 
-export function getThemeStyles(themeConfig?: ThemeConfig): React.CSSProperties {
-  const activeTheme = { ...defaultThemeConfig, ...(themeConfig || {}) };
-  const spacing =
-    spacingOptions.find((s) => s.id === activeTheme.sectionSpacing) || spacingOptions[1];
+export function resolveSidebarWidthCss(sidebarWidth?: number | string): string {
+  if (sidebarWidth === undefined || sidebarWidth === null || sidebarWidth === '') {
+    return '32%';
+  }
+  if (typeof sidebarWidth === 'number') {
+    return sidebarWidth <= 60 ? `${sidebarWidth}%` : `${sidebarWidth}px`;
+  }
+  const trimmed = String(sidebarWidth).trim();
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    const num = Number(trimmed);
+    return num <= 60 ? `${num}%` : `${num}px`;
+  }
+  return trimmed;
+}
+
+export function resolveTemplateDefaultTheme(
+  templateDefaults?: Partial<ThemeConfig>
+): ThemeConfig {
+  if (!templateDefaults) {
+    return { ...defaultThemeConfig };
+  }
+  const merged: ThemeConfig = {
+    ...defaultThemeConfig,
+    ...templateDefaults,
+  };
+  if (templateDefaults.fontPairingId && !templateDefaults.headingFont && !templateDefaults.bodyFont) {
+    const pairing = fontPairingOptions.find((f) => f.id === templateDefaults.fontPairingId);
+    if (pairing) {
+      merged.headingFont = pairing.headingFont;
+      merged.bodyFont = pairing.bodyFont;
+    }
+  }
+  if (templateDefaults.primaryColor && !templateDefaults.headingColor) {
+    merged.headingColor = templateDefaults.primaryColor;
+  }
+  return merged;
+}
+
+export function getThemeStyles(
+  themeConfig?: ThemeConfig,
+  templateDefaults?: Partial<ThemeConfig>
+): React.CSSProperties {
+  const activeTheme: ThemeConfig = {
+    ...defaultThemeConfig,
+    ...(templateDefaults || {}),
+    ...(themeConfig || {}),
+  };
+
+  const spacingPreset = spacingOptions.find((s) => s.id === activeTheme.sectionSpacing);
+  const sectionSpacingCss = spacingPreset
+    ? spacingPreset.sectionSpacing
+    : typeof activeTheme.sectionSpacing === 'string' && activeTheme.sectionSpacing.trim()
+    ? activeTheme.sectionSpacing.trim()
+    : spacingOptions[1].sectionSpacing;
+  const itemSpacingCss = spacingPreset
+    ? spacingPreset.itemSpacing
+    : spacingOptions[1].itemSpacing;
+
   const fontPairing =
     fontPairingOptions.find((f) => f.id === activeTheme.fontPairingId) || fontPairingOptions[0];
 
-  const headingFont = activeTheme.headingFont || fontPairing.headingFont;
-  const bodyFont = activeTheme.bodyFont || fontPairing.bodyFont;
+  const explicitHeadingFont = themeConfig?.headingFont ?? templateDefaults?.headingFont;
+  const explicitBodyFont = themeConfig?.bodyFont ?? templateDefaults?.bodyFont;
+
+  const headingFont = explicitHeadingFont || fontPairing.headingFont;
+  const bodyFont = explicitBodyFont || fontPairing.bodyFont;
   const primaryColor = activeTheme.primaryColor || '#1e293b';
+  const accentColor = activeTheme.accentColor || primaryColor;
+  const headingColor =
+    themeConfig?.headingColor ??
+    templateDefaults?.headingColor ??
+    (themeConfig?.primaryColor ? themeConfig.primaryColor : activeTheme.headingColor || primaryColor);
+
+  const fontScale =
+    typeof activeTheme.fontScale === 'number' && !Number.isNaN(activeTheme.fontScale)
+      ? activeTheme.fontScale
+      : 1;
+  const lineHeight =
+    typeof activeTheme.lineHeight === 'number' && !Number.isNaN(activeTheme.lineHeight)
+      ? activeTheme.lineHeight
+      : 1.5;
+
+  const marginPreset =
+    pageMarginOptions.find((m) => m.id === activeTheme.pageMargins) || pageMarginOptions[1];
+  const sidebarWidthCss = resolveSidebarWidthCss(activeTheme.sidebarWidth);
 
   return {
     '--theme-primary': primaryColor,
+    '--theme-accent': accentColor,
     '--theme-heading-font': headingFont,
     '--theme-body-font': bodyFont,
-    '--theme-section-spacing': spacing.sectionSpacing,
-    '--theme-item-spacing': spacing.itemSpacing,
+    '--theme-font-scale': String(fontScale),
+    '--theme-base-font-size': `${Number((13.5 * fontScale).toFixed(2))}px`,
+    '--theme-line-height': String(lineHeight),
+    '--theme-section-spacing': sectionSpacingCss,
+    '--theme-item-spacing': itemSpacingCss,
+    '--theme-page-margin': marginPreset.value,
+    '--theme-sidebar-width': sidebarWidthCss,
+    '--theme-heading-style': activeTheme.headingStyle || 'underline',
+    '--theme-skill-style': activeTheme.skillStyle || 'chips',
+    '--theme-date-format': activeTheme.dateFormat || 'MMM YYYY',
     '--theme-text-color': activeTheme.textColor || '#374151',
-    '--theme-heading-color': activeTheme.headingColor || primaryColor,
+    '--theme-heading-color': headingColor,
   } as React.CSSProperties;
 }
