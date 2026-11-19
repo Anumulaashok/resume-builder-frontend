@@ -4,64 +4,240 @@ import { formatResumeDate } from '../../utils/date';
 export type CanonicalSectionKind =
   | 'work'
   | 'education'
-  | 'projects'
   | 'skills'
-  | 'other';
+  | 'technical_skills'
+  | 'soft_skills'
+  | 'languages'
+  | 'certificates'
+  | 'interests'
+  | 'projects'
+  | 'courses'
+  | 'awards'
+  | 'organizations'
+  | 'publications'
+  | 'references'
+  | 'achievements'
+  | 'custom';
 
-const WORK_TYPES = new Set([
-  SectionType.WORK.toLowerCase(),
-  'work',
-  'experience',
-  'workexperience',
-  'work_experience',
-  'professional_experience',
-  'employment',
-]);
+const SECTION_KIND_ALIASES: Array<[CanonicalSectionKind, string[]]> = [
+  [
+    'work',
+    [
+      SectionType.WORK.toLowerCase(),
+      'work',
+      'experience',
+      'workexperience',
+      'work_experience',
+      'professional_experience',
+      'employment',
+    ],
+  ],
+  [
+    'education',
+    [
+      SectionType.EDUCATION.toLowerCase(),
+      'education',
+      'academics',
+      'academic',
+    ],
+  ],
+  [
+    'technical_skills',
+    [
+      SectionType.TECK_SKILLS.toLowerCase(),
+      'technicalskills',
+      'technical_skills',
+      'techskills',
+      'tech_skills',
+      'teck_skills',
+    ],
+  ],
+  [
+    'soft_skills',
+    [
+      SectionType.SOFTSKILSS.toLowerCase(),
+      'softskills',
+      'soft_skills',
+      'softskilss',
+      'interpersonal_skills',
+    ],
+  ],
+  [
+    'skills',
+    [
+      SectionType.SKILLS.toLowerCase(),
+      'skill',
+      'skills',
+      'competencies',
+    ],
+  ],
+  [
+    'languages',
+    [
+      SectionType.LANGUAGES.toLowerCase(),
+      'language',
+      'languages',
+    ],
+  ],
+  [
+    'certificates',
+    [
+      SectionType.CERTIFICATES.toLowerCase(),
+      'certificate',
+      'certificates',
+      'certification',
+      'certifications',
+      'licenses',
+    ],
+  ],
+  [
+    'interests',
+    [
+      SectionType.INTERESTS.toLowerCase(),
+      'interest',
+      'interests',
+      'hobbies',
+    ],
+  ],
+  [
+    'projects',
+    [
+      SectionType.PROJECTS.toLowerCase(),
+      'project',
+      'projects',
+    ],
+  ],
+  [
+    'courses',
+    [
+      SectionType.COURSES.toLowerCase(),
+      'course',
+      'courses',
+      'coursework',
+      'training',
+    ],
+  ],
+  [
+    'awards',
+    [
+      SectionType.AWARDS.toLowerCase(),
+      'award',
+      'awards',
+      'honors',
+      'honours',
+    ],
+  ],
+  [
+    'organizations',
+    [
+      SectionType.ORGANIZATIONS.toLowerCase(),
+      'organization',
+      'organizations',
+      'organisation',
+      'organisations',
+      'volunteer',
+      'volunteering',
+      'affiliations',
+    ],
+  ],
+  [
+    'publications',
+    [
+      SectionType.PUBLICATIONS.toLowerCase(),
+      'publication',
+      'publications',
+      'papers',
+    ],
+  ],
+  [
+    'references',
+    [
+      SectionType.REFERENCES.toLowerCase(),
+      'reference',
+      'references',
+    ],
+  ],
+  [
+    'achievements',
+    [
+      SectionType.ACHIVEMENTS.toLowerCase(),
+      'achievement',
+      'achievements',
+      'achivements',
+      'accomplishments',
+    ],
+  ],
+  [
+    'custom',
+    [
+      SectionType.CUSTOM.toLowerCase(),
+      'custom',
+      'other',
+    ],
+  ],
+];
 
-const EDUCATION_TYPES = new Set([
-  SectionType.EDUCATION.toLowerCase(),
-  'education',
-  'academics',
-]);
-
-const PROJECT_TYPES = new Set([
-  SectionType.PROJECTS.toLowerCase(),
-  'project',
-  'projects',
-]);
-
-const SKILL_TYPES = new Set([
-  SectionType.SKILLS.toLowerCase(),
-  SectionType.TECK_SKILLS.toLowerCase(),
-  SectionType.SOFTSKILSS.toLowerCase(),
-  'skill',
-  'skills',
-  'technicalskills',
-  'technical_skills',
-  'softskills',
-  'soft_skills',
-]);
+const KIND_LOOKUP = new Map<string, CanonicalSectionKind>();
+SECTION_KIND_ALIASES.forEach(([kind, aliases]) => {
+  aliases.forEach((alias) => {
+    KIND_LOOKUP.set(alias, kind);
+  });
+});
 
 export function resolveSectionKind(section: ISection): CanonicalSectionKind {
-  const rawType = (section.type ?? '').toString().trim().toLowerCase();
+  if (!section) return 'custom';
 
-  if (WORK_TYPES.has(rawType)) return 'work';
-  if (EDUCATION_TYPES.has(rawType)) return 'education';
-  if (PROJECT_TYPES.has(rawType)) return 'projects';
-  if (SKILL_TYPES.has(rawType)) return 'skills';
+  const rawType = safeString(section.type).trim().toLowerCase();
+  const matchedByType = KIND_LOOKUP.get(rawType);
+  if (matchedByType && matchedByType !== 'custom') {
+    return matchedByType;
+  }
 
   // Fallback inference when generic/custom type strings come from external/AI payloads
-  const rawId = (section.id ?? '').toString().trim().toLowerCase();
-  if (WORK_TYPES.has(rawId)) return 'work';
-  if (EDUCATION_TYPES.has(rawId)) return 'education';
-  if (PROJECT_TYPES.has(rawId)) return 'projects';
-  if (SKILL_TYPES.has(rawId)) return 'skills';
+  const rawId = safeString(section.id).trim().toLowerCase();
+  const matchedById = KIND_LOOKUP.get(rawId);
+  if (matchedById) {
+    return matchedById;
+  }
 
-  return 'other';
+  if (matchedByType) {
+    return matchedByType;
+  }
+
+  return 'custom';
 }
 
-export function formatItemDateRange(item: Record<string, any>): string {
-  if (!item) return '';
+export function safeString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}
+
+export function formatSkillLevel(level: unknown): string {
+  if (level === null || level === undefined) return '';
+  if (typeof level === 'string') {
+    return level.trim();
+  }
+  if (typeof level === 'number' && Number.isFinite(level) && level > 0) {
+    if (level <= 5) {
+      return `Level ${level}/5`;
+    }
+    return `${Math.min(100, Math.round(level))}%`;
+  }
+  return '';
+}
+
+export function parseSkillLevelInput(rawValue: string): string | number {
+  const trimmed = rawValue.trim();
+  if (!trimmed) return '';
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  return trimmed;
+}
+
+export function formatItemDateRange(item: Record<string, any> | null | undefined): string {
+  if (!item || typeof item !== 'object') return '';
 
   const start = formatResumeDate(item.startDate);
   const end = formatResumeDate(item.endDate);
@@ -91,6 +267,60 @@ export function formatItemDateRange(item: Record<string, any>): string {
   return '';
 }
 
+export function parseDateRangePatch(
+  rawValue: string,
+  currentItem?: Record<string, any>
+): Record<string, any> {
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    if (currentItem && currentItem.date !== undefined && currentItem.startDate === undefined) {
+      return { date: '' };
+    }
+    return { startDate: '', endDate: '', current: false };
+  }
+
+  const separatorMatch = trimmed.match(/\s+(?:-|–|—|to)\s+/i);
+  if (separatorMatch && separatorMatch.index !== undefined) {
+    const startPart = trimmed.slice(0, separatorMatch.index).trim();
+    const endPart = trimmed
+      .slice(separatorMatch.index + separatorMatch[0].length)
+      .trim();
+    const isPresent = /^present|current|now|ongoing$/i.test(endPart);
+    return {
+      startDate: startPart,
+      endDate: isPresent ? '' : endPart,
+      current: isPresent,
+    };
+  }
+
+  if (currentItem && currentItem.date !== undefined && currentItem.startDate === undefined) {
+    return { date: trimmed };
+  }
+
+  return {
+    startDate: trimmed,
+    endDate: '',
+    current: false,
+  };
+}
+
+export function buildSyncedFieldPatch(
+  item: Record<string, any> | null | undefined,
+  primaryField: string,
+  value: any,
+  aliasFields: string[] = []
+): Record<string, any> {
+  const patch: Record<string, any> = { [primaryField]: value };
+  if (item && typeof item === 'object') {
+    aliasFields.forEach((alias) => {
+      if (alias !== primaryField && item[alias] !== undefined) {
+        patch[alias] = value;
+      }
+    });
+  }
+  return patch;
+}
+
 export function formatItemLocation(location: unknown): string {
   if (!location) return '';
   if (typeof location === 'string') return location.trim();
@@ -104,8 +334,8 @@ export function formatItemLocation(location: unknown): string {
   return '';
 }
 
-export function extractKeywords(item: Record<string, any>): string[] {
-  if (!item) return [];
+export function extractKeywords(item: Record<string, any> | null | undefined): string[] {
+  if (!item || typeof item !== 'object') return [];
   const raw =
     item.keywords ??
     item.subSkills ??
@@ -135,15 +365,15 @@ export function extractKeywords(item: Record<string, any>): string[] {
   return [];
 }
 
-export function extractHighlights(item: Record<string, any>): string[] {
-  if (!item || !Array.isArray(item.highlights)) return [];
+export function extractHighlights(item: Record<string, any> | null | undefined): string[] {
+  if (!item || typeof item !== 'object' || !Array.isArray(item.highlights)) return [];
   return item.highlights
     .map((h: unknown) => (typeof h === 'string' ? h.trim() : ''))
     .filter(Boolean);
 }
 
 export function normalizeHref(rawUrl?: string): string {
-  if (!rawUrl) return '';
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
   if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) {
@@ -153,7 +383,7 @@ export function normalizeHref(rawUrl?: string): string {
 }
 
 export function formatLinkLabel(rawUrl?: string): string {
-  if (!rawUrl) return '';
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
   return rawUrl
     .trim()
     .replace(/^https?:\/\/(www\.)?/i, '')
@@ -167,7 +397,7 @@ export interface ContactLinkItem {
 }
 
 export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLinkItem[] {
-  if (!basics) return [];
+  if (!basics || typeof basics !== 'object') return [];
   const links: ContactLinkItem[] = [];
 
   const directUrl = basics.url || basics.website || basics.portfolioUrl;
@@ -223,6 +453,6 @@ export function getOrderedSections(
     return sections.filter((s) => s && s.enabled !== false);
   }
   return sectionOrder
-    .map((id) => sections.find((s) => s.id === id))
+    .map((id) => sections.find((s) => s && s.id === id))
     .filter((s): s is ISection => Boolean(s) && s!.enabled !== false);
 }
