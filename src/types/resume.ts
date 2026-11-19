@@ -24,6 +24,7 @@ export interface ISharing {
 
 export interface IResume {
   _id?: string;
+  id?: string;
   title?: string;
   summary?: string;
   templateId?: string;
