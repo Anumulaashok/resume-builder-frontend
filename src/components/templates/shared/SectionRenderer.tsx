@@ -29,6 +29,7 @@ export interface SectionRendererProps {
   accentHeadingBorder?: boolean;
   skillVariant?: SkillStyleVariant;
   keywordVariant?: 'chips' | 'comma';
+  narrow?: boolean;
   readOnly?: boolean;
 }
 
@@ -42,6 +43,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
   accentHeadingBorder = false,
   skillVariant,
   keywordVariant,
+  narrow,
   readOnly: propReadOnly,
 }) => {
   const ctx = useTemplateContext();
@@ -68,6 +70,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
         <SkillList
           section={section}
           variant={effectiveSkillVariant}
+          narrow={narrow}
           readOnly={isReadOnly}
         />
       );
@@ -90,7 +93,11 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       return (
         <div
           data-section-kind="languages"
-          className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5"
+          className={`grid min-w-0 ${
+            narrow
+              ? 'grid-cols-1 gap-y-1.5'
+              : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5'
+          }`}
         >
           {enabledItems.map((item: any, idx: number) => {
             const langKey = item.name !== undefined ? 'name' : 'language';
@@ -106,7 +113,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
             return (
               <div
                 key={item.id || idx}
-                className="break-inside-avoid flex items-baseline justify-between gap-2 text-[0.96em]"
+                className="break-inside-avoid flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 min-w-0 text-[0.96em] [overflow-wrap:anywhere]"
               >
                 <InlineEdit
                   value={langVal}
@@ -117,7 +124,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                   }
                   readOnly={isReadOnly}
                   placeholder="Language"
-                  textClassName="font-semibold"
+                  textClassName="font-semibold [overflow-wrap:anywhere]"
                   style={{ color: 'var(--theme-heading-color, #111827)' }}
                 />
                 {(levelVal || !isReadOnly) && (
@@ -130,7 +137,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                     }
                     readOnly={isReadOnly}
                     placeholder="Proficiency"
-                    textClassName="text-xs text-slate-500"
+                    textClassName="text-xs text-slate-500 [overflow-wrap:anywhere]"
                   />
                 )}
               </div>
@@ -149,7 +156,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
 
       if (!hasDetails) {
         return (
-          <div data-section-kind="interests" className="flex flex-wrap gap-1.5">
+          <div data-section-kind="interests" className="flex flex-wrap gap-1.5 min-w-0 max-w-full">
             {enabledItems.map((item: any, idx: number) => {
               const nameVal = item.name || item.title || '';
               if (isReadOnly) {
@@ -157,7 +164,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                 return (
                   <span
                     key={item.id || `${nameVal}-${idx}`}
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50"
+                    className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50"
+                    style={{ overflowWrap: 'anywhere' }}
                   >
                     {nameVal}
                   </span>
@@ -166,7 +174,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               return (
                 <div
                   key={item.id || idx}
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90"
+                  className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90"
+                  style={{ overflowWrap: 'anywhere' }}
                 >
                   <InlineEdit
                     value={nameVal}
@@ -175,7 +184,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                     }
                     readOnly={isReadOnly}
                     placeholder="Interest"
-                    textClassName="text-xs font-medium"
+                    className="min-w-0 max-w-full"
+                    textClassName="text-xs font-medium [overflow-wrap:anywhere]"
                   />
                 </div>
               );
