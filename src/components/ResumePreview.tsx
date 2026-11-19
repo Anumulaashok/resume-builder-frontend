@@ -1,22 +1,31 @@
 import React, { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { IResume } from "../types/resume";
 import {
+  ArrowDownTrayIcon,
+  ArrowPathIcon,
+  DocumentTextIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SwatchIcon,
   PaintBrushIcon,
-  PrinterIcon,
 } from "@heroicons/react/24/outline";
 import { ModernTemplate } from "./templates/ModernTemplate";
 import { ProfessionalTemplate } from "./templates/ProfessionalTemplate";
 import { motion } from "framer-motion";
 import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
 import { getThemeStyles } from "../constants/themeConstants";
+import { resumeService } from "../services/resume.service";
+import { triggerFileDownload } from "../utils/download";
+
+export type ExportFormat = "pdf" | "txt";
 
 interface ResumePreviewProps {
   resume: IResume;
   onChange?: (resume: IResume) => void;
   readOnly?: boolean;
+  onExport?: (format: ExportFormat) => Promise<void> | void;
+  exportingFormat?: ExportFormat | null;
 }
 
 export const A4_WIDTH_PX = 794; // 21cm at 96dpi
@@ -53,6 +62,8 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   resume,
   onChange,
   readOnly = false,
+  onExport,
+  exportingFormat,
 }) => {
   const externalTemplateId =
     resume.templateId || (resume as any).template;
@@ -64,6 +75,8 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
+  const [internalExporting, setInternalExporting] =
+    useState<ExportFormat | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -130,9 +143,43 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
   const effectiveScale = manualScale ?? fitScale;
   const isFitMode = manualScale === null;
+  const activeExportFormat =
+    exportingFormat !== undefined ? exportingFormat : internalExporting;
+  const isExportBusy = Boolean(activeExportFormat);
 
-  const handlePrint = () => {
-    window.print();
+  const handleExportFormat = async (format: ExportFormat) => {
+    if (isExportBusy) return;
+
+    if (onExport) {
+      await onExport(format);
+      return;
+    }
+
+    const resumeId = resume._id || (resume as { id?: string }).id;
+    if (!resumeId) {
+      toast.error("Please save your resume before exporting");
+      return;
+    }
+
+    setInternalExporting(format);
+    try {
+      const exported =
+        format === "pdf"
+          ? await resumeService.exportResumePdf(resumeId, resume.title)
+          : await resumeService.exportResumeTxt(resumeId, resume.title);
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success(
+        format === "pdf"
+          ? "PDF resume downloaded"
+          : "ATS plain text downloaded"
+      );
+    } catch (error: any) {
+      toast.error(
+        error?.message || `Failed to export ${format.toUpperCase()} resume`
+      );
+    } finally {
+      setInternalExporting(null);
+    }
   };
 
   const handleZoomIn = () => {
@@ -295,11 +342,56 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
           <button
             type="button"
-            onClick={handlePrint}
-            className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 rounded-md shadow-sm text-white hover:bg-blue-700 transition-colors inline-flex items-center gap-1.5"
+            data-testid="export-txt-btn"
+            onClick={() => {
+              void handleExportFormat("txt");
+            }}
+            disabled={isExportBusy}
+            aria-busy={activeExportFormat === "txt"}
+            title="Download ATS-safe plain text (.txt)"
+            className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-white border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
           >
-            <PrinterIcon className="h-4 w-4" />
-            <span>Print</span>
+            {activeExportFormat === "txt" ? (
+              <>
+                <ArrowPathIcon
+                  className="h-4 w-4 animate-spin text-blue-600"
+                  aria-hidden="true"
+                />
+                <span>Exporting TXT…</span>
+              </>
+            ) : (
+              <>
+                <DocumentTextIcon className="h-4 w-4" aria-hidden="true" />
+                <span>ATS Text</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            data-testid="export-pdf-btn"
+            onClick={() => {
+              void handleExportFormat("pdf");
+            }}
+            disabled={isExportBusy}
+            aria-busy={activeExportFormat === "pdf"}
+            title="Download vector PDF (.pdf)"
+            className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 rounded-md shadow-sm text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+          >
+            {activeExportFormat === "pdf" ? (
+              <>
+                <ArrowPathIcon
+                  className="h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+                <span>Exporting PDF…</span>
+              </>
+            ) : (
+              <>
+                <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
+                <span>Download PDF</span>
+              </>
+            )}
           </button>
         </div>
       </div>

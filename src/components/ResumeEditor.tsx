@@ -5,6 +5,7 @@ import {
   PencilSquareIcon,
   DocumentDuplicateIcon,
   DocumentArrowDownIcon,
+  DocumentTextIcon,
   ArrowLeftIcon,
   ArrowPathIcon,
   CheckCircleIcon,
@@ -52,11 +53,12 @@ import {
   SectionOption,
   SectionType,
 } from "../types/resume";
-import ResumePreview from "./ResumePreview";
+import ResumePreview, { ExportFormat } from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import { defaultResume } from "../constants/editorConstants";
 import ShareModal from "./ShareModal";
 import { formatResumeDate } from "../utils/date";
+import { triggerFileDownload } from "../utils/download";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -718,6 +720,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const [exportingFormat, setExportingFormat] =
+    useState<ExportFormat | null>(null);
+  const isExportingRef = useRef(false);
   const [addContent, setAddContent] = useState<{
     type: SectionType;
     item: any;
@@ -1173,6 +1178,64 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       return;
     }
     setShowShareModal(true);
+  };
+
+  const handleExport = async (format: ExportFormat) => {
+    if (isExportingRef.current) {
+      return;
+    }
+
+    isExportingRef.current = true;
+    if (isMountedRef.current) {
+      setExportingFormat(format);
+    }
+
+    try {
+      let targetId = latestResumeRef.current._id || persistedIdRef.current;
+
+      if (!targetId || hasUnsavedChanges()) {
+        debouncedAutoSave.cancel();
+        const saveResult = await enqueueSave(latestResumeRef.current, "manual");
+        if (!saveResult.ok) {
+          throw (
+            saveResult.error ||
+            new Error("Failed to save resume before exporting")
+          );
+        }
+        targetId =
+          latestResumeRef.current._id ||
+          persistedIdRef.current ||
+          extractCreatedResumeId(saveResult.data);
+      }
+
+      if (!targetId) {
+        throw new Error("Failed to save resume before exporting");
+      }
+
+      const currentTitle = latestResumeRef.current.title;
+      const exported =
+        format === "pdf"
+          ? await resumeService.exportResumePdf(targetId, currentTitle)
+          : await resumeService.exportResumeTxt(targetId, currentTitle);
+
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success(
+        format === "pdf"
+          ? "PDF resume downloaded"
+          : "ATS plain text downloaded"
+      );
+    } catch (error: any) {
+      const message =
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message
+          : `Failed to export ${format.toUpperCase()} resume`;
+      toast.error(message);
+    } finally {
+      isExportingRef.current = false;
+      if (isMountedRef.current) {
+        setExportingFormat(null);
+      }
+    }
   };
 
   const handleAddNewItem = (section: ISection) => {
@@ -1672,14 +1735,28 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <button
                     type="button"
                     role="menuitem"
+                    disabled={Boolean(exportingFormat)}
                     onClick={() => {
                       setShowOverflowMenu(false);
-                      window.print();
+                      void handleExport("pdf");
                     }}
-                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 disabled:opacity-50 flex items-center gap-2.5 transition-colors"
                   >
                     <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
-                    <span>Export</span>
+                    <span>Export PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={Boolean(exportingFormat)}
+                    onClick={() => {
+                      setShowOverflowMenu(false);
+                      void handleExport("txt");
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 disabled:opacity-50 flex items-center gap-2.5 transition-colors"
+                  >
+                    <DocumentTextIcon className="h-4 w-4 text-gray-500" />
+                    <span>Plain Text (.txt)</span>
                   </button>
                 </div>
               )}
@@ -1918,6 +1995,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <ResumePreview
                   resume={resume}
                   onChange={handlePreviewChange}
+                  onExport={handleExport}
+                  exportingFormat={exportingFormat}
                 />
               </div>
             </Panel>
@@ -1926,7 +2005,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           editorPanelContent
         ) : (
           <div className="h-full bg-neutral-100">
-            <ResumePreview resume={resume} onChange={handlePreviewChange} />
+            <ResumePreview
+              resume={resume}
+              onChange={handlePreviewChange}
+              onExport={handleExport}
+              exportingFormat={exportingFormat}
+            />
           </div>
         )}
       </div>
