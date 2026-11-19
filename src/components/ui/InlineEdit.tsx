@@ -97,8 +97,10 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
     }
   };
 
+  const isEmpty = !value || !value.trim();
+
   return (
-    <div className={`relative group ${className}`}>
+    <div className={`relative group ${isEmpty && !isEditing ? "print:hidden" : ""} ${className}`}>
       {!isEditing ? (
         <motion.div
           ref={previewRef}
@@ -109,7 +111,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.12 }}
-          className={`cursor-pointer hover:bg-neutral-100 hover:ring-2 hover:ring-primary-300 focus-ring focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 print:ring-0 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-neutral-400 italic print:hidden' : ''}`}
+          className={`cursor-pointer hover:bg-neutral-100 hover:ring-2 hover:ring-primary-300 focus-ring focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 print:!bg-transparent print:!ring-0 print:!px-0 print:!ml-0 print:ring-0 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-neutral-400 italic print:hidden' : ''}`}
           style={style}
           onClick={startEditing}
           onKeyDown={handlePreviewKeyDown}

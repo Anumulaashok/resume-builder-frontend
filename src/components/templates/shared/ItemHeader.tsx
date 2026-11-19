@@ -200,6 +200,12 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
   const showSubtitleNode = Boolean(
     subtitle || (canEditSubtitle && showSubtitleWhenEmptyInEdit)
   );
+  const hasPrintSecondaryContent = Boolean(
+    (subtitle && subtitle.trim()) ||
+      extraSubtitle ||
+      (urlPlacement === 'subtitle' && safeUrl) ||
+      formattedLocation
+  );
   const showSecondaryRow = Boolean(
     showSubtitleNode ||
       extraSubtitle ||
@@ -254,7 +260,11 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
       </div>
 
       {showSecondaryRow && (
-        <div className="flex flex-wrap justify-between items-baseline gap-x-3 gap-y-0.5 mt-0.5">
+        <div
+          className={`flex flex-wrap justify-between items-baseline gap-x-3 gap-y-0.5 mt-0.5 ${
+            !hasPrintSecondaryContent ? 'print:hidden' : ''
+          }`}
+        >
           <div className="flex flex-wrap items-baseline gap-x-1.5 text-[0.98em]">
             {showSubtitleNode &&
               (canEditSubtitle ? (

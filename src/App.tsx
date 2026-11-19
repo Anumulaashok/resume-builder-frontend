@@ -101,7 +101,9 @@ function App() {
     return (
       <div className="App w-full min-h-screen">
         <PortfolioPublicView />
-        <Toaster position={toastPosition} />
+        <div className="print:hidden">
+          <Toaster position={toastPosition} />
+        </div>
       </div>
     );
   }
@@ -115,7 +117,9 @@ function App() {
     return (
       <div className="App w-full min-h-screen">
         <PublicResumeView shareToken={shareToken} />
-        <Toaster position={toastPosition} />
+        <div className="print:hidden">
+          <Toaster position={toastPosition} />
+        </div>
       </div>
     );
   }
@@ -148,7 +152,9 @@ function App() {
               setShowReauthModal(false);
             }}
           />
-          <Toaster position={toastPosition} />
+          <div className="print:hidden">
+            <Toaster position={toastPosition} />
+          </div>
         </div>
       </AuthModalContext.Provider>
     );

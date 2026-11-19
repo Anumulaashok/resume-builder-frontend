@@ -13,6 +13,7 @@ import {
   PencilSquareIcon,
   DocumentDuplicateIcon,
   DocumentArrowDownIcon,
+  DocumentTextIcon,
   ArrowLeftIcon,
   ArrowPathIcon,
   CheckCircleIcon,
@@ -67,6 +68,7 @@ import { defaultResume } from "../constants/editorConstants";
 import ShareModal from "./ShareModal";
 import ReauthModal from "./ReauthModal";
 import { formatResumeDate } from "../utils/date";
+import { triggerFileDownload } from "../utils/download";
 import {
   authEventBus,
   AuthModalContext,
@@ -511,7 +513,7 @@ function useIsDesktop(): boolean {
     ) {
       return true;
     }
-    return window.matchMedia("(min-width: 1024px)").matches;
+    return window.matchMedia("(min-width: 1024px), print").matches;
   });
 
   useEffect(() => {
@@ -521,7 +523,7 @@ function useIsDesktop(): boolean {
     ) {
       return;
     }
-    const mql = window.matchMedia("(min-width: 1024px)");
+    const mql = window.matchMedia("(min-width: 1024px), print");
     const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
 
     if (typeof mql.addEventListener === "function") {
@@ -752,6 +754,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingTxt, setIsExportingTxt] = useState(false);
   const [addContent, setAddContent] = useState<{
     type: SectionType;
     item: any;
@@ -791,6 +794,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const isExportingRef = useRef(false);
+  const isExportingTxtRef = useRef(false);
   const exportCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -1363,6 +1367,30 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   };
 
+  const handleOpenShare = async () => {
+    if (!effectiveResumeId) {
+      toast("Saving resume before opening share settings...", { icon: "ℹ️" });
+      debouncedAutoSave.cancel();
+      setLoading(true);
+      const result = await enqueueSave(latestResumeRef.current, "manual");
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+      const savedId = result.ok
+        ? extractCreatedResumeId(result.data) || persistedIdRef.current
+        : undefined;
+      if (result.ok && savedId) {
+        if (isMountedRef.current) {
+          setShowShareModal(true);
+        }
+      } else {
+        toast.error("Failed to save resume before sharing");
+      }
+      return;
+    }
+    setShowShareModal(true);
+  };
+
   const handleExport = useCallback(() => {
     if (isExportingRef.current || loading) {
       return;
@@ -1396,29 +1424,64 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   }, [activeView, isDesktop, loading]);
 
-  const handleOpenShare = async () => {
-    if (!effectiveResumeId) {
-      toast("Saving resume before opening share settings...", { icon: "ℹ️" });
-      debouncedAutoSave.cancel();
-      setLoading(true);
-      const result = await enqueueSave(latestResumeRef.current, "manual");
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-      const savedId = result.ok
-        ? extractCreatedResumeId(result.data) || persistedIdRef.current
-        : undefined;
-      if (result.ok && savedId) {
-        if (isMountedRef.current) {
-          setShowShareModal(true);
-        }
-      } else {
-        toast.error("Failed to save resume before sharing");
-      }
+  const handleExportTxt = useCallback(async () => {
+    if (isExportingTxtRef.current || loading) {
       return;
     }
-    setShowShareModal(true);
-  };
+
+    isExportingTxtRef.current = true;
+    if (isMountedRef.current) {
+      setIsExportingTxt(true);
+      setShowOverflowMenu(false);
+    }
+
+    try {
+      let targetId =
+        latestResumeRef.current._id ||
+        latestResumeRef.current.id ||
+        persistedIdRef.current;
+
+      if (!targetId || hasUnsavedChanges()) {
+        debouncedAutoSave.cancel();
+        const saveResult = await enqueueSave(latestResumeRef.current, "manual");
+        if (!saveResult.ok) {
+          throw (
+            saveResult.error ||
+            new Error("Failed to save resume before exporting")
+          );
+        }
+        targetId =
+          latestResumeRef.current._id ||
+          latestResumeRef.current.id ||
+          persistedIdRef.current ||
+          extractCreatedResumeId(saveResult.data);
+      }
+
+      if (!targetId) {
+        throw new Error("Failed to save resume before exporting");
+      }
+
+      const currentTitle = latestResumeRef.current.title;
+      const exported = await resumeService.exportResumeTxt(
+        targetId,
+        currentTitle
+      );
+
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success("ATS plain text downloaded");
+    } catch (error: any) {
+      const message =
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message
+          : "Failed to export TXT resume";
+      toast.error(message);
+    } finally {
+      isExportingTxtRef.current = false;
+      if (isMountedRef.current) {
+        setIsExportingTxt(false);
+      }
+    }
+  }, [debouncedAutoSave, enqueueSave, hasUnsavedChanges, loading]);
 
   const handleAddNewItem = (section: ISection) => {
     let newItem: any = {
@@ -1923,7 +1986,20 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                     className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                   >
                     <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
-                    <span>Export</span>
+                    <span>Export PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="export-txt-menu-btn"
+                    disabled={loading || isExportingTxt}
+                    onClick={() => {
+                      void handleExportTxt();
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2.5 transition-colors"
+                  >
+                    <DocumentTextIcon className="h-4 w-4 text-gray-500" />
+                    <span>Download ATS text</span>
                   </button>
                 </div>
               )}
@@ -2168,10 +2244,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         </div>
       )}
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 print:!block print:!h-auto print:!min-h-0">
         {isDesktop ? (
-          <PanelGroup direction="horizontal" className="h-full">
-            <Panel defaultSize={55} minSize={38} className="h-full">
+          <PanelGroup direction="horizontal" className="h-full print:!block print:!h-auto print:!overflow-visible">
+            <Panel defaultSize={55} minSize={38} className="h-full print:!hidden">
               {editorPanelContent}
             </Panel>
 
@@ -2179,7 +2255,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               aria-label="Resize editor and preview panels"
               title="Drag to resize panels"
               data-testid="panel-resize-handle"
-              className="w-2 bg-gray-200 hover:bg-blue-500 active:bg-blue-600 focus:outline-none focus-visible:bg-blue-500 transition-colors duration-150 flex items-center justify-center relative group cursor-col-resize"
+              className="w-2 bg-gray-200 hover:bg-blue-500 active:bg-blue-600 focus:outline-none focus-visible:bg-blue-500 transition-colors duration-150 flex items-center justify-center relative group cursor-col-resize print:!hidden"
             >
               <div className="h-8 w-1 rounded-full bg-gray-400/70 group-hover:opacity-0 transition-opacity" />
               <div className="absolute h-10 w-4 rounded-full bg-blue-600 shadow-md border border-blue-400 opacity-0 group-hover:opacity-100 group-active:opacity-100 group-focus-visible:opacity-100 transition-opacity flex items-center justify-center gap-0.5 pointer-events-none">
@@ -2188,11 +2264,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               </div>
             </PanelResizeHandle>
 
-            <Panel defaultSize={45} minSize={30} className="h-full">
-              <div className="h-full bg-neutral-100">
+            <Panel defaultSize={45} minSize={30} className="h-full print:!block print:!w-full print:!max-w-none print:!flex-none print:!basis-full print:!h-auto print:!overflow-visible">
+              <div className="h-full bg-neutral-100 print:!h-auto print:!bg-white">
                 <ResumePreview
                   resume={resume}
                   onChange={handlePreviewChange}
+                  onDownloadPdf={handleExport}
+                  isPrinting={isExporting}
+                  onExportTxt={handleExportTxt}
+                  isExportingTxt={isExportingTxt}
                 />
               </div>
             </Panel>
@@ -2200,8 +2280,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         ) : activeView === "editor" ? (
           editorPanelContent
         ) : (
-          <div className="h-full bg-neutral-100">
-            <ResumePreview resume={resume} onChange={handlePreviewChange} />
+          <div className="h-full bg-neutral-100 print:!h-auto print:!bg-white">
+            <ResumePreview
+              resume={resume}
+              onChange={handlePreviewChange}
+              onDownloadPdf={handleExport}
+              isPrinting={isExporting}
+              onExportTxt={handleExportTxt}
+              isExportingTxt={isExportingTxt}
+            />
           </div>
         )}
       </div>
