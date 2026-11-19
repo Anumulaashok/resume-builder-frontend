@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import {
   ContactRow,
   Description,
+  HeaderWithPhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -30,6 +31,7 @@ const CompactTemplateContent: React.FC = () => {
 
   if (!resume) return null;
 
+  const pageSizeCss = resume.themeConfig?.pageSize === 'Letter' ? 'Letter' : 'A4';
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
   const showSummary = readOnly
@@ -59,7 +61,7 @@ const CompactTemplateContent: React.FC = () => {
     >
       {enablePrintPageRule && (
         <style>{`
-          @page { size: A4; margin: 1.05cm 0; }
+          @page { size: ${pageSizeCss}; margin: 1.05cm 0; }
           @media print {
             [data-template-id="compact"] {
               padding-top: 0.2cm !important;
@@ -75,43 +77,45 @@ const CompactTemplateContent: React.FC = () => {
           marginBottom: 'var(--theme-section-spacing, 1rem)',
         }}
       >
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-          <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
-            <InlineEdit
-              value={basics.name || ''}
-              onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-              readOnly={readOnly}
-              textClassName="text-[22px] font-bold tracking-tight leading-tight"
-              style={{
-                fontFamily: 'var(--theme-heading-font)',
-                color: 'var(--theme-heading-color, #0f172a)',
-              }}
-              placeholder="Your Name"
-            />
-            {hasLabel && (
-              <>
-                <span className="text-slate-400 text-xs" aria-hidden="true">
-                  |
-                </span>
-                <InlineEdit
-                  value={basics.label || ''}
-                  onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-                  readOnly={readOnly}
-                  textClassName="text-[1.02em] font-semibold"
-                  style={{
-                    color: 'var(--theme-accent, var(--theme-primary, #334155))',
-                  }}
-                  placeholder="Professional Title"
-                />
-              </>
-            )}
+        <HeaderWithPhoto>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+            <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
+              <InlineEdit
+                value={basics.name || ''}
+                onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+                readOnly={readOnly}
+                textClassName="text-[22px] font-bold tracking-tight leading-tight"
+                style={{
+                  fontFamily: 'var(--theme-heading-font)',
+                  color: 'var(--theme-heading-color, #0f172a)',
+                }}
+                placeholder="Your Name"
+              />
+              {hasLabel && (
+                <>
+                  <span className="text-slate-400 text-xs" aria-hidden="true">
+                    |
+                  </span>
+                  <InlineEdit
+                    value={basics.label || ''}
+                    onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+                    readOnly={readOnly}
+                    textClassName="text-[1.02em] font-semibold"
+                    style={{
+                      color: 'var(--theme-accent, var(--theme-primary, #334155))',
+                    }}
+                    placeholder="Professional Title"
+                  />
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        <ContactRow
-          variant="inline-left"
-          showIcons={false}
-          className="mt-1"
-        />
+          <ContactRow
+            variant="inline-left"
+            showIcons={false}
+            className="mt-1"
+          />
+        </HeaderWithPhoto>
       </header>
 
       {showSummary && (

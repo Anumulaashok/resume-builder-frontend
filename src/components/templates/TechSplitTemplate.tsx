@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { CanonicalSectionKind } from './templateHelpers';
 import {
   ContactRow,
+  ProfilePhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -26,7 +27,7 @@ const SIDEBAR_KINDS = new Set<CanonicalSectionKind>([
 ]);
 
 const TechSplitContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
@@ -53,7 +54,13 @@ const TechSplitContent: React.FC = () => {
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
+        <div
+          className={
+            atsMode
+              ? 'flex flex-col gap-2'
+              : 'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2'
+          }
+        >
           <div>
             <InlineEdit
               value={basics.name || ''}
@@ -75,12 +82,15 @@ const TechSplitContent: React.FC = () => {
               placeholder="Systems / Software Engineer"
             />
           </div>
-          <ContactRow variant="stacked-right" />
+          <div className="flex items-center gap-3 sm:justify-end shrink-0">
+            <ContactRow variant={atsMode ? 'inline-left' : 'stacked-right'} />
+            <ProfilePhoto />
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-col sm:flex-row gap-7 items-start">
-        <div className="flex-1 min-w-0 w-full">
+      {atsMode ? (
+        <div>
           {showSummary && (
             <section
               style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
@@ -100,22 +110,47 @@ const TechSplitContent: React.FC = () => {
               />
             </section>
           )}
-          <SectionRenderer
-            filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
-            tone="modern"
-          />
+          <SectionRenderer tone="modern" />
         </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row gap-7 items-start">
+          <div className="flex-1 min-w-0 w-full">
+            {showSummary && (
+              <section
+                style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
+              >
+                <SectionHeading title="Overview" />
+                <InlineEdit
+                  value={summaryValue}
+                  onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+                  multiline
+                  textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
+                  style={{
+                    color: 'var(--theme-text-color, #374151)',
+                    lineHeight: 'var(--theme-line-height, 1.5)',
+                  }}
+                  placeholder="Technical focus and impact..."
+                  readOnly={readOnly}
+                />
+              </section>
+            )}
+            <SectionRenderer
+              filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
+              tone="modern"
+            />
+          </div>
 
-        <aside
-          className="shrink-0 w-full sm:pl-5 sm:border-l border-slate-200"
-          style={{ width: 'var(--theme-sidebar-width, 32%)' }}
-        >
-          <SectionRenderer
-            filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
-            tone="modern"
-          />
-        </aside>
-      </div>
+          <aside
+            className="shrink-0 w-full sm:pl-5 sm:border-l border-slate-200"
+            style={{ width: 'var(--theme-sidebar-width, 32%)' }}
+          >
+            <SectionRenderer
+              filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
+              tone="modern"
+            />
+          </aside>
+        </div>
+      )}
     </div>
   );
 };

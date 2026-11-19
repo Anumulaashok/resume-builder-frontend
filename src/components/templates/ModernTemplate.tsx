@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
+  HeaderWithPhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -49,26 +50,28 @@ const ModernTemplateContent: React.FC = () => {
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <InlineEdit
-          value={basics.name || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-          readOnly={readOnly}
-          textClassName="text-3xl font-bold tracking-tight leading-tight"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-heading-color, #111827)',
-          }}
-          placeholder="Your Name"
-        />
-        <InlineEdit
-          value={basics.label || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-          readOnly={readOnly}
-          textClassName="text-base mt-1 font-medium block"
-          style={{ color: 'var(--theme-accent, var(--theme-primary, #4b5563))' }}
-          placeholder="Professional Title"
-        />
-        <ContactRow variant="inline-center" className="mt-2.5" />
+        <HeaderWithPhoto align="center">
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-3xl font-bold tracking-tight leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #111827)',
+            }}
+            placeholder="Your Name"
+          />
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-base mt-1 font-medium block"
+            style={{ color: 'var(--theme-accent, var(--theme-primary, #4b5563))' }}
+            placeholder="Professional Title"
+          />
+          <ContactRow variant="inline-center" className="mt-2.5" />
+        </HeaderWithPhoto>
       </header>
 
       {showSummary && (

@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
+  ProfilePhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -17,7 +18,7 @@ interface TemplateProps {
 }
 
 const ProfessionalTemplateContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
@@ -43,7 +44,11 @@ const ProfessionalTemplateContent: React.FC = () => {
       }}
     >
       <header
-        className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b-2 pb-4"
+        className={
+          atsMode
+            ? 'flex flex-col gap-2 border-b pb-4'
+            : 'flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-2 pb-4'
+        }
         style={{
           borderColor: 'var(--theme-primary, #1e293b)',
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
@@ -70,7 +75,10 @@ const ProfessionalTemplateContent: React.FC = () => {
             placeholder="Professional Title"
           />
         </div>
-        <ContactRow variant="stacked-right" />
+        <div className="flex items-center gap-3 sm:justify-end shrink-0">
+          <ContactRow variant={atsMode ? 'inline-left' : 'stacked-right'} />
+          <ProfilePhoto />
+        </div>
       </header>
 
       {showSummary && (

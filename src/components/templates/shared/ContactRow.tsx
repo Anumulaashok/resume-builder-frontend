@@ -9,6 +9,7 @@ import {
 import { IResume } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
 import { extractExtraBasicsLinks } from '../templateHelpers';
+import { ProfilePhoto } from './ProfilePhoto';
 import { useTemplateContext } from './TemplateContext';
 
 const linkClassName =
@@ -20,6 +21,7 @@ export interface ContactRowProps {
   onUpdateBasics?: (field: string, value: string) => void;
   variant?: 'inline-center' | 'inline-left' | 'stacked-right' | 'stacked-left';
   showIcons?: boolean;
+  showPhoto?: boolean;
   className?: string;
 }
 
@@ -29,12 +31,17 @@ export const ContactRow: React.FC<ContactRowProps> = ({
   onUpdateBasics,
   variant = 'inline-center',
   showIcons = true,
+  showPhoto = false,
   className = '',
 }) => {
   const ctx = useTemplateContext();
   const resume = propResume || ctx.resume;
   const isReadOnly = propReadOnly ?? ctx.readOnly;
   const updateBasics = onUpdateBasics || ctx.updateBasics;
+  const isAtsMode = Boolean(ctx.atsMode || resume?.themeConfig?.atsMode);
+  const effectiveShowIcons = showIcons && !isAtsMode;
+  const effectiveVariant =
+    isAtsMode && variant === 'stacked-right' ? 'inline-left' : variant;
 
   if (!resume) return null;
   const basics = resume.content?.basics || {};
@@ -147,37 +154,47 @@ export const ContactRow: React.FC<ContactRowProps> = ({
     });
   });
 
-  if (!entries.length) return null;
+  if (!entries.length && !showPhoto) return null;
 
-  if (variant === 'stacked-right' || variant === 'stacked-left') {
-    const isRight = variant === 'stacked-right';
+  if (effectiveVariant === 'stacked-right' || effectiveVariant === 'stacked-left') {
+    const isRight = effectiveVariant === 'stacked-right';
     return (
       <div
-        className={`text-xs text-slate-600 space-y-1 shrink-0 ${
-          isRight ? 'sm:text-right' : 'text-left'
+        className={`flex items-center gap-3 shrink-0 ${
+          isRight ? 'sm:justify-end' : 'justify-start'
         } ${className}`}
       >
-        {entries.map((entry) => (
-          <div
-            key={entry.key}
-            className={`flex items-center gap-1.5 ${
-              isRight ? 'sm:justify-end' : 'justify-start'
-            }`}
-          >
-            {showIcons && !isRight && entry.icon}
-            {entry.content}
-            {showIcons && isRight && entry.icon}
-          </div>
-        ))}
+        <div
+          className={`text-xs text-slate-600 space-y-1 ${
+            isRight ? 'sm:text-right' : 'text-left'
+          }`}
+          style={isAtsMode ? { color: '#111827' } : undefined}
+        >
+          {entries.map((entry) => (
+            <div
+              key={entry.key}
+              className={`flex items-center gap-1.5 ${
+                isRight ? 'sm:justify-end' : 'justify-start'
+              }`}
+            >
+              {effectiveShowIcons && !isRight && entry.icon}
+              {entry.content}
+              {effectiveShowIcons && isRight && entry.icon}
+            </div>
+          ))}
+        </div>
+        {showPhoto && <ProfilePhoto />}
       </div>
     );
   }
 
-  const justifyClass = variant === 'inline-left' ? 'justify-start' : 'justify-center';
+  const justifyClass =
+    effectiveVariant === 'inline-left' ? 'justify-start' : 'justify-center';
 
   return (
     <div
       className={`text-xs text-slate-600 flex flex-wrap ${justifyClass} items-center gap-x-2.5 gap-y-1 ${className}`}
+      style={isAtsMode ? { color: '#111827' } : undefined}
     >
       {entries.map((entry, idx) => (
         <React.Fragment key={entry.key}>
@@ -187,11 +204,12 @@ export const ContactRow: React.FC<ContactRowProps> = ({
             </span>
           )}
           <span className="inline-flex items-center gap-1">
-            {showIcons && entry.icon}
+            {effectiveShowIcons && entry.icon}
             {entry.content}
           </span>
         </React.Fragment>
       ))}
+      {showPhoto && <ProfilePhoto />}
     </div>
   );
 };

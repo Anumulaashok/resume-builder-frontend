@@ -1,22 +1,45 @@
-import React from 'react';
-import { ThemeConfig } from '../types/resume';
+import React, { useState } from 'react';
+import {
+  PageSize,
+  PhotoShape,
+  PhotoSize,
+  ThemeConfig,
+} from '../types/resume';
 import {
   fontPairingOptions,
   colorOptions,
   spacingOptions,
   pageMarginOptions,
+  pageSizeOptions,
+  photoShapeOptions,
+  photoSizeOptions,
   headingStyleOptions,
   skillStyleOptions,
   dateFormatOptions,
   defaultThemeConfig,
   resolveTemplateDefaultTheme,
+  resolvePhotoConfig,
+  getNextFitThemeStep,
+  FIT_MIN_FONT_SCALE,
+  FIT_MIN_LINE_HEIGHT,
   PageMarginPreset,
   HeadingStyleOptionId,
   SkillStyleOptionId,
   DateFormatOptionId,
 } from '../constants/themeConstants';
 import { TemplateLayout } from './templates/registry';
-import { XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import {
+  XMarkIcon,
+  ArrowPathIcon,
+  ArrowsPointingInIcon,
+  DocumentCheckIcon,
+} from '@heroicons/react/24/outline';
+
+export interface FitToOnePageResult {
+  status: 'already-fit' | 'fitted' | 'cannot-fit';
+  pageCount: number;
+  message: string;
+}
 
 interface ThemeCustomizationPanelProps {
   themeConfig?: ThemeConfig;
@@ -25,6 +48,7 @@ interface ThemeCustomizationPanelProps {
   onChange: (theme: ThemeConfig) => void;
   onKeysCustomised?: (keys: Array<keyof ThemeConfig>) => void;
   onReset?: (theme: ThemeConfig) => void;
+  onFitToOnePage?: () => FitToOnePageResult;
   onClose: () => void;
 }
 
@@ -35,18 +59,27 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
   onChange,
   onKeysCustomised,
   onReset,
+  onFitToOnePage,
   onClose,
 }) => {
+  const [fitFeedback, setFitFeedback] = useState<FitToOnePageResult | null>(null);
+
   const baseDefaults = resolveTemplateDefaultTheme(templateDefaultTheme);
   const currentTheme: ThemeConfig = {
     ...baseDefaults,
     ...(themeConfig || {}),
   };
 
+  const isAtsMode = Boolean(currentTheme.atsMode);
+  const activePageSize: PageSize =
+    currentTheme.pageSize === 'Letter' ? 'Letter' : 'A4';
+  const resolvedPhoto = resolvePhotoConfig(currentTheme.photo);
+
   const emitUpdate = (
     patch: Partial<ThemeConfig>,
     changedKeys: Array<keyof ThemeConfig>
   ) => {
+    setFitFeedback(null);
     if (onKeysCustomised) {
       onKeysCustomised(changedKeys);
     }
@@ -54,6 +87,97 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
       ...(themeConfig || {}),
       ...patch,
     });
+  };
+
+  const handleAtsModeToggle = () => {
+    emitUpdate({ atsMode: !isAtsMode }, ['atsMode']);
+  };
+
+  const handlePageSizeSelect = (pageSize: PageSize) => {
+    emitUpdate({ pageSize }, ['pageSize']);
+  };
+
+  const handleFitClick = () => {
+    if (onFitToOnePage) {
+      const result = onFitToOnePage();
+      setFitFeedback(result);
+      return;
+    }
+
+    // Standalone fallback when rendered outside ResumePreview
+    const nextStep = getNextFitThemeStep(currentTheme, 0);
+    if (!nextStep) {
+      setFitFeedback({
+        status: 'cannot-fit',
+        pageCount: 1,
+        message: 'Already at minimum readable spacing and font settings.',
+      });
+      return;
+    }
+
+    const patch: Partial<ThemeConfig> = {};
+    const changedKeys: Array<keyof ThemeConfig> = [];
+    if (nextStep.sectionSpacing !== currentTheme.sectionSpacing) {
+      patch.sectionSpacing = nextStep.sectionSpacing;
+      changedKeys.push('sectionSpacing');
+    }
+    if (nextStep.lineHeight !== currentTheme.lineHeight) {
+      patch.lineHeight = nextStep.lineHeight;
+      changedKeys.push('lineHeight');
+    }
+    if (nextStep.fontScale !== currentTheme.fontScale) {
+      patch.fontScale = nextStep.fontScale;
+      changedKeys.push('fontScale');
+    }
+
+    if (onKeysCustomised && changedKeys.length > 0) {
+      onKeysCustomised(changedKeys);
+    }
+    onChange({
+      ...(themeConfig || {}),
+      ...patch,
+    });
+    setFitFeedback({
+      status: 'fitted',
+      pageCount: 1,
+      message: 'Adjusted spacing and typography to fit on one page.',
+    });
+  };
+
+  const handlePhotoShowToggle = () => {
+    emitUpdate(
+      {
+        photo: {
+          ...resolvedPhoto,
+          show: !resolvedPhoto.show,
+        },
+      },
+      ['photo']
+    );
+  };
+
+  const handlePhotoShapeSelect = (shape: PhotoShape) => {
+    emitUpdate(
+      {
+        photo: {
+          ...resolvedPhoto,
+          shape,
+        },
+      },
+      ['photo']
+    );
+  };
+
+  const handlePhotoSizeSelect = (size: PhotoSize) => {
+    emitUpdate(
+      {
+        photo: {
+          ...resolvedPhoto,
+          size,
+        },
+      },
+      ['photo']
+    );
   };
 
   const handleFontSelect = (fontId: string) => {
@@ -117,6 +241,7 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
   };
 
   const handleReset = () => {
+    setFitFeedback(null);
     const resetTarget = templateDefaultTheme
       ? resolveTemplateDefaultTheme(templateDefaultTheme)
       : { ...defaultThemeConfig };
@@ -144,7 +269,7 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
   return (
     <div
       data-testid="theme-customization-panel"
-      className="absolute top-4 right-4 z-30 w-84 sm:w-96 max-w-[calc(100vw-2rem)] bg-gray-900/95 backdrop-blur border border-gray-700/80 rounded-xl shadow-2xl p-5 text-gray-200 print:hidden transition-all duration-200 max-h-[85vh] overflow-y-auto"
+      className="absolute top-4 right-2 sm:right-4 z-30 w-[calc(100vw-1rem)] sm:w-96 max-w-[24rem] bg-gray-900/95 backdrop-blur border border-gray-700/80 rounded-xl shadow-2xl p-4 sm:p-5 text-gray-200 print:hidden transition-all duration-200 max-h-[85vh] overflow-y-auto"
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-800 mb-4">
@@ -177,6 +302,228 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
       </div>
 
       <div className="space-y-6">
+        {/* ATS MODE TOGGLE */}
+        <section
+          data-testid="theme-group-ats"
+          aria-labelledby="theme-heading-ats"
+          className={`rounded-lg border p-3 transition-colors ${
+            isAtsMode
+              ? 'border-emerald-500/70 bg-emerald-950/40'
+              : 'border-gray-800 bg-gray-800/60'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <DocumentCheckIcon className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span
+                  id="theme-heading-ats"
+                  className="text-xs font-semibold text-white"
+                >
+                  ATS mode
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1 leading-snug">
+                Previews and prints in monochrome single-column layout without photos or icons.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isAtsMode}
+              aria-label="ATS mode"
+              data-testid="ats-mode-toggle"
+              onClick={handleAtsModeToggle}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
+                isAtsMode ? 'bg-emerald-500' : 'bg-gray-700'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                  isAtsMode ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </section>
+
+        {/* PAGE & PAGINATION */}
+        <section
+          data-testid="theme-group-page"
+          aria-labelledby="theme-heading-page"
+          className="space-y-3"
+        >
+          <h4
+            id="theme-heading-page"
+            className="text-[11px] font-bold uppercase tracking-widest text-blue-400 border-b border-gray-800 pb-1"
+          >
+            Page Setup
+          </h4>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1.5">
+              Page Size
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {pageSizeOptions.map((opt) => {
+                const isSelected = activePageSize === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => handlePageSizeSelect(opt.id)}
+                    data-testid={`page-size-option-${opt.id}`}
+                    className={`py-2 px-2.5 text-left rounded-lg border transition-all ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-600/20 text-white ring-1 ring-blue-500'
+                        : 'border-gray-800 bg-gray-800/80 text-gray-300 hover:bg-gray-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold">{opt.name}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">
+                      {opt.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={handleFitClick}
+              data-testid="fit-to-one-page-btn"
+              className="w-full py-2 px-3 rounded-lg border border-blue-500/60 bg-blue-600/20 hover:bg-blue-600/30 text-white text-xs font-medium flex items-center justify-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <ArrowsPointingInIcon className="h-4 w-4 text-blue-300 shrink-0" />
+              <span>Fit to one page</span>
+            </button>
+
+            {fitFeedback && (
+              <div
+                role="status"
+                aria-live="polite"
+                data-testid="fit-to-one-page-status"
+                data-fit-status={fitFeedback.status}
+                className={`mt-2 rounded-lg border px-2.5 py-2 text-[11px] leading-snug ${
+                  fitFeedback.status === 'cannot-fit'
+                    ? 'border-amber-500/60 bg-amber-950/50 text-amber-200'
+                    : fitFeedback.status === 'fitted'
+                    ? 'border-emerald-500/60 bg-emerald-950/50 text-emerald-200'
+                    : 'border-gray-700 bg-gray-800/80 text-gray-200'
+                }`}
+              >
+                {fitFeedback.message}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* PROFILE PHOTO */}
+        <section
+          data-testid="theme-group-photo"
+          aria-labelledby="theme-heading-photo"
+          className="space-y-3"
+        >
+          <h4
+            id="theme-heading-photo"
+            className="text-[11px] font-bold uppercase tracking-widest text-blue-400 border-b border-gray-800 pb-1"
+          >
+            Profile Photo
+          </h4>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-medium text-gray-300 block">
+                Show Photo
+              </span>
+              {isAtsMode && (
+                <span className="text-[10px] text-amber-400 block mt-0.5">
+                  Hidden while ATS mode is enabled
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={resolvedPhoto.show && !isAtsMode}
+              aria-label="Show profile photo"
+              disabled={isAtsMode}
+              data-testid="photo-show-toggle"
+              onClick={handlePhotoShowToggle}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed ${
+                resolvedPhoto.show && !isAtsMode ? 'bg-blue-600 cursor-pointer' : 'bg-gray-700 cursor-pointer'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                  resolvedPhoto.show && !isAtsMode ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1.5">
+              Photo Shape
+            </label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {photoShapeOptions.map((opt) => {
+                const isSelected = resolvedPhoto.shape === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    disabled={isAtsMode}
+                    onClick={() => handlePhotoShapeSelect(opt.id)}
+                    data-testid={`photo-shape-${opt.id}`}
+                    className={`py-1.5 px-2 text-center rounded-md border text-[11px] font-medium transition-all disabled:opacity-40 ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
+                        : 'border-gray-800 bg-gray-800/80 text-gray-300 hover:bg-gray-800 hover:text-white'
+                    }`}
+                  >
+                    {opt.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1.5">
+              Photo Size
+            </label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {photoSizeOptions.map((opt) => {
+                const isSelected = resolvedPhoto.size === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    disabled={isAtsMode}
+                    onClick={() => handlePhotoSizeSelect(opt.id)}
+                    data-testid={`photo-size-${opt.id}`}
+                    className={`py-1.5 px-2 text-center rounded-md border text-[11px] font-medium transition-all disabled:opacity-40 ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
+                        : 'border-gray-800 bg-gray-800/80 text-gray-300 hover:bg-gray-800 hover:text-white'
+                    }`}
+                  >
+                    {opt.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
         {/* GROUP 1: COLOURS */}
         <section
           data-testid="theme-group-colours"
@@ -378,7 +725,7 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
               <input
                 id="theme-font-scale"
                 type="range"
-                min={0.85}
+                min={FIT_MIN_FONT_SCALE}
                 max={1.15}
                 step={0.05}
                 value={resolvedFontScale}
@@ -403,7 +750,7 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
               <input
                 id="theme-line-height"
                 type="range"
-                min={1.25}
+                min={FIT_MIN_LINE_HEIGHT}
                 max={1.8}
                 step={0.05}
                 value={resolvedLineHeight}

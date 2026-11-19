@@ -31,8 +31,8 @@
   /* Print styles for the resume preview */
   @media print {
     .resume-preview {
-      width: 21cm !important;
-      min-height: 29.7cm !important;
+      width: var(--theme-print-width, 210mm) !important;
+      min-height: var(--theme-print-height, 297mm) !important;
       padding: 2cm !important;
       margin: 0 !important;
       border: none !important;

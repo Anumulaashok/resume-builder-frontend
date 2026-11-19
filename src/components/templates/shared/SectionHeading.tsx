@@ -17,12 +17,16 @@ export const SectionHeading: React.FC<SectionHeadingProps> = ({
   style,
 }) => {
   const ctx = useTemplateContext();
-  const effectiveVariant: HeadingStyleVariant = variant || ctx.headingStyle || 'underline';
+  const isAtsMode = Boolean(ctx.atsMode);
+  const effectiveVariant: HeadingStyleVariant = isAtsMode
+    ? 'underline'
+    : variant || ctx.headingStyle || 'underline';
 
   const baseStyle: React.CSSProperties = {
     fontFamily: 'var(--theme-heading-font)',
-    color: 'var(--theme-primary, #111827)',
+    color: isAtsMode ? '#000000' : 'var(--theme-primary, #111827)',
     ...style,
+    ...(isAtsMode ? { color: '#000000' } : {}),
   };
 
   if (effectiveVariant === 'bar') {

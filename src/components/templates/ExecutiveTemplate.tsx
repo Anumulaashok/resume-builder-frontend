@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import {
   ContactRow,
   Description,
+  HeaderWithPhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -17,7 +18,7 @@ interface TemplateProps {
 }
 
 const ExecutiveTemplateContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   const rootRef = useRef<HTMLDivElement>(null);
   const [enablePrintPageRule, setEnablePrintPageRule] = useState(false);
 
@@ -30,6 +31,7 @@ const ExecutiveTemplateContent: React.FC = () => {
 
   if (!resume) return null;
 
+  const pageSizeCss = resume.themeConfig?.pageSize === 'Letter' ? 'Letter' : 'A4';
   const basics = resume.content?.basics || {};
   const summaryValue = basics.summary ?? resume.summary ?? '';
   const showSummary = readOnly
@@ -44,7 +46,11 @@ const ExecutiveTemplateContent: React.FC = () => {
     <div
       ref={rootRef}
       data-template-id="executive"
-      className="bg-white [&_ul]:mt-2 [&_ul]:pl-5 [&_ul]:space-y-1 [&_li]:font-medium [&_li]:text-[0.98em] [&_li::marker]:text-[color:var(--theme-accent,var(--theme-primary,#1e293b))] [&_[data-section-kind='achievements']]:pl-3 [&_[data-section-kind='achievements']]:border-l-2 [&_[data-section-kind='achievements']]:border-[color:var(--theme-accent,var(--theme-primary,#cbd5e1))]"
+      className={
+        atsMode
+          ? 'bg-white [&_ul]:mt-2 [&_ul]:pl-5 [&_ul]:space-y-1'
+          : "bg-white [&_ul]:mt-2 [&_ul]:pl-5 [&_ul]:space-y-1 [&_li]:font-medium [&_li]:text-[0.98em] [&_li::marker]:text-[color:var(--theme-accent,var(--theme-primary,#1e293b))] [&_[data-section-kind='achievements']]:pl-3 [&_[data-section-kind='achievements']]:border-l-2 [&_[data-section-kind='achievements']]:border-[color:var(--theme-accent,var(--theme-primary,#cbd5e1))]"
+      }
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
         fontFamily: 'var(--theme-body-font, inherit)',
@@ -57,7 +63,7 @@ const ExecutiveTemplateContent: React.FC = () => {
     >
       {enablePrintPageRule && (
         <style>{`
-          @page { size: A4; margin: 1.4cm 0; }
+          @page { size: ${pageSizeCss}; margin: 1.4cm 0; }
           @media print {
             [data-template-id="executive"] {
               padding-top: 0.25cm !important;
@@ -67,32 +73,43 @@ const ExecutiveTemplateContent: React.FC = () => {
         `}</style>
       )}
       <header
-        className="border-l-[5px] pl-4 py-1 pb-3 border-b border-b-slate-200 break-inside-avoid"
+        className={
+          atsMode
+            ? 'pb-3 border-b border-b-slate-300 break-inside-avoid'
+            : 'border-l-[5px] pl-4 py-1 pb-3 border-b border-b-slate-200 break-inside-avoid'
+        }
         style={{
-          borderLeftColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
+          ...(atsMode
+            ? {}
+            : {
+                borderLeftColor:
+                  'var(--theme-accent, var(--theme-primary, #2563eb))',
+              }),
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <InlineEdit
-          value={basics.name || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-          readOnly={readOnly}
-          textClassName="text-[32px] font-bold tracking-tight leading-none"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-heading-color, #0f172a)',
-          }}
-          placeholder="Your Name"
-        />
-        <InlineEdit
-          value={basics.label || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-          readOnly={readOnly}
-          textClassName="text-base font-semibold tracking-wide mt-1.5 block"
-          style={{ color: 'var(--theme-accent, var(--theme-primary, #2563eb))' }}
-          placeholder="Executive / Leadership Title"
-        />
-        <ContactRow variant="inline-left" className="mt-2.5" />
+        <HeaderWithPhoto>
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-[32px] font-bold tracking-tight leading-none"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #0f172a)',
+            }}
+            placeholder="Your Name"
+          />
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-base font-semibold tracking-wide mt-1.5 block"
+            style={{ color: 'var(--theme-accent, var(--theme-primary, #2563eb))' }}
+            placeholder="Executive / Leadership Title"
+          />
+          <ContactRow variant="inline-left" className="mt-2.5" />
+        </HeaderWithPhoto>
       </header>
 
       {showSummary && (
@@ -105,11 +122,19 @@ const ExecutiveTemplateContent: React.FC = () => {
         >
           <SectionHeading title="Executive Summary" />
           <div
-            className="pl-3.5 py-2 pr-3 border-l-2 bg-slate-50/80 rounded-r-sm print:bg-slate-50"
-            style={{
-              borderLeftColor:
-                'var(--theme-accent, var(--theme-primary, #2563eb))',
-            }}
+            className={
+              atsMode
+                ? ''
+                : 'pl-3.5 py-2 pr-3 border-l-2 bg-slate-50/80 rounded-r-sm print:bg-slate-50'
+            }
+            style={
+              atsMode
+                ? undefined
+                : {
+                    borderLeftColor:
+                      'var(--theme-accent, var(--theme-primary, #2563eb))',
+                  }
+            }
           >
             <Description
               value={summaryValue}

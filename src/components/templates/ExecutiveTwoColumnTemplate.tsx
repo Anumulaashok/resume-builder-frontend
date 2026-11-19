@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { CanonicalSectionKind } from './templateHelpers';
 import {
   ContactRow,
+  HeaderWithPhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -28,7 +29,7 @@ const SECONDARY_COLUMN_KINDS = new Set<CanonicalSectionKind>([
 ]);
 
 const ExecutiveTwoColumnContent: React.FC = () => {
-  const { resume, readOnly, updateBasics } = useTemplateContext();
+  const { resume, readOnly, updateBasics, atsMode } = useTemplateContext();
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
@@ -52,26 +53,28 @@ const ExecutiveTwoColumnContent: React.FC = () => {
         className="pb-4 border-b border-slate-200"
         style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
       >
-        <InlineEdit
-          value={basics.name || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-          readOnly={readOnly}
-          textClassName="text-3xl font-bold tracking-tight leading-tight"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-heading-color, #111827)',
-          }}
-          placeholder="Your Name"
-        />
-        <InlineEdit
-          value={basics.label || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-          readOnly={readOnly}
-          textClassName="text-base mt-1 font-medium block"
-          style={{ color: 'var(--theme-accent, var(--theme-primary, #2563eb))' }}
-          placeholder="Executive / Lead Role"
-        />
-        <ContactRow variant="inline-left" className="mt-2.5" />
+        <HeaderWithPhoto>
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-3xl font-bold tracking-tight leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #111827)',
+            }}
+            placeholder="Your Name"
+          />
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-base mt-1 font-medium block"
+            style={{ color: 'var(--theme-accent, var(--theme-primary, #2563eb))' }}
+            placeholder="Executive / Lead Role"
+          />
+          <ContactRow variant="inline-left" className="mt-2.5" />
+        </HeaderWithPhoto>
       </header>
 
       {showSummary && (
@@ -94,20 +97,24 @@ const ExecutiveTwoColumnContent: React.FC = () => {
         </section>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-7 items-start">
-        <div className="sm:col-span-7 min-w-0">
-          <SectionRenderer
-            filter={(_sec, kind) => !SECONDARY_COLUMN_KINDS.has(kind)}
-            tone="modern"
-          />
+      {atsMode ? (
+        <SectionRenderer tone="modern" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-7 items-start">
+          <div className="sm:col-span-7 min-w-0">
+            <SectionRenderer
+              filter={(_sec, kind) => !SECONDARY_COLUMN_KINDS.has(kind)}
+              tone="modern"
+            />
+          </div>
+          <div className="sm:col-span-5 min-w-0">
+            <SectionRenderer
+              filter={(_sec, kind) => SECONDARY_COLUMN_KINDS.has(kind)}
+              tone="modern"
+            />
+          </div>
         </div>
-        <div className="sm:col-span-5 min-w-0">
-          <SectionRenderer
-            filter={(_sec, kind) => SECONDARY_COLUMN_KINDS.has(kind)}
-            tone="modern"
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -1,3 +1,13 @@
+export type PageSize = 'A4' | 'Letter';
+export type PhotoShape = 'circle' | 'rounded' | 'square';
+export type PhotoSize = 'sm' | 'md' | 'lg';
+
+export interface ThemePhotoConfig {
+  show: boolean;
+  shape: PhotoShape;
+  size: PhotoSize;
+}
+
 export interface ThemeConfig {
   fontPairingId?: string;
   headingFont?: string;
@@ -11,6 +21,9 @@ export interface ThemeConfig {
   sectionSpacing?: 'compact' | 'normal' | 'spacious' | string;
   fontSize?: 'sm' | 'base' | 'lg' | string;
   pageMargins?: 'narrow' | 'normal' | 'wide';
+  pageSize?: PageSize;
+  photo?: ThemePhotoConfig;
+  atsMode?: boolean;
   headingStyle?: 'underline' | 'bar' | 'caps' | 'pill' | 'side-label';
   skillStyle?: 'chips' | 'comma' | 'bars' | 'dots' | 'columns';
   sidebarWidth?: number | string;
@@ -44,6 +57,7 @@ export interface IResume {
       label?: string;
       email?: string;
       phone?: string;
+      image?: string;
       summary?: string;
       location?: {
         address?: string;

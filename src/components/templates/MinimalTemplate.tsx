@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
+  HeaderWithPhoto,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -46,26 +47,28 @@ const MinimalTemplateContent: React.FC = () => {
         className="pb-4"
         style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
       >
-        <InlineEdit
-          value={basics.name || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-          readOnly={readOnly}
-          textClassName="text-[28px] font-semibold tracking-tight leading-tight"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-heading-color, #111827)',
-          }}
-          placeholder="Your Name"
-        />
-        <InlineEdit
-          value={basics.label || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-          readOnly={readOnly}
-          textClassName="text-sm mt-0.5 font-normal block"
-          style={{ color: 'var(--theme-accent, var(--theme-primary, #64748b))' }}
-          placeholder="Role / Headline"
-        />
-        <ContactRow variant="inline-left" className="mt-2.5" />
+        <HeaderWithPhoto>
+          <InlineEdit
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+            readOnly={readOnly}
+            textClassName="text-[28px] font-semibold tracking-tight leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #111827)',
+            }}
+            placeholder="Your Name"
+          />
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-sm mt-0.5 font-normal block"
+            style={{ color: 'var(--theme-accent, var(--theme-primary, #64748b))' }}
+            placeholder="Role / Headline"
+          />
+          <ContactRow variant="inline-left" className="mt-2.5" />
+        </HeaderWithPhoto>
       </header>
 
       {showSummary && (
