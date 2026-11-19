@@ -62,8 +62,10 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
     }
   };
 
+  const isEmpty = !value || !value.trim();
+
   return (
-    <div className={`relative group ${className}`}>
+    <div className={`relative group ${isEmpty && !isEditing ? "print:hidden" : ""} ${className}`}>
       <AnimatePresence mode="wait">
         {!isEditing ? (
           <motion.div
@@ -71,7 +73,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`cursor-pointer hover:bg-neutral-100 hover:ring-2 hover:ring-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-neutral-400 italic' : ''}`}
+            className={`cursor-pointer hover:bg-neutral-100 hover:ring-2 hover:ring-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500 print:!bg-transparent print:!ring-0 print:!px-0 print:!ml-0 rounded px-1 -ml-1 min-w-[20px] min-h-[1.5em] transition-colors ${textClassName} ${!value ? 'text-neutral-400 italic' : ''}`}
             style={style}
             tabIndex={0}
             onClick={() => setIsEditing(true)}

@@ -278,4 +278,62 @@ describe("Print-to-PDF & Backend ATS Plain-Text (.txt) Export Flow", () => {
       })
     ).rejects.toThrow("Resume not found");
   });
+
+  it("marks empty editor-only placeholders and empty summary blocks as print:hidden while keeping populated fields visible for @media print", () => {
+    const partialResume: IResume = {
+      _id: "res-partial-print",
+      title: "Partial Print Resume",
+      templateId: "modern",
+      content: {
+        basics: {
+          name: "Anumula Ashok",
+          label: "",
+          email: "ashok@example.com",
+          phone: "",
+          summary: "",
+        },
+        sections: [
+          {
+            id: "sec-work",
+            type: SectionType.WORK,
+            title: "Experience",
+            content: [
+              {
+                id: "w1",
+                company: "RagaAI",
+                position: "Software Engineer",
+                startDate: "2025",
+                current: true,
+                description: "",
+                highlights: ["Shipped workflow engine"],
+              },
+            ],
+          },
+        ],
+        sectionOrder: ["sec-work"],
+      },
+    };
+
+    render(<ResumePreview resume={partialResume} onChange={jest.fn()} />);
+
+    const phonePlaceholder = screen.getByText("Phone Number");
+    expect(phonePlaceholder.closest(".print\\:hidden")).not.toBeNull();
+
+    const labelPlaceholder = screen.getByText("Professional Title");
+    expect(labelPlaceholder.closest(".print\\:hidden")).not.toBeNull();
+
+    const summaryHeading = screen.getByText("Professional Summary");
+    expect(summaryHeading.closest("section")).toHaveClass("print:hidden");
+
+    const descPlaceholder = screen.getByText(
+      "Describe key responsibilities and achievements..."
+    );
+    expect(descPlaceholder.closest(".print\\:hidden")).not.toBeNull();
+
+    const populatedName = screen.getByText("Anumula Ashok");
+    expect(populatedName.closest(".print\\:hidden")).toBeNull();
+
+    const populatedEmail = screen.getByText("ashok@example.com");
+    expect(populatedEmail.closest(".print\\:hidden")).toBeNull();
+  });
 });
