@@ -1203,16 +1203,20 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
 
         {/* Right Panel: Split-Screen Live Preview Canvas with Interactive Inline Editing */}
         <div
+          data-testid="portfolio-preview-pane"
           className={`${
             mobilePane === 'preview' ? 'flex' : 'hidden'
-          } lg:flex flex-col w-full lg:w-1/2 flex-1 min-h-0 bg-neutral-800 overflow-hidden relative`}
+          } lg:flex flex-col w-full lg:w-1/2 flex-1 min-h-0 bg-neutral-100 overflow-hidden relative`}
         >
           {/* Canvas Controls Header */}
-          <div className="bg-neutral-900 border-b border-neutral-700 px-4 py-2.5 flex items-center justify-between text-xs text-neutral-300 z-10 shrink-0">
+          <div
+            data-testid="portfolio-preview-toolbar"
+            className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between text-xs text-neutral-600 z-10 shrink-0"
+          >
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
-              <span className="font-semibold text-white truncate">Live Visual Preview Canvas</span>
-              <span className="text-neutral-400 hidden sm:inline truncate">
+              <span className="font-semibold text-neutral-900 truncate">Live Visual Preview Canvas</span>
+              <span className="text-neutral-500 hidden sm:inline truncate">
                 (Click any text on canvas to inline edit!)
               </span>
             </div>
@@ -1221,7 +1225,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                 type="button"
                 aria-label="Zoom out"
                 onClick={() => setScale((s) => Math.max(0.6, s - 0.1))}
-                className="h-7 w-7 inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 rounded-control text-neutral-200 transition-colors focus-ring"
+                className="h-7 w-7 inline-flex items-center justify-center bg-white hover:bg-neutral-100 border border-neutral-300 rounded-control text-neutral-700 hover:text-neutral-900 transition-colors focus-ring"
               >
                 -
               </button>
@@ -1229,7 +1233,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                 type="button"
                 aria-label="Reset zoom"
                 onClick={() => setScale(1)}
-                className="h-7 px-2 inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 rounded-control text-neutral-200 font-medium transition-colors focus-ring"
+                className="h-7 px-2 inline-flex items-center justify-center bg-white hover:bg-neutral-100 border border-neutral-300 rounded-control text-neutral-700 hover:text-neutral-900 font-medium tabular-nums transition-colors focus-ring"
               >
                 {Math.round(scale * 100)}%
               </button>
@@ -1237,7 +1241,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                 type="button"
                 aria-label="Zoom in"
                 onClick={() => setScale((s) => Math.min(1.4, s + 0.1))}
-                className="h-7 w-7 inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 rounded-control text-neutral-200 transition-colors focus-ring"
+                className="h-7 w-7 inline-flex items-center justify-center bg-white hover:bg-neutral-100 border border-neutral-300 rounded-control text-neutral-700 hover:text-neutral-900 transition-colors focus-ring"
               >
                 +
               </button>
@@ -1245,32 +1249,44 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
           </div>
 
           {/* Interactive Live Canvas Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center items-start">
+          <div
+            data-testid="portfolio-preview-canvas"
+            className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-100 flex justify-center items-start"
+          >
             <div
-              className="w-full max-w-3xl bg-white rounded-panel shadow-modal border border-neutral-200 text-neutral-900 overflow-hidden transition-transform duration-200 origin-top"
+              className="w-full max-w-3xl bg-white rounded-panel shadow-card-hover border border-neutral-200/90 text-neutral-900 overflow-hidden transition-transform duration-200 origin-top"
               style={{ transform: `scale(${scale})` }}
             >
               {/* Canvas Hero Header */}
-              <div className="p-8 sm:p-12 text-center border-b border-neutral-200/80 bg-gradient-to-b from-primary-50/50 via-white to-neutral-50/40">
-                <div className="inline-block">
+              <div
+                data-testid="portfolio-preview-hero"
+                className="p-8 sm:p-12 text-center border-b border-neutral-200/80 bg-gradient-to-b from-primary-50/50 via-white to-neutral-50/40 flex flex-col items-center"
+              >
+                <div
+                  data-testid="portfolio-preview-hero-name"
+                  className="w-full max-w-xl min-h-[2.75rem]"
+                >
                   <InlineEdit
                     value={portfolio.basics.name}
                     onChange={(v) => handleBasicsChange('name', v)}
                     placeholder="Click to set name"
-                    textClassName="text-3xl sm:text-4xl font-extrabold text-neutral-900 tracking-tight"
+                    textClassName="text-3xl sm:text-4xl font-extrabold text-neutral-900 tracking-tight text-center break-words"
                   />
                 </div>
 
-                <div className="mt-2 inline-block">
+                <div
+                  data-testid="portfolio-preview-hero-headline"
+                  className="mt-2.5 w-full max-w-xl min-h-[1.75rem]"
+                >
                   <InlineEdit
                     value={portfolio.basics.title || ''}
                     onChange={(v) => handleBasicsChange('title', v)}
                     placeholder="Click to set professional title"
-                    textClassName="text-lg sm:text-xl font-semibold text-primary-600"
+                    textClassName="text-lg sm:text-xl font-semibold text-primary-600 text-center break-words"
                   />
                 </div>
 
-                <div className="mt-4 max-w-xl mx-auto">
+                <div className="mt-4 w-full max-w-xl">
                   <InlineEdit
                     value={portfolio.basics.bio || ''}
                     onChange={(v) => handleBasicsChange('bio', v)}

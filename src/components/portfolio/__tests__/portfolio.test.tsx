@@ -181,6 +181,42 @@ describe('Frontend Portfolio Platform Components', () => {
       expect(screen.getByText('Senior Product Designer')).toBeInTheDocument();
     });
 
+    it('stacks preview hero headline underneath name and uses light canvas background', () => {
+      render(<PortfolioEditor onBack={jest.fn()} />);
+
+      const previewPane = screen.getByTestId('portfolio-preview-pane');
+      const previewToolbar = screen.getByTestId('portfolio-preview-toolbar');
+      const previewCanvas = screen.getByTestId('portfolio-preview-canvas');
+      const previewHero = screen.getByTestId('portfolio-preview-hero');
+      const heroNameRow = screen.getByTestId('portfolio-preview-hero-name');
+      const heroHeadlineRow = screen.getByTestId('portfolio-preview-hero-headline');
+
+      // Light neutral preview surfaces matching the rest of the app
+      expect(previewPane).toHaveClass('bg-neutral-100');
+      expect(previewPane).not.toHaveClass('bg-neutral-800');
+      expect(previewCanvas).toHaveClass('bg-neutral-100');
+      expect(previewToolbar).toHaveClass('bg-white', 'border-neutral-200');
+      expect(previewToolbar).not.toHaveClass('bg-neutral-900');
+
+      // Hero stacks name and headline ('Software Developer & Creator') vertically
+      expect(previewHero).toHaveClass('flex', 'flex-col', 'items-center');
+      expect(heroNameRow).toHaveClass('w-full');
+      expect(heroNameRow).not.toHaveClass('inline-block');
+      expect(heroHeadlineRow).toHaveClass('w-full', 'mt-2.5');
+      expect(heroHeadlineRow).not.toHaveClass('inline-block');
+      expect(heroNameRow).toHaveTextContent('Your Name');
+      expect(heroHeadlineRow).toHaveTextContent('Software Developer & Creator');
+      expect(
+        heroNameRow.compareDocumentPosition(heroHeadlineRow) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+
+      // Zoom controls continue working on light toolbar
+      fireEvent.click(screen.getByRole('button', { name: /Zoom in/i }));
+      expect(screen.getByRole('button', { name: /Reset zoom/i })).toHaveTextContent('110%');
+      fireEvent.click(screen.getByRole('button', { name: /Reset zoom/i }));
+      expect(screen.getByRole('button', { name: /Reset zoom/i })).toHaveTextContent('100%');
+    });
+
     it('toggles publish status between draft and published', async () => {
       (portfolioService.updatePortfolio as jest.Mock).mockResolvedValueOnce({
         ...mockPortfolio,
