@@ -1,5 +1,6 @@
 import React from 'react';
 import { IResume, ISection } from '../../types/resume';
+import { formatResumeDate } from '../../utils/date';
 import { InlineEdit } from '../ui/InlineEdit';
 import {
   extractExtraBasicsLinks,
@@ -21,6 +22,10 @@ interface TemplateProps {
 
 const linkClassName =
   'underline decoration-slate-400/80 underline-offset-2 hover:decoration-current transition-colors print:decoration-slate-400';
+
+export function formatDate(date?: unknown): string {
+  return formatResumeDate(date);
+}
 
 export const ProfessionalTemplate: React.FC<TemplateProps> = ({
   resume,
@@ -209,7 +214,7 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({
     if (!Array.isArray(section.content)) {
       return (
         <div className="text-[13px] leading-relaxed text-slate-700">
-          {section.content as any}
+          {typeof section.content === 'string' ? section.content : ''}
         </div>
       );
     }
@@ -217,6 +222,7 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({
     const enabledItems = section.content.filter(
       (item: any) => item && item.enabled !== false
     );
+    if (!enabledItems.length) return null;
 
     return enabledItems.map((item: any, idx: number) => {
       const dateRange = formatItemDateRange(item);
@@ -247,6 +253,13 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({
             ? 'summary'
             : 'description';
         const descVal = item.description ?? item.summary ?? '';
+        const startText = formatDate(item.startDate);
+        const endText = formatDate(item.endDate);
+        const workDateRange = startText
+          ? `${startText} - ${item.current || item.isCurrent || !endText ? 'Present' : endText}`
+          : item.current || item.isCurrent
+          ? 'Present'
+          : endText || dateRange;
 
         return (
           <div key={item.id || idx} className="break-inside-avoid" style={itemStyle}>
@@ -266,9 +279,9 @@ export const ProfessionalTemplate: React.FC<TemplateProps> = ({
                   color: 'var(--theme-heading-color, #1e293b)',
                 }}
               />
-              {dateRange && (
+              {workDateRange && (
                 <span className="text-xs font-semibold text-slate-500 tabular-nums shrink-0">
-                  {dateRange}
+                  {workDateRange}
                 </span>
               )}
             </div>
