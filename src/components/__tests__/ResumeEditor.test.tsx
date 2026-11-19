@@ -287,6 +287,55 @@ describe("ResumeEditor light theme, layout, and bindings", () => {
       secondary: "Tech Lead · Mar 2020 – Aug 2023",
     });
   });
+
+  it("initializes new work experience items with empty string startDate and endDate and previews cleanly", async () => {
+    (resumeService.updateResume as jest.Mock).mockResolvedValueOnce({
+      _id: "res-101",
+    });
+
+    render(<ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add item to Professional Experience" })
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Professional Experience" });
+    const startDateInput = within(dialog).getByLabelText("Start Date") as HTMLInputElement;
+    const endDateInput = within(dialog).getByLabelText("End Date") as HTMLInputElement;
+
+    expect(startDateInput.value).toBe("");
+    expect(endDateInput.value).toBe("");
+
+    fireEvent.change(within(dialog).getByLabelText("Company"), {
+      target: { value: "Initech" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Position / Role"), {
+      target: { value: "Staff Engineer" },
+    });
+
+    // Save with untouched empty dates and verify startDate/endDate are persisted as "" strings (not {})
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    const toolbar = screen.getByTestId("resume-editor-toolbar");
+    fireEvent.click(within(toolbar).getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(resumeService.updateResume).toHaveBeenCalledTimes(1);
+    });
+
+    const savedPayload = (resumeService.updateResume as jest.Mock).mock.calls[0][1];
+    const workSection = savedPayload.content.sections.find(
+      (s: any) => s.id === "sec-work-1"
+    );
+    const createdWorkItem = workSection.content.find(
+      (item: any) => item.company === "Initech"
+    );
+
+    expect(createdWorkItem).toBeDefined();
+    expect(createdWorkItem.startDate).toBe("");
+    expect(createdWorkItem.endDate).toBe("");
+    expect(typeof createdWorkItem.startDate).toBe("string");
+    expect(typeof createdWorkItem.endDate).toBe("string");
+  });
 });
 
 describe("ResumeEditor autosave, toolbar status indicator, flush, and serialization", () => {
