@@ -1,5 +1,6 @@
 import React from 'react';
 import { IResume } from '../../types/resume';
+import { formatResumeDate } from '../../utils/date';
 import { InlineEdit } from '../ui/InlineEdit';
 import { SectionRenderer } from './sections';
 import {
@@ -15,6 +16,10 @@ interface TemplateProps {
 
 const linkClassName =
   'underline decoration-slate-400/80 underline-offset-2 hover:decoration-current transition-colors print:decoration-slate-400';
+
+export function formatDate(date?: unknown): string {
+  return formatResumeDate(date);
+}
 
 export const ProfessionalTemplate: React.FC<TemplateProps> = ({
   resume,

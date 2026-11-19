@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PencilIcon,
@@ -174,6 +175,8 @@ type SaveStatus = "unsaved_new" | "saving" | "saved" | "failed";
 type SaveOrigin = "autosave" | "manual" | "retry";
 type SaveResult = { ok: true; data: any } | { ok: false; error: unknown };
 
+const EXPORT_COOLDOWN_MS = 500;
+
 function extractCreatedResumeId(saved: any): string | undefined {
   return saved?._id || saved?.id || saved?.data?._id || saved?.data?.id;
 }
@@ -260,10 +263,17 @@ export function normalizeResume(input?: IResume): IResume {
   const missingIds = sections
     .map((s) => s.id)
     .filter((id) => !rawOrder.includes(id));
+  const resolvedId = source._id || source.id;
 
   return {
     ...defaultResume,
     ...source,
+    ...(resolvedId
+      ? {
+          _id: source._id || resolvedId,
+          id: source.id || resolvedId,
+        }
+      : {}),
     title: source.title ?? defaultResume.title ?? "Untitled Resume",
     summary: resolvedSummary,
     content: {
@@ -703,12 +713,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     normalizeResume(initialResume)
   );
   const isDesktop = useIsDesktop();
+  const initialResumeId = initialResume?._id || initialResume?.id;
   const [loading, setLoading] = useState(false);
   const [persistedId, setPersistedId] = useState<string | undefined>(
-    () => initialResume?._id
+    () => initialResumeId
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(() =>
-    initialResume?._id ? "saved" : "unsaved_new"
+    initialResumeId ? "saved" : "unsaved_new"
   );
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
@@ -718,6 +729,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [addContent, setAddContent] = useState<{
     type: SectionType;
     item: any;
@@ -740,7 +752,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     serializeResumeSnapshot(resume)
   );
   const lastSavedSnapshotRef = useRef<string | null>(
-    initialResume?._id ? serializeResumeSnapshot(resume) : null
+    initialResumeId ? serializeResumeSnapshot(resume) : null
   );
   const hasShownAutoSaveErrorToastRef = useRef(false);
   const isSavingRef = useRef(false);
@@ -752,8 +764,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const titleBeforeEditRef = useRef<string>(resume.title || "");
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
+  const isExportingRef = useRef(false);
+  const exportCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
-  const effectiveResumeId = resume._id || persistedId;
+  const effectiveResumeId = resume._id || resume.id || persistedId;
 
   const updateSaveStatus = useCallback((next: SaveStatus) => {
     saveStatusRef.current = next;
@@ -810,7 +826,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           let currentResolvers = firstResolvers;
 
           while (true) {
-            const activeId = currentResume._id || persistedIdRef.current;
+            const activeId =
+              currentResume._id || currentResume.id || persistedIdRef.current;
 
             if (!activeId && currentOrigin === "autosave") {
               for (let i = 0; i < currentResolvers.length; i += 1) {
@@ -894,7 +911,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const debouncedAutoSave = useMemo(
     () =>
       createDebouncedCallback((resumeToSave: IResume) => {
-        const activeId = resumeToSave._id || persistedIdRef.current;
+        const activeId =
+          resumeToSave._id || resumeToSave.id || persistedIdRef.current;
         if (!activeId) return;
         void enqueueSave(resumeToSave, "autosave");
       }, 2000),
@@ -917,7 +935,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       prevInitialResumeRef.current = initialResume;
       debouncedAutoSave.cancel();
       const normalized = normalizeResume(initialResume);
-      const nextId = normalized._id;
+      const nextId = normalized._id || normalized.id;
       persistedIdRef.current = nextId;
       setPersistedId(nextId);
       const snap = serializeResumeSnapshot(normalized);
@@ -1088,7 +1106,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       return;
     }
 
-    const activeId = resume._id || persistedIdRef.current;
+    const activeId = resume._id || resume.id || persistedIdRef.current;
     if (!activeId) {
       return;
     }
@@ -1110,6 +1128,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (exportCooldownTimerRef.current !== null) {
+        clearTimeout(exportCooldownTimerRef.current);
+        exportCooldownTimerRef.current = null;
+      }
       debouncedAutoSave.flush();
     };
   }, [debouncedAutoSave]);
@@ -1154,6 +1176,39 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   };
 
+  const handleExport = useCallback(() => {
+    if (isExportingRef.current || loading) {
+      return;
+    }
+
+    isExportingRef.current = true;
+
+    flushSync(() => {
+      setIsExporting(true);
+      setShowOverflowMenu(false);
+      if (!isDesktop && activeView !== "preview") {
+        setActiveView("preview");
+      }
+    });
+
+    try {
+      if (typeof window !== "undefined" && typeof window.print === "function") {
+        window.print();
+      }
+    } finally {
+      if (exportCooldownTimerRef.current !== null) {
+        clearTimeout(exportCooldownTimerRef.current);
+      }
+      exportCooldownTimerRef.current = setTimeout(() => {
+        exportCooldownTimerRef.current = null;
+        isExportingRef.current = false;
+        if (isMountedRef.current) {
+          setIsExporting(false);
+        }
+      }, EXPORT_COOLDOWN_MS);
+    }
+  }, [activeView, isDesktop, loading]);
+
   const handleOpenShare = async () => {
     if (!effectiveResumeId) {
       toast("Saving resume before opening share settings...", { icon: "ℹ️" });
@@ -1163,7 +1218,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       if (isMountedRef.current) {
         setLoading(false);
       }
-      if (result.ok) {
+      const savedId = result.ok
+        ? extractCreatedResumeId(result.data) || persistedIdRef.current
+        : undefined;
+      if (result.ok && savedId) {
         if (isMountedRef.current) {
           setShowShareModal(true);
         }
@@ -1200,8 +1258,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           name: "",
           company: "",
           position: "",
-          startDate: {} as dateFields,
-          endDate: {} as dateFields,
+          startDate: "",
+          endDate: "",
           current: false,
           location: "",
           description: "",
@@ -1672,11 +1730,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={() => {
-                      setShowOverflowMenu(false);
-                      window.print();
-                    }}
-                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                    data-testid="export-resume-btn"
+                    onClick={handleExport}
+                    disabled={loading || isExporting}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                   >
                     <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
                     <span>Export</span>

@@ -248,6 +248,10 @@ export function formatItemDateRange(item: Record<string, any> | null | undefined
     return `${start} - ${displayEnd}`;
   }
 
+  if (item.current || item.isCurrent) {
+    return 'Present';
+  }
+
   if (end) {
     return end;
   }

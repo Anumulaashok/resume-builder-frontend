@@ -6,6 +6,7 @@ export type Resume = BaseResume;
 
 export interface ResumeWithMeta extends Resume {
   id: string;
+  _id?: string;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -14,6 +15,33 @@ export interface ResumeWithMeta extends Resume {
 export interface AIGenerateResponse {
   success: boolean;
   data: ResumeWithMeta;
+}
+
+export function normalizeResumeIdentifiers<T extends Partial<Resume>>(
+  resume: T
+): T {
+  if (!resume || typeof resume !== "object") {
+    return resume;
+  }
+  const resolvedId = resume._id || resume.id;
+  if (!resolvedId) {
+    return resume;
+  }
+  return {
+    ...resume,
+    _id: resume._id || resolvedId,
+    id: resume.id || resolvedId,
+  };
+}
+
+function unwrapResumeResponse(
+  payload: { success?: boolean; data?: ResumeWithMeta } | ResumeWithMeta
+): ResumeWithMeta {
+  const record =
+    payload && typeof payload === "object" && "data" in payload
+      ? (payload.data as ResumeWithMeta)
+      : (payload as ResumeWithMeta);
+  return normalizeResumeIdentifiers(record);
 }
 
 // Removed mock sections and defaultLocation as they are no longer needed
@@ -55,7 +83,7 @@ class ResumeService {
       if (!generatedResume) {
         throw new Error("Failed to generate resume content");
       }
-      return generatedResume;
+      return normalizeResumeIdentifiers(generatedResume);
     } catch (generateError) {
       try {
         await this.deleteResume(resumeId);
@@ -67,8 +95,11 @@ class ResumeService {
   }
 
   async createResume(resumeData: Partial<Resume>): Promise<ResumeWithMeta> {
-    const response = await axiosInstance.post("/api/resumes", resumeData);
-    return response.data;
+    const response = await axiosInstance.post<{
+      success: boolean;
+      data: ResumeWithMeta;
+    }>("/api/resumes", resumeData);
+    return unwrapResumeResponse(response.data);
   }
 
   async getResumes(): Promise<ResumeWithMeta[]> {
@@ -77,42 +108,19 @@ class ResumeService {
       data: ResumeWithMeta[];
     }>("/api/resumes");
 
-    // const response: any = {
-    //   "success": true,
-    //   "data": [
-    //     {
-    //       "content": {
-    //         "basics": {
-    //           "location": {
-    //             "address": "",
-    //             "city": "",
-    //             "countryCode": "",
-    //             "postalCode": ""
-    //           },
-    //           "name": "Anumula Ashok",
-    //           "label": "Software engineer-1",
-    //           "email": "ashoksmart850@gmail.com",
-    //           "phone": "8179463267",
-    //           "summary": ""
-    //         },
-    //         "sections": [],
-    //         "sectionOrder": []
-    //       },
-    //       "_id": "6829d637b58e93c03f11f219",
-    //       "title": "Anumula Ashok",
-    //       "updatedAt": "2023-10-16T07:45:59.000Z",
-    //     }
-    //   ]
-    // }
-    return response?.data?.data || [];
+    const resumes = response?.data?.data || [];
+    return resumes.map((resume) => normalizeResumeIdentifiers(resume));
   }
 
   async updateResume(
     id: string,
     resumeData: Partial<Resume>
   ): Promise<ResumeWithMeta> {
-    const response = await axiosInstance.put(`/api/resumes/${id}`, resumeData);
-    return response.data;
+    const response = await axiosInstance.put<{
+      success: boolean;
+      data: ResumeWithMeta;
+    }>(`/api/resumes/${id}`, resumeData);
+    return unwrapResumeResponse(response.data);
   }
 
   async analyzeJobMatch(id: string, jobDescription: string, jobTitle?: string): Promise<JobMatchResult> {
