@@ -1,7 +1,11 @@
 import React from 'react';
 import { ISection } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
-import { extractKeywords } from '../templateHelpers';
+import {
+  extractKeywords,
+  formatSkillLevel,
+  parseSkillLevelInput,
+} from '../templateHelpers';
 import { SkillStyleVariant, useTemplateContext } from './TemplateContext';
 
 function resolveProficiencyPercent(item: Record<string, any>): number {
@@ -99,7 +103,36 @@ export const SkillList: React.FC<SkillListProps> = ({
     }
   };
 
+  const handleEditLevel = (item: any, rawVal: string) => {
+    if (isReadOnly) return;
+    const parsed = parseSkillLevelInput(rawVal);
+    if (onUpdateItem) {
+      onUpdateItem(item.id, 'level', String(parsed));
+      return;
+    }
+    if (effectiveSectionId) {
+      ctx.updateSectionItemPatch(effectiveSectionId, item.id, { level: parsed });
+    }
+  };
+
   const canEdit = Boolean(!isReadOnly && (onUpdateItem || effectiveSectionId));
+
+  const renderEditableLevel = (item: any, textClassName = 'text-xs text-slate-500') => {
+    const levelLabel = formatSkillLevel(item?.level);
+    if (!levelLabel) return null;
+    if (!canEdit) {
+      return <span className={textClassName}>{levelLabel}</span>;
+    }
+    return (
+      <InlineEdit
+        value={levelLabel}
+        onChange={(v) => handleEditLevel(item, v)}
+        readOnly={isReadOnly}
+        placeholder="Level"
+        textClassName={textClassName}
+      />
+    );
+  };
 
   const renderEditableLabel = (
     item: any,
@@ -142,9 +175,7 @@ export const SkillList: React.FC<SkillListProps> = ({
                 {renderEditableLabel(item, 'Skill', 'text-[0.95em] font-medium', {
                   color: 'var(--theme-heading-color, #1e293b)',
                 })}
-                {typeof item.level === 'string' && item.level.trim() && (
-                  <span className="text-[11px] text-slate-500">{item.level.trim()}</span>
-                )}
+                {renderEditableLevel(item, 'text-[11px] text-slate-500')}
               </div>
               <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden print:border print:border-slate-300">
                 <div
@@ -261,6 +292,7 @@ export const SkillList: React.FC<SkillListProps> = ({
                       }
                     : undefined
                 )}
+                {renderEditableLevel(item, 'text-xs text-slate-500')}
               </div>
               {keywords.length > 0 && (
                 <div className="pl-3.5 mt-0.5 text-xs text-slate-600 leading-relaxed">
@@ -292,6 +324,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         >
           {enabledItems.map((item: any, idx: number) => {
             const label = item.name || item.title || '';
+            const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
             if (!canEdit && !label) return null;
             return (
               <React.Fragment key={item.id || `${label}-${idx}`}>
@@ -300,7 +333,10 @@ export const SkillList: React.FC<SkillListProps> = ({
                     •
                   </span>
                 )}
-                {renderEditableLabel(item, 'Skill', 'text-[0.96em]')}
+                <span className="inline-flex items-baseline gap-1">
+                  {renderEditableLabel(item, 'Skill', 'text-[0.96em]')}
+                  {levelNode}
+                </span>
               </React.Fragment>
             );
           })}
@@ -313,26 +349,21 @@ export const SkillList: React.FC<SkillListProps> = ({
         {enabledItems.map((item: any, idx: number) => {
           const groupName = item.name || item.category || item.title || '';
           const keywords = extractKeywords(item);
-          const levelLabel =
-            typeof item.level === 'string' && item.level.trim() ? item.level.trim() : '';
+          const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
 
           return (
             <div
               key={item.id || `${groupName}-${idx}`}
               className="break-inside-avoid flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2 text-[0.96em] leading-relaxed"
             >
-              <div className="flex items-baseline shrink-0">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 shrink-0">
                 {renderEditableLabel(item, 'Skill Group', 'text-[0.96em] font-bold', {
                   fontFamily: 'var(--theme-heading-font)',
                   color: 'var(--theme-heading-color, #1e293b)',
                 })}
+                {levelNode}
                 {keywords.length > 0 && groupName && (
-                  <span className="font-bold text-slate-700 mr-1">:</span>
-                )}
-                {levelLabel && !keywords.length && (
-                  <span className="text-xs italic text-slate-500 ml-1.5">
-                    ({levelLabel})
-                  </span>
+                  <span className="font-bold text-slate-700 mr-0.5">:</span>
                 )}
               </div>
               {keywords.length > 0 && (
@@ -358,23 +389,30 @@ export const SkillList: React.FC<SkillListProps> = ({
       <div data-skill-variant="chips" className="flex flex-wrap gap-1.5">
         {enabledItems.map((item: any, idx: number) => {
           const label = item.name || item.title || '';
+          const levelLabel = formatSkillLevel(item.level);
           if (!canEdit) {
             if (!label) return null;
             return (
               <span
                 key={item.id || `${label}-${idx}`}
-                className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
               >
-                {label}
+                <span>{label}</span>
+                {levelLabel && (
+                  <span className="text-[11px] text-slate-500 font-normal">
+                    {levelLabel}
+                  </span>
+                )}
               </span>
             );
           }
           return (
             <div
               key={item.id || idx}
-              className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90"
             >
               {renderEditableLabel(item, 'Skill', 'text-xs font-medium')}
+              {renderEditableLevel(item, 'text-[11px] text-slate-500 font-normal')}
             </div>
           );
         })}
@@ -387,22 +425,19 @@ export const SkillList: React.FC<SkillListProps> = ({
       {enabledItems.map((item: any, idx: number) => {
         const groupName = item.name || item.category || item.title || '';
         const keywords = extractKeywords(item);
-        const levelLabel =
-          typeof item.level === 'string' && item.level.trim() ? item.level.trim() : '';
+        const levelNode = renderEditableLevel(item, 'text-xs text-slate-500');
 
         return (
           <div
             key={item.id || `${groupName}-${idx}`}
             className="break-inside-avoid flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3"
           >
-            <div className="sm:w-40 shrink-0 flex items-baseline gap-1.5">
+            <div className="sm:w-44 shrink-0 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
               {renderEditableLabel(item, 'Skill Group', 'text-[0.96em] font-semibold', {
                 fontFamily: 'var(--theme-heading-font)',
                 color: 'var(--theme-heading-color, #111827)',
               })}
-              {levelLabel && !keywords.length && (
-                <span className="text-xs text-slate-500">({levelLabel})</span>
-              )}
+              {levelNode}
             </div>
             {keywords.length > 0 && (
               <div className="flex flex-wrap gap-1.5 flex-1">

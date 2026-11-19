@@ -2,10 +2,14 @@ import React from 'react';
 import { IResume, ISection } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
 import {
+  buildSyncedFieldPatch,
   CanonicalSectionKind,
+  extractCustomExtraFields,
   extractHighlights,
   extractKeywords,
+  formatSkillLevel,
   getOrderedSections,
+  parseSkillLevelInput,
   resolveSectionKind,
 } from '../templateHelpers';
 import { Bullets } from './Bullets';
@@ -74,15 +78,19 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
     }
 
     if (!Array.isArray(section.content)) {
+      const rawContent: unknown = section.content;
+      if (typeof rawContent !== 'string' || !rawContent.trim()) {
+        return null;
+      }
       return (
         <div className="text-[0.96em] leading-relaxed text-slate-700">
-          {section.content as any}
+          {rawContent}
         </div>
       );
     }
 
     const enabledItems = section.content.filter(
-      (item: any) => item && item.enabled !== false
+      (item: any) => item && typeof item === 'object' && item.enabled !== false
     );
     if (!enabledItems.length) return null;
 
@@ -96,12 +104,14 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
             const langKey = item.name !== undefined ? 'name' : 'language';
             const langVal = item.name || item.language || '';
             const levelKey = item.level !== undefined ? 'level' : 'fluency';
-            const levelVal =
-              typeof item.level === 'string'
-                ? item.level
-                : typeof item.fluency === 'string'
-                ? item.fluency
-                : '';
+            const rawLevel = item.level !== undefined ? item.level : item.fluency;
+            const levelVal = formatSkillLevel(rawLevel);
+            const showExtraProficiencyPct =
+              typeof rawLevel === 'string' &&
+              rawLevel.trim().length > 0 &&
+              typeof item.proficiency === 'number' &&
+              Number.isFinite(item.proficiency) &&
+              item.proficiency > 0;
 
             return (
               <div
@@ -120,19 +130,36 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                   textClassName="font-semibold"
                   style={{ color: 'var(--theme-heading-color, #111827)' }}
                 />
-                {(levelVal || !isReadOnly) && (
-                  <InlineEdit
-                    value={levelVal}
-                    onChange={
-                      isReadOnly
-                        ? undefined
-                        : (v) => ctx.updateSectionItem(section.id, item.id, levelKey, v)
-                    }
-                    readOnly={isReadOnly}
-                    placeholder="Proficiency"
-                    textClassName="text-xs text-slate-500"
-                  />
-                )}
+                <div className="flex items-baseline gap-1 shrink-0">
+                  {(levelVal || !isReadOnly) && (
+                    <InlineEdit
+                      value={levelVal}
+                      onChange={
+                        isReadOnly
+                          ? undefined
+                          : (v) =>
+                              ctx.updateSectionItemPatch(
+                                section.id,
+                                item.id,
+                                buildSyncedFieldPatch(
+                                  item,
+                                  levelKey,
+                                  parseSkillLevelInput(v),
+                                  ['level', 'fluency']
+                                )
+                              )
+                      }
+                      readOnly={isReadOnly}
+                      placeholder="Proficiency"
+                      textClassName="text-xs text-slate-500"
+                    />
+                  )}
+                  {showExtraProficiencyPct && (
+                    <span className="text-xs text-slate-400 tabular-nums">
+                      ({Math.round(item.proficiency)}%)
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -190,6 +217,9 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       const keywords = extractKeywords(item);
       const itemUrl = item.url || item.website || item.link || item.liveUrl || '';
       const isLast = idx === enabledItems.length - 1;
+      const itemClassName = isLast
+        ? 'break-inside-avoid'
+        : 'break-inside-avoid mb-[var(--theme-item-spacing,0.875rem)]';
       const itemStyle: React.CSSProperties | undefined = isLast
         ? undefined
         : { marginBottom: 'var(--theme-item-spacing, 0.875rem)' };
@@ -218,7 +248,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="work"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -306,7 +336,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="education"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -373,7 +403,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="projects"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -385,6 +415,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               subtitle={roleVal}
               extraSubtitle={projectExtraMeta}
               url={itemUrl}
+              urlPlaceholder="Add project link"
               urlPlacement="title"
               item={item}
               location={item.location}
@@ -413,7 +444,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="certificates"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -453,7 +484,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="awards"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -492,7 +523,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="courses"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -530,7 +561,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="organizations"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -569,7 +600,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="publications"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -603,12 +634,16 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       if (kind === 'references') {
         const roleAndCompany = [item.position, item.company].filter(Boolean).join(', ');
         const contactVal = item.contact || item.email || item.phone || '';
+        const descKey =
+          item.reference !== undefined && item.description === undefined
+            ? 'reference'
+            : 'description';
         const descVal = item.description || item.reference || '';
         return (
           <div
             key={item.id || idx}
             data-section-kind="references"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -618,6 +653,9 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               itemId={item.id}
               titleField="name"
               subtitle={roleAndCompany}
+              url={itemUrl}
+              urlPlacement="title"
+              item={item}
               extraSubtitle={
                 contactVal ? (
                   <>
@@ -637,7 +675,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               value={descVal}
               sectionId={section.id}
               itemId={item.id}
-              field="description"
+              field={descKey}
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
@@ -648,11 +686,16 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       if (kind === 'achievements') {
         const nameKey = item.name !== undefined ? 'name' : 'title';
         const nameVal = item.name || item.title || '';
+        const issuerKey =
+          item.organization !== undefined && item.issuer === undefined
+            ? 'organization'
+            : 'issuer';
+        const issuerVal = item.issuer || item.organization || '';
         return (
           <div
             key={item.id || idx}
             data-section-kind="achievements"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -661,6 +704,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               sectionId={section.id}
               itemId={item.id}
               titleField={nameKey}
+              subtitle={issuerVal}
+              subtitleField={issuerKey}
               url={itemUrl}
               urlPlacement="title"
               item={item}
@@ -687,7 +732,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <div
             key={item.id || idx}
             data-section-kind="interests"
-            className="break-inside-avoid"
+            className={itemClassName}
             style={itemStyle}
           >
             <ItemHeader
@@ -734,11 +779,13 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
         '';
       const descVal = item.description || item.summary || '';
 
+      const extraCustomFields = extractCustomExtraFields(item);
+
       return (
         <div
           key={item.id || idx}
           data-section-kind="custom"
-          className="break-inside-avoid"
+          className={itemClassName}
           style={itemStyle}
         >
           <ItemHeader
@@ -766,6 +813,16 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           />
           <Bullets items={highlights} />
           <KeywordList keywords={keywords} variant={effectiveKeywordVariant} />
+          {extraCustomFields.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-600">
+              {extraCustomFields.map((ef) => (
+                <span key={ef.key}>
+                  <span className="font-medium text-slate-700">{ef.label}:</span>{' '}
+                  <span>{ef.value}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       );
     });
