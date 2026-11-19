@@ -7,6 +7,9 @@ import { MinimalTemplate } from './MinimalTemplate';
 import { TechSplitTemplate } from './TechSplitTemplate';
 import { CreativeSidebarTemplate } from './CreativeSidebarTemplate';
 import { ExecutiveTwoColumnTemplate } from './ExecutiveTwoColumnTemplate';
+import { DeveloperTemplate } from './DeveloperTemplate';
+import { StartupTemplate } from './StartupTemplate';
+import { AcademicTemplate } from './AcademicTemplate';
 
 export type TemplateCategory =
   | 'simple'
@@ -178,6 +181,76 @@ export const templateRegistry: TemplateDefinition[] = [
       lineHeight: 1.45,
     },
     component: ExecutiveTwoColumnTemplate,
+  },
+  {
+    id: 'developer',
+    name: 'Developer',
+    description:
+      'Clean sans-serif engineering layout with monospace date and stack accents, grouped skill chips, emphasised projects, and prominent GitHub and portfolio links.',
+    category: 'tech',
+    layout: 'single',
+    atsFriendly: true,
+    defaultTheme: {
+      fontPairingId: 'modern-sans',
+      primaryColor: '#0f172a',
+      accentColor: '#0284c7',
+      textColor: '#334155',
+      headingColor: '#0f172a',
+      sectionSpacing: 'compact',
+      pageMargins: 'normal',
+      headingStyle: 'bar',
+      skillStyle: 'chips',
+      fontScale: 0.98,
+      lineHeight: 1.48,
+    },
+    component: DeveloperTemplate,
+  },
+  {
+    id: 'startup',
+    name: 'Startup',
+    description:
+      'High-impact two-tone header layout with accent section pills, highlighted summary callout, emphasised bullet metrics, and a print-ready sidebar.',
+    category: 'tech',
+    layout: 'sidebar-right',
+    atsFriendly: false,
+    defaultTheme: {
+      fontPairingId: 'modern-sans',
+      primaryColor: '#0f172a',
+      accentColor: '#ea580c',
+      textColor: '#334155',
+      headingColor: '#0f172a',
+      sectionSpacing: 'compact',
+      pageMargins: 'narrow',
+      headingStyle: 'pill',
+      skillStyle: 'chips',
+      sidebarWidth: 32,
+      fontScale: 0.97,
+      lineHeight: 1.48,
+    },
+    component: StartupTemplate,
+  },
+  {
+    id: 'academic',
+    name: 'Academic CV',
+    description:
+      'Multi-page curriculum vitae in conservative serif with education first, numbered citation-style publications, honors, courses, and references.',
+    category: 'professional',
+    layout: 'single',
+    atsFriendly: true,
+    defaultTheme: {
+      fontPairingId: 'classic-serif',
+      primaryColor: '#1e293b',
+      accentColor: '#7f1d1d',
+      textColor: '#1f2937',
+      headingColor: '#111827',
+      sectionSpacing: 'normal',
+      pageMargins: 'normal',
+      headingStyle: 'underline',
+      skillStyle: 'comma',
+      fontScale: 0.96,
+      lineHeight: 1.48,
+    },
+    component: AcademicTemplate,
   },
 ];
 
