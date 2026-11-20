@@ -205,7 +205,12 @@ const AcademicPublicationsSection: React.FC<{ section: ISection }> = ({
                     placeholder="Abstract, DOI, or co-author notes..."
                     showWhenEmptyInEdit={false}
                   />
-                  <Bullets items={highlights} />
+                  <Bullets
+                    items={highlights}
+                    sectionId={section.id}
+                    itemId={item.id}
+                    readOnly={readOnly}
+                  />
                 </div>
               </li>
             );

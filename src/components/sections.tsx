@@ -21,8 +21,25 @@ interface FieldDescriptor {
   syncKey?: string;
   label: string;
   placeholder?: string;
-  type?: "text" | "textarea" | "checkbox" | "tags";
+  type?: "text" | "textarea" | "checkbox" | "tags" | "bullets";
   dateObjectFallback?: boolean;
+}
+
+export function parseBulletsInput(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) =>
+        typeof entry === "string"
+          ? entry.replace(/^\s*(?:[•●◦▪▸►✓✔*–—-]\s*|\d+[.)]\s+)/, "").trim()
+          : ""
+      )
+      .filter(Boolean);
+  }
+  if (typeof raw !== "string") return [];
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[•●◦▪▸►✓✔*–—-]\s*|\d+[.)]\s+)/, "").trim())
+    .filter(Boolean);
 }
 
 const SECTION_META: Record<
@@ -66,6 +83,12 @@ const SECTION_META: Record<
         label: "Description & Key Achievements",
         placeholder: "Highlight responsibilities, impact, and metrics...",
         type: "textarea",
+      },
+      {
+        key: "highlights",
+        label: "Bullet Points (one per line)",
+        placeholder: "Led migration to microservices, cutting latency by 40%\nMentored 5 engineers across platform teams",
+        type: "bullets",
       },
     ],
   },
@@ -166,6 +189,12 @@ const SECTION_META: Record<
         label: "Description",
         placeholder: "Describe what you built and its impact...",
         type: "textarea",
+      },
+      {
+        key: "highlights",
+        label: "Bullet Points (one per line)",
+        placeholder: "Built deterministic parser handling 10K+ resumes/min\nAdded Redis caching with 99.9% hit rate",
+        type: "bullets",
       },
     ],
   },
@@ -283,6 +312,12 @@ const SECTION_META: Record<
         placeholder: "Context and recognition details...",
         type: "textarea",
       },
+      {
+        key: "highlights",
+        label: "Bullet Points (one per line)",
+        placeholder: "Selected from 250+ nominees across engineering...",
+        type: "bullets",
+      },
     ],
   },
   [SectionType.ACHIVEMENTS]: {
@@ -305,6 +340,12 @@ const SECTION_META: Record<
         label: "Description",
         placeholder: "Details of your accomplishment...",
         type: "textarea",
+      },
+      {
+        key: "highlights",
+        label: "Bullet Points (one per line)",
+        placeholder: "Add measurable outcomes, one per line...",
+        type: "bullets",
       },
     ],
   },
@@ -340,6 +381,12 @@ const SECTION_META: Record<
         label: "Description",
         placeholder: "Contributions and initiatives...",
         type: "textarea",
+      },
+      {
+        key: "highlights",
+        label: "Bullet Points (one per line)",
+        placeholder: "Organized monthly workshops for 150+ members...",
+        type: "bullets",
       },
     ],
   },
@@ -445,6 +492,12 @@ const SECTION_META: Record<
         placeholder: "Enter details...",
         type: "textarea",
       },
+      {
+        key: "highlights",
+        label: "Bullet Points (one per line)",
+        placeholder: "Enter bullet points, one per line...",
+        type: "bullets",
+      },
     ],
   },
 };
@@ -469,6 +522,9 @@ const GenericSectionItemForm: React.FC<{
       } else if (field.type === "tags") {
         const val = base[field.key];
         base[field.key] = Array.isArray(val) ? val.join(", ") : val || "";
+      } else if (field.type === "bullets") {
+        const val = base[field.key];
+        base[field.key] = Array.isArray(val) ? val.join("\n") : val || "";
       } else if (field.type === "checkbox") {
         base[field.key] = Boolean(base[field.key]);
       } else if (base[field.key] === undefined || base[field.key] === null) {
@@ -503,6 +559,8 @@ const GenericSectionItemForm: React.FC<{
             : Array.isArray(raw)
             ? raw
             : [];
+      } else if (field.type === "bullets") {
+        prepared[field.key] = parseBulletsInput(prepared[field.key]);
       }
     });
     onSave(prepared);
@@ -531,7 +589,7 @@ const GenericSectionItemForm: React.FC<{
           );
         }
 
-        if (field.type === "textarea") {
+        if (field.type === "textarea" || field.type === "bullets") {
           return (
             <div key={field.key}>
               <label

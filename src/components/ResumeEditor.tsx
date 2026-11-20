@@ -1546,8 +1546,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.EDUCATION:
         newItem = {
           ...newItem,
+          institution: "",
           degree: "",
           field: "",
+          score: "",
+          url: "",
           startDate: {} as dateFields,
           endDate: {} as dateFields,
           current: false,
@@ -2184,6 +2187,170 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                     })
                   }
                   placeholder="+1 (555) 000-0000"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-city"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  City
+                </label>
+                <input
+                  id="basics-city"
+                  type="text"
+                  value={resume.content.basics.location?.city || ""}
+                  onChange={(e) =>
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      location: {
+                        ...(resume.content.basics.location || {}),
+                        city: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="e.g. San Francisco"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-region"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  State / Region
+                </label>
+                <input
+                  id="basics-region"
+                  type="text"
+                  value={resume.content.basics.location?.region || ""}
+                  onChange={(e) =>
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      location: {
+                        ...(resume.content.basics.location || {}),
+                        region: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="e.g. CA"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-url"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Website / Portfolio
+                </label>
+                <input
+                  id="basics-url"
+                  type="url"
+                  value={
+                    resume.content.basics.url ??
+                    resume.content.basics.website ??
+                    resume.content.basics.portfolioUrl ??
+                    ""
+                  }
+                  onChange={(e) => {
+                    const nextUrl = e.target.value;
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      url: nextUrl,
+                      ...(resume.content.basics.website !== undefined
+                        ? { website: nextUrl }
+                        : {}),
+                      ...(resume.content.basics.portfolioUrl !== undefined
+                        ? { portfolioUrl: nextUrl }
+                        : {}),
+                    });
+                  }}
+                  placeholder="https://janedoe.dev"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="basics-linkedin"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  LinkedIn
+                </label>
+                <input
+                  id="basics-linkedin"
+                  type="url"
+                  value={resume.content.basics.linkedin || ""}
+                  onChange={(e) => {
+                    const nextLinkedin = e.target.value;
+                    const existingProfiles = resume.content.basics.profiles;
+                    const syncedProfiles = Array.isArray(existingProfiles)
+                      ? existingProfiles
+                          .map((profile) => {
+                            const isLinkedinProfile =
+                              /linkedin/i.test(profile?.network || "") ||
+                              /linkedin\.com/i.test(profile?.url || "");
+                            if (!isLinkedinProfile) return profile;
+                            return nextLinkedin.trim()
+                              ? { ...profile, url: nextLinkedin.trim() }
+                              : null;
+                          })
+                          .filter(Boolean)
+                      : existingProfiles;
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      linkedin: nextLinkedin,
+                      ...(Array.isArray(syncedProfiles)
+                        ? { profiles: syncedProfiles }
+                        : {}),
+                    });
+                  }}
+                  placeholder="https://linkedin.com/in/janedoe"
+                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="basics-github"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  GitHub
+                </label>
+                <input
+                  id="basics-github"
+                  type="url"
+                  value={resume.content.basics.github || ""}
+                  onChange={(e) => {
+                    const nextGithub = e.target.value;
+                    const existingProfiles = resume.content.basics.profiles;
+                    const syncedProfiles = Array.isArray(existingProfiles)
+                      ? existingProfiles
+                          .map((profile) => {
+                            const isGithubProfile =
+                              /github/i.test(profile?.network || "") ||
+                              /github\.com/i.test(profile?.url || "");
+                            if (!isGithubProfile) return profile;
+                            return nextGithub.trim()
+                              ? { ...profile, url: nextGithub.trim() }
+                              : null;
+                          })
+                          .filter(Boolean)
+                      : existingProfiles;
+                    handleChange("basics", {
+                      ...resume.content.basics,
+                      github: nextGithub,
+                      ...(Array.isArray(syncedProfiles)
+                        ? { profiles: syncedProfiles }
+                        : {}),
+                    });
+                  }}
+                  placeholder="https://github.com/janedoe"
                   className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>

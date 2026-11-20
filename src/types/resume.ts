@@ -75,6 +75,9 @@ export interface IResume {
       phone?: string;
       url?: string;
       website?: string;
+      portfolioUrl?: string;
+      linkedin?: string;
+      github?: string;
       image?: string;
       summary?: string;
       location?: {
@@ -207,6 +210,7 @@ export interface AwardItem extends BaseSection {
   awarder?: string;
   date?: string;
   description?: string;
+  highlights?: string[];
 }
 
 export interface OrganizationItem extends BaseSection {
@@ -248,6 +252,7 @@ export interface AchievementItem extends BaseSection {
   name: string;
   date?: string;
   description?: string;
+  highlights?: string[];
 }
 
 export interface TechnicalSkillItem extends BaseSection {

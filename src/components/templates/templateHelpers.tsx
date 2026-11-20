@@ -536,13 +536,32 @@ export interface ContactLinkItem {
   href: string;
 }
 
+export function normalizeComparableUrl(rawUrl?: unknown): string {
+  if (typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  return trimmed
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+}
+
 export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLinkItem[] {
   if (!basics) return [];
   const links: ContactLinkItem[] = [];
+  const seenUrls = new Set<string>();
+
+  const pushUniqueLink = (entry: ContactLinkItem) => {
+    const comparable = normalizeComparableUrl(entry.href);
+    if (!comparable || seenUrls.has(comparable)) return;
+    seenUrls.add(comparable);
+    links.push(entry);
+  };
 
   const directUrl = basics.url || basics.website || basics.portfolioUrl;
   if (typeof directUrl === 'string' && directUrl.trim()) {
-    links.push({
+    pushUniqueLink({
       key: 'website',
       label: formatLinkLabel(directUrl),
       href: normalizeHref(directUrl),
@@ -550,7 +569,7 @@ export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLin
   }
 
   if (typeof basics.linkedin === 'string' && basics.linkedin.trim()) {
-    links.push({
+    pushUniqueLink({
       key: 'linkedin',
       label: formatLinkLabel(basics.linkedin),
       href: normalizeHref(basics.linkedin),
@@ -558,7 +577,7 @@ export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLin
   }
 
   if (typeof basics.github === 'string' && basics.github.trim()) {
-    links.push({
+    pushUniqueLink({
       key: 'github',
       label: formatLinkLabel(basics.github),
       href: normalizeHref(basics.github),
@@ -572,7 +591,7 @@ export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLin
       const network = typeof profile.network === 'string' ? profile.network.trim() : '';
       const username = typeof profile.username === 'string' ? profile.username.trim() : '';
       if (profileUrl) {
-        links.push({
+        pushUniqueLink({
           key: `profile-${idx}`,
           label: formatLinkLabel(profileUrl) || network || username,
           href: normalizeHref(profileUrl),

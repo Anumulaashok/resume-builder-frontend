@@ -840,3 +840,219 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(printSpy).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("ResumeEditor bullet editing, Basic Information links/location, and profile deduplication", () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    window.matchMedia = jest.fn().mockImplementation((query: string) => ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it("edits structured highlights in section item modal, strips leading bullet markers, and supports inline bullet editing and clearing", async () => {
+    (resumeService.updateResume as jest.Mock).mockResolvedValue({ _id: "res-101" });
+
+    const resumeWithWorkBullets = buildSampleResume({
+      content: {
+        basics: {
+          name: "Jordan Lee",
+          label: "Staff Frontend Engineer",
+          email: "jordan@example.com",
+          phone: "555-0199",
+          summary: "Frontend architect.",
+        },
+        sections: [
+          {
+            id: "sec-work",
+            type: SectionType.WORK,
+            title: "Experience",
+            content: [
+              {
+                id: "work-1",
+                name: "Acme Corp",
+                company: "Acme Corp",
+                position: "Staff Engineer",
+                startDate: "Jan 2022",
+                current: true,
+                description: "",
+                highlights: ["Built design system", "Cut bundle size by 35%"],
+              },
+            ],
+          },
+        ],
+        sectionOrder: ["sec-work"],
+      },
+    });
+
+    render(<ResumeEditor initialResume={resumeWithWorkBullets} onBack={jest.fn()} />);
+
+    // Empty description placeholder stays hidden above populated bullets
+    expect(
+      screen.queryByText("Describe key responsibilities and achievements...")
+    ).not.toBeInTheDocument();
+
+    // Open Work item modal and edit structured bullets with leading markers
+    fireEvent.click(screen.getByRole("button", { name: /^Edit Acme Corp$/i }));
+    const bulletsTextarea = screen.getByLabelText(
+      /Bullet Points \(one per line\)/i
+    ) as HTMLTextAreaElement;
+    expect(bulletsTextarea.value).toBe("Built design system\nCut bundle size by 35%");
+
+    fireEvent.change(bulletsTextarea, {
+      target: {
+        value: "• Architected List<String> parser\n- Shipped React.FC<Props> primitives\n\n2. Reduced TTI by 40%",
+      },
+    });
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+
+    // Verify rendered bullets in preview
+    const preview = screen.getByTestId("resume-preview-page");
+    expect(within(preview).getByText("Architected List<String> parser")).toBeInTheDocument();
+    expect(within(preview).getByText("Shipped React.FC<Props> primitives")).toBeInTheDocument();
+    expect(within(preview).getByText("Reduced TTI by 40%")).toBeInTheDocument();
+
+    // Inline edit first bullet
+    fireEvent.click(within(preview).getByText("Architected List<String> parser"));
+    const inlineInput = within(preview).getByDisplayValue("Architected List<String> parser");
+    fireEvent.change(inlineInput, {
+      target: { value: "Architected List<String> & Promise<void> parser" },
+    });
+    fireEvent.blur(inlineInput);
+
+    expect(
+      within(preview).getByText("Architected List<String> & Promise<void> parser")
+    ).toBeInTheDocument();
+
+    // Clear the third bullet inline -> removes empty entry instead of saving a blank list item
+    fireEvent.click(within(preview).getByText("Reduced TTI by 40%"));
+    const thirdInput = within(preview).getByDisplayValue("Reduced TTI by 40%");
+    fireEvent.change(thirdInput, { target: { value: "   " } });
+    fireEvent.blur(thirdInput);
+
+    expect(within(preview).queryByText("Reduced TTI by 40%")).not.toBeInTheDocument();
+
+    // Save resume and verify persisted item.highlights has 2 clean items (no empty string)
+    const toolbar = screen.getByTestId("resume-editor-toolbar");
+    fireEvent.click(within(toolbar).getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(resumeService.updateResume).toHaveBeenCalledWith(
+        "res-101",
+        expect.objectContaining({
+          content: expect.objectContaining({
+            sections: [
+              expect.objectContaining({
+                id: "sec-work",
+                content: [
+                  expect.objectContaining({
+                    id: "work-1",
+                    highlights: [
+                      "Architected List<String> & Promise<void> parser",
+                      "Shipped React.FC<Props> primitives",
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        })
+      );
+    });
+  });
+
+  it("hydrates LinkedIn and GitHub inputs from basics.profiles, saves location and link edits, and deduplicates ContactRow links", async () => {
+    (resumeService.updateResume as jest.Mock).mockResolvedValue({ _id: "res-101" });
+
+    const importedResumeWithProfiles = buildSampleResume({
+      content: {
+        basics: {
+          name: "Maya Lin",
+          label: "Principal Engineer",
+          email: "maya@example.com",
+          phone: "555-0144",
+          url: "https://mayalin.dev/",
+          location: {
+            city: "Seattle",
+            region: "WA",
+            countryCode: "US",
+          },
+          profiles: [
+            { network: "LinkedIn", url: "https://www.linkedin.com/in/mayalin/" },
+            { network: "GitHub", url: "https://github.com/mayalin" },
+            { network: "Website", url: "http://mayalin.dev" },
+          ],
+          summary: "Distributed systems architect.",
+        },
+        sections: [],
+        sectionOrder: [],
+      },
+    });
+
+    render(<ResumeEditor initialResume={importedResumeWithProfiles} onBack={jest.fn()} />);
+
+    const cityInput = screen.getByLabelText(/^City$/i) as HTMLInputElement;
+    const regionInput = screen.getByLabelText(/State \/ Region/i) as HTMLInputElement;
+    const urlInput = screen.getByLabelText(/Website \/ Portfolio/i) as HTMLInputElement;
+    const linkedinInput = screen.getByLabelText(/^LinkedIn$/i) as HTMLInputElement;
+    const githubInput = screen.getByLabelText(/^GitHub$/i) as HTMLInputElement;
+
+    expect(cityInput.value).toBe("Seattle");
+    expect(regionInput.value).toBe("WA");
+    expect(urlInput.value).toBe("https://mayalin.dev/");
+    expect(linkedinInput.value).toBe("https://www.linkedin.com/in/mayalin/");
+    expect(githubInput.value).toBe("https://github.com/mayalin");
+
+    // Preview ContactRow renders each link once without duplicates
+    const preview = screen.getByTestId("resume-preview-page");
+    expect(within(preview).getAllByText(/linkedin\.com\/in\/mayalin/i)).toHaveLength(1);
+    expect(within(preview).getAllByText(/github\.com\/mayalin/i)).toHaveLength(1);
+    expect(within(preview).getAllByText(/mayalin\.dev/i)).toHaveLength(1);
+    expect(within(preview).getByText("Seattle, WA, US")).toBeInTheDocument();
+
+    // Update city, region, website, LinkedIn, and GitHub
+    fireEvent.change(cityInput, { target: { value: "Austin" } });
+    fireEvent.change(regionInput, { target: { value: "TX" } });
+    fireEvent.change(urlInput, { target: { value: "https://maya.codes" } });
+    fireEvent.change(linkedinInput, { target: { value: "https://linkedin.com/in/maya-lin" } });
+    fireEvent.change(githubInput, { target: { value: "https://github.com/maya-lin" } });
+
+    expect(within(preview).getByText("Austin, TX, US")).toBeInTheDocument();
+    expect(within(preview).getAllByText(/linkedin\.com\/in\/maya-lin/i)).toHaveLength(1);
+    expect(within(preview).getAllByText(/github\.com\/maya-lin/i)).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(resumeService.updateResume).toHaveBeenCalledWith(
+        "res-101",
+        expect.objectContaining({
+          content: expect.objectContaining({
+            basics: expect.objectContaining({
+              url: "https://maya.codes",
+              linkedin: "https://linkedin.com/in/maya-lin",
+              github: "https://github.com/maya-lin",
+              location: expect.objectContaining({
+                city: "Austin",
+                region: "TX",
+              }),
+            }),
+          }),
+        })
+      );
+    });
+  });
+});

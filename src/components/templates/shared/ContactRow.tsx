@@ -8,7 +8,10 @@ import {
 } from '@heroicons/react/24/outline';
 import { IResume } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
-import { extractExtraBasicsLinks } from '../templateHelpers';
+import {
+  extractExtraBasicsLinks,
+  normalizeComparableUrl,
+} from '../templateHelpers';
 import { useTemplateContext } from './TemplateContext';
 
 const linkClassName =
@@ -62,11 +65,15 @@ export const ContactRow: React.FC<ContactRowProps> = ({
     [
       !isAddressHidden ? basics.location?.address : undefined,
       basics.location?.city,
-      (basics.location as any)?.region,
+      basics.location?.region,
       basics.location?.countryCode,
     ]
+      .map((part) => (typeof part === 'string' ? part.trim() : ''))
       .filter(Boolean)
-      .join(', ') || (!isAddressHidden ? basics.location?.address : undefined);
+      .join(', ') ||
+    (!isAddressHidden && typeof basics.location?.address === 'string'
+      ? basics.location.address.trim()
+      : undefined);
 
   const extraLinks = extractExtraBasicsLinks(basics as Record<string, any>);
 
@@ -131,7 +138,12 @@ export const ContactRow: React.FC<ContactRowProps> = ({
     });
   }
 
+  const seenRenderedUrls = new Set<string>();
   extraLinks.forEach((link) => {
+    const comparable = normalizeComparableUrl(link.href);
+    if (!comparable || seenRenderedUrls.has(comparable)) return;
+    seenRenderedUrls.add(comparable);
+
     const isWeb = link.key === 'website';
     entries.push({
       key: link.key,

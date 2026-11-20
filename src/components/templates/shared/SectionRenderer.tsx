@@ -287,9 +287,14 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               field={descKey}
               readOnly={isReadOnly}
               placeholder="Describe key responsibilities and achievements..."
-              showWhenEmptyInEdit
+              showWhenEmptyInEdit={highlights.length === 0}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
             <KeywordList keywords={keywords} variant={effectiveKeywordVariant} />
           </div>
         );
@@ -378,9 +383,14 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               field="description"
               readOnly={isReadOnly}
               placeholder="Honors, coursework, or thesis..."
-              showWhenEmptyInEdit
+              showWhenEmptyInEdit={highlights.length === 0}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
           </div>
         );
       }
@@ -441,9 +451,14 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               field="description"
               readOnly={isReadOnly}
               placeholder="Project summary and outcomes..."
-              showWhenEmptyInEdit
+              showWhenEmptyInEdit={highlights.length === 0}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
             <KeywordList keywords={keywords} variant={effectiveKeywordVariant} />
           </div>
         );
@@ -482,7 +497,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
           </div>
         );
       }
@@ -522,7 +542,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
           </div>
         );
       }
@@ -561,7 +586,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
           </div>
         );
       }
@@ -600,7 +630,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
           </div>
         );
       }
@@ -638,7 +673,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
           </div>
         );
       }
@@ -732,7 +772,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
-            <Bullets items={highlights} />
+            <Bullets
+              items={highlights}
+              sectionId={section.id}
+              itemId={item.id}
+              readOnly={isReadOnly}
+            />
           </div>
         );
       }
@@ -823,7 +868,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
             readOnly={isReadOnly}
             showWhenEmptyInEdit={false}
           />
-          <Bullets items={highlights} />
+          <Bullets
+            items={highlights}
+            sectionId={section.id}
+            itemId={item.id}
+            readOnly={isReadOnly}
+          />
           <KeywordList keywords={keywords} variant={effectiveKeywordVariant} />
           {extraCustomFields.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-600">

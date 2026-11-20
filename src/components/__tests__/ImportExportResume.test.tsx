@@ -403,4 +403,95 @@ Python, SQL, Apache Spark, dbt
     URL.createObjectURL = originalCreateObjectURL;
     URL.revokeObjectURL = originalRevokeObjectURL;
   });
+
+  it('preserves edited project bullets as item.highlights in Paste Text review step and hydrates imported profile links without duplicates', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = jest.fn().mockImplementation((query: string) => ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+
+    try {
+      mockedService.getResumes.mockResolvedValueOnce([]);
+      mockedService.createResume.mockImplementation(async (payload) => ({
+        ...payload,
+        id: 'res-imported-projects',
+      }));
+
+      render(<HomePage user={{ name: 'Dev User', email: 'dev@example.com' }} />);
+
+      const emptyState = await screen.findByTestId('resume-empty-state');
+      fireEvent.click(within(emptyState).getByTestId('import-resume-btn'));
+      fireEvent.click(screen.getByRole('tab', { name: /paste text/i }));
+
+      const pastedWithProjectsAndProfiles = `
+Dev Patel
+Staff Platform Engineer
+dev.patel@example.com | github.com/devpatel | linkedin.com/in/devpatel
+
+Projects
+Realtime Query Engine | https://github.com/devpatel/rt-engine
+• Built vectorized execution planner
+• Reduced tail latency by 60%
+      `.trim();
+
+      fireEvent.change(screen.getByTestId('paste-resume-textarea'), {
+        target: { value: pastedWithProjectsAndProfiles },
+      });
+      fireEvent.click(screen.getByTestId('parse-text-review-btn'));
+
+      const projectSection = await screen.findByTestId(
+        `review-section-${SectionType.PROJECTS}`
+      );
+      const projectBulletsTextarea = within(projectSection).getByLabelText(
+        /Description or bullets for/i
+      ) as HTMLTextAreaElement;
+
+      expect(projectBulletsTextarea.value).toContain('Built vectorized execution planner');
+
+      fireEvent.change(projectBulletsTextarea, {
+        target: {
+          value: '• Built vectorized List<String> execution planner\n- Added Promise<void> streaming cursor',
+        },
+      });
+
+      fireEvent.click(screen.getByTestId('create-from-review-btn'));
+
+      await waitFor(() => {
+        expect(mockedService.createResume).toHaveBeenCalledTimes(1);
+      });
+
+      const createdPayload = mockedService.createResume.mock.calls[0][0];
+      const createdProjects = createdPayload.content.sections.find(
+        (s) => s.type === SectionType.PROJECTS
+      );
+      expect(createdProjects?.content[0]).toMatchObject({
+        highlights: [
+          'Built vectorized List<String> execution planner',
+          'Added Promise<void> streaming cursor',
+        ],
+      });
+
+      // Editor opens with LinkedIn & GitHub inputs populated from imported profiles and rendered once in preview
+      expect(await screen.findByDisplayValue('Dev Patel')).toBeInTheDocument();
+      expect((screen.getByLabelText(/^GitHub$/i) as HTMLInputElement).value).toBe(
+        'https://github.com/devpatel'
+      );
+      expect((screen.getByLabelText(/^LinkedIn$/i) as HTMLInputElement).value).toBe(
+        'https://linkedin.com/in/devpatel'
+      );
+
+      const preview = screen.getByTestId('resume-preview-page');
+      expect(within(preview).getAllByText(/^github\.com\/devpatel$/i)).toHaveLength(1);
+      expect(within(preview).getAllByText(/^linkedin\.com\/in\/devpatel$/i)).toHaveLength(1);
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
 });
