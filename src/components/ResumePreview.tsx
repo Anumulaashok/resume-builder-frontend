@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { IResume, ThemeConfig } from "../types/resume";
 import {
   ArrowPathIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SwatchIcon,
@@ -15,6 +16,11 @@ import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
 import { getThemeStyles } from "../constants/themeConstants";
 import { resumeService } from "../services/resume.service";
 import { triggerFileDownload } from "../utils/download";
+import {
+  extractVisibleResume,
+  TARGET_WORD_COUNT_MAX,
+  TARGET_WORD_COUNT_MIN,
+} from "../ats";
 import {
   getTemplate,
   mergeTemplateTheme,
@@ -30,6 +36,7 @@ interface ResumePreviewProps {
   isPrinting?: boolean;
   onExportTxt?: () => Promise<void> | void;
   isExportingTxt?: boolean;
+  onPageHeightChange?: (heightPx: number) => void;
 }
 
 export const A4_WIDTH_PX = 794; // 21cm at 96dpi
@@ -65,6 +72,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   isPrinting = false,
   onExportTxt,
   isExportingTxt,
+  onPageHeightChange,
 }) => {
   const externalTemplateId =
     resume.templateId || (resume as any).template;
@@ -125,8 +133,15 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     if (!pageEl) return;
 
     const syncHeight = () => {
-      const h = Math.max(A4_HEIGHT_PX, pageEl.offsetHeight || 0);
+      const h = Math.max(
+        A4_HEIGHT_PX,
+        pageEl.offsetHeight || 0,
+        pageEl.scrollHeight || 0
+      );
       setPageHeight(h);
+      if (onPageHeightChange) {
+        onPageHeightChange(h);
+      }
     };
 
     syncHeight();
@@ -141,7 +156,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
     observer.observe(pageEl);
     return () => observer.disconnect();
-  }, [activeTemplateId, resume]);
+  }, [activeTemplateId, resume, onPageHeightChange]);
 
   const effectiveScale = manualScale ?? fitScale;
   const isFitMode = manualScale === null;
@@ -236,6 +251,53 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
   const scaledWidth = Math.round(A4_WIDTH_PX * effectiveScale);
   const scaledHeight = Math.round(pageHeight * effectiveScale);
+
+  const effectiveSkillStyle =
+    resume.themeConfig?.skillStyle || activeTemplate.defaultTheme.skillStyle;
+
+  const previewWarnings = useMemo(() => {
+    if (readOnly) return [];
+    const warnings: Array<{ code: string; message: string }> = [];
+    const visible = extractVisibleResume(resume as any);
+    const words = visible.wordCount;
+
+    if (pageHeight > A4_HEIGHT_PX) {
+      warnings.push({
+        code: "page_overflow",
+        message: `Page overflow (${Math.round(
+          pageHeight
+        )}px exceeds ${A4_HEIGHT_PX}px single-page A4 height) — tighten bullets or switch to Compact spacing.`,
+      });
+    }
+
+    if (words > 0 && words < TARGET_WORD_COUNT_MIN) {
+      warnings.push({
+        code: "word_count_low",
+        message: `Word count is ${words} words (ATS target: ${TARGET_WORD_COUNT_MIN}–${TARGET_WORD_COUNT_MAX} words) — add concrete impact details where relevant.`,
+      });
+    } else if (words > TARGET_WORD_COUNT_MAX) {
+      warnings.push({
+        code: "word_count_high",
+        message: `Word count is ${words} words (ATS target: ${TARGET_WORD_COUNT_MIN}–${TARGET_WORD_COUNT_MAX} words) — trim repetitive or older bullets.`,
+      });
+    }
+
+    if (!activeTemplate.atsFriendly) {
+      warnings.push({
+        code: "non_ats_template",
+        message: `Current layout (${activeTemplate.name}) uses decorative or sidebar formatting that is less ATS-friendly — consider a single-column ATS template.`,
+      });
+    }
+
+    if (effectiveSkillStyle === "bars" || effectiveSkillStyle === "dots") {
+      warnings.push({
+        code: "skill_style_bars_dots",
+        message: `Skill ratings use ${effectiveSkillStyle} graphics that ATS parsers cannot read reliably — switch Skill Style to Comma or Chips.`,
+      });
+    }
+
+    return warnings;
+  }, [readOnly, resume, pageHeight, activeTemplate, effectiveSkillStyle]);
 
   return (
     <div className="flex flex-col h-full min-h-full bg-neutral-100 print:!bg-white print:!block print:!h-auto print:!min-h-0">
@@ -367,6 +429,30 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ATS Layout & Formatting Warnings Strip */}
+      {previewWarnings.length > 0 && (
+        <div
+          data-testid="resume-preview-ats-warnings"
+          role="region"
+          aria-label="ATS formatting and layout warnings"
+          className="shrink-0 bg-amber-50/95 border-b border-amber-200 px-3 sm:px-4 py-2 text-xs text-amber-900 space-y-1 print:hidden"
+        >
+          {previewWarnings.map((w) => (
+            <div
+              key={w.code}
+              data-testid={`preview-warning-${w.code}`}
+              className="flex items-start gap-2"
+            >
+              <ExclamationTriangleIcon
+                className="h-4 w-4 text-amber-600 shrink-0 mt-0.5"
+                aria-hidden="true"
+              />
+              <span>{w.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Template Gallery Modal */}
       <TemplateGalleryModal

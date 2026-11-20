@@ -32,6 +32,8 @@ import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
   CodeBracketIcon,
+  SparklesIcon,
+  ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -81,6 +83,13 @@ import {
 } from "../utils/authEventBus";
 import { getStoredUser } from "../utils/token";
 import { downloadResumeAsJson } from "../utils/importers";
+import {
+  evaluateAts,
+  isStandardSectionHeading,
+  suggestStandardHeading,
+  TARGET_WORD_COUNT_MAX,
+  TARGET_WORD_COUNT_MIN,
+} from "../ats";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
@@ -715,6 +724,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [deletableSection, setDeletableSection] = useState<ISection | null>(
     null
   );
+  const [previewPageHeight, setPreviewPageHeight] = useState<number>(1123);
+  const [atsExpanded, setAtsExpanded] = useState<boolean>(false);
+  const [showTargetJobDrawer, setShowTargetJobDrawer] =
+    useState<boolean>(false);
+  const [pinnedJobTitle, setPinnedJobTitle] = useState<string>("");
+  const [pinnedJobDescription, setPinnedJobDescription] = useState<string>("");
 
   const prevInitialResumeRef = useRef<IResume | undefined>(initialResume);
   const isInitialMountRef = useRef(true);
@@ -1825,6 +1840,76 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const summaryValue =
     resume.content?.basics?.summary ?? resume.summary ?? "";
 
+  const atsResult = useMemo(
+    () =>
+      evaluateAts(resume as any, {
+        jobDescription: pinnedJobDescription,
+        jobTitle: pinnedJobTitle,
+        pageHeightPx: previewPageHeight,
+      }),
+    [resume, pinnedJobDescription, pinnedJobTitle, previewPageHeight]
+  );
+
+  const handleRenameSectionHeading = (sectionId: string, nextTitle: string) => {
+    setResume((prev) => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        sections: (prev.content?.sections || []).map((sec) =>
+          sec.id === sectionId ? { ...sec, title: nextTitle } : sec
+        ),
+      },
+    }));
+    toast.success(`Renamed section to "${nextTitle}"`);
+  };
+
+  const handleQuickAddSkill = (skill: string) => {
+    setResume((prev) => {
+      const existingSections = prev.content?.sections || [];
+      const skillsSection = existingSections.find(
+        (s) => s.type === SectionType.SKILLS
+      );
+      const newItem = { id: `skill-item-${Date.now()}`, name: skill };
+      if (skillsSection) {
+        return {
+          ...prev,
+          content: {
+            ...prev.content,
+            sections: existingSections.map((s) =>
+              s.id === skillsSection.id
+                ? { ...s, content: [...(s.content || []), newItem] }
+                : s
+            ),
+          },
+        };
+      }
+      const newSection: ISection = {
+        id: `skills-${Date.now()}`,
+        type: SectionType.SKILLS,
+        title: "Skills",
+        content: [newItem],
+      };
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          sections: [...existingSections, newSection],
+          sectionOrder: [...(prev.content?.sectionOrder || []), newSection.id],
+        },
+      };
+    });
+    toast.success(`Added ${skill} to Skills`);
+  };
+
+  const atsBadgeTone =
+    atsResult.score >= 80
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+      : atsResult.score >= 60
+      ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+      : atsResult.score >= 40
+      ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+      : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100";
+
   const editorToolbar = (
     <div
       data-testid="resume-editor-toolbar"
@@ -1899,6 +1984,20 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              data-testid="toolbar-ats-score-badge"
+              onClick={() => setAtsExpanded((prev) => !prev)}
+              title="Toggle live ATS & job match diagnostics"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold tabular-nums transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${atsBadgeTone}`}
+            >
+              <SparklesIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                {atsResult.mode === "job-match" ? "Match" : "ATS"}{" "}
+                {atsResult.score}%
+              </span>
+            </button>
+
             <div
               data-testid="save-status-indicator"
               role="status"
@@ -2090,6 +2189,304 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     <div className="h-full min-h-0 flex flex-col bg-neutral-50 text-gray-900 print:hidden">
       {/* Scrollable Editor Content */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-5 pb-10 space-y-4">
+        {/* Live Deterministic ATS & Job Match Scorecard */}
+        <section
+          data-testid="live-ats-scorecard"
+          aria-label="Live ATS scorecard"
+          className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+        >
+          <div className="px-4 sm:px-5 py-3.5 bg-neutral-50/80 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span
+                data-testid="live-ats-overall-score"
+                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border tabular-nums ${atsBadgeTone}`}
+              >
+                {atsResult.mode === "job-match" ? "Job Match" : "ATS Score"}:{" "}
+                {atsResult.score}%
+              </span>
+              <span className="text-xs font-semibold text-gray-800">
+                {atsResult.label}
+              </span>
+              <span
+                data-testid="live-ats-word-count"
+                className={`text-xs px-2 py-0.5 rounded-full border tabular-nums ${
+                  atsResult.wordCount >= TARGET_WORD_COUNT_MIN &&
+                  atsResult.wordCount <= TARGET_WORD_COUNT_MAX
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-neutral-100 text-neutral-600 border-neutral-200"
+                }`}
+              >
+                {atsResult.wordCount} words (target {TARGET_WORD_COUNT_MIN}–
+                {TARGET_WORD_COUNT_MAX})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="toggle-pin-job-btn"
+                onClick={() => setShowTargetJobDrawer((prev) => !prev)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                  showTargetJobDrawer || pinnedJobDescription.trim().length > 0
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-neutral-50"
+                }`}
+              >
+                <SparklesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>
+                  {pinnedJobDescription.trim().length > 0
+                    ? "Target job pinned"
+                    : "Pin target job"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="toggle-ats-details-btn"
+                aria-expanded={atsExpanded}
+                onClick={() => setAtsExpanded((prev) => !prev)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-700 bg-white border border-gray-300 hover:bg-neutral-50 transition-colors"
+              >
+                <span>{atsExpanded ? "Hide details" : "Coaching"}</span>
+                <ChevronDownIcon
+                  className={`h-3.5 w-3.5 transition-transform ${
+                    atsExpanded ? "rotate-180" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-3.5">
+            {/* 5 Deterministic Sub-Scores */}
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+              {(
+                [
+                  {
+                    key: "keywords",
+                    label: "Keywords",
+                    val: atsResult.subScores.keywords,
+                  },
+                  {
+                    key: "structure",
+                    label: "Structure",
+                    val: atsResult.subScores.structure,
+                  },
+                  {
+                    key: "experience",
+                    label: "Experience",
+                    val: atsResult.subScores.experience,
+                  },
+                  {
+                    key: "formatting",
+                    label: "Formatting",
+                    val: atsResult.subScores.formatting,
+                  },
+                  {
+                    key: "skills",
+                    label: "Skills",
+                    val: atsResult.subScores.skills,
+                  },
+                ] as const
+              ).map((pillar) => (
+                <div
+                  key={pillar.key}
+                  className="rounded-lg border border-gray-100 bg-neutral-50/70 px-2.5 py-2"
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-medium text-gray-700">
+                      {pillar.label}
+                    </span>
+                    <span className="font-semibold tabular-nums text-gray-900">
+                      {pillar.val}%
+                    </span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-label={`ATS ${pillar.label}`}
+                    aria-valuenow={pillar.val}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    className="h-1.5 rounded-full bg-gray-200 overflow-hidden"
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-200 ${
+                        pillar.val >= 80
+                          ? "bg-emerald-600"
+                          : pillar.val >= 55
+                          ? "bg-blue-600"
+                          : "bg-amber-500"
+                      }`}
+                      style={{ width: `${pillar.val}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pinned Target Job Drawer */}
+            {showTargetJobDrawer && (
+              <div
+                data-testid="pinned-job-drawer"
+                className="rounded-lg border border-blue-200 bg-blue-50/40 p-3.5 space-y-3"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label
+                      htmlFor="pinned-job-title"
+                      className="block text-xs font-medium text-gray-700 mb-1"
+                    >
+                      Target Role Title (optional)
+                    </label>
+                    <input
+                      id="pinned-job-title"
+                      type="text"
+                      value={pinnedJobTitle}
+                      onChange={(e) => setPinnedJobTitle(e.target.value)}
+                      placeholder="e.g. Senior Backend Engineer"
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-end justify-end">
+                    {(pinnedJobDescription || pinnedJobTitle) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPinnedJobDescription("");
+                          setPinnedJobTitle("");
+                        }}
+                        className="text-xs font-medium text-gray-600 hover:text-gray-900 underline"
+                      >
+                        Clear target job
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label
+                    htmlFor="pinned-job-description"
+                    className="block text-xs font-medium text-gray-700 mb-1"
+                  >
+                    Paste Job Posting for Live Gap Coaching
+                  </label>
+                  <textarea
+                    id="pinned-job-description"
+                    rows={3}
+                    value={pinnedJobDescription}
+                    onChange={(e) => setPinnedJobDescription(e.target.value)}
+                    placeholder="Paste required & preferred qualifications to score live as you edit..."
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {pinnedJobDescription.trim().length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    {atsResult.skillTiers.some((t) => !t.matched) && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800 mb-1.5">
+                          Missing target skills (only add skills you genuinely
+                          have):
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {atsResult.skillTiers
+                            .filter((t) => !t.matched)
+                            .slice(0, 10)
+                            .map((t) => (
+                              <span
+                                key={t.keyword}
+                                className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 rounded-full text-xs font-medium bg-white border border-amber-300 text-amber-900"
+                              >
+                                <span>{t.keyword}</span>
+                                <span className="text-[10px] uppercase tracking-wide px-1 rounded bg-amber-100 text-amber-800">
+                                  {t.tier === "required" ? "Req" : "Pref"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickAddSkill(t.keyword)}
+                                  aria-label={`Quick add skill ${t.keyword}`}
+                                  className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-semibold"
+                                >
+                                  + Add
+                                </button>
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {atsResult.transferableSkills.length > 0 && (
+                      <div
+                        data-testid="live-transferable-skills"
+                        className="rounded-md bg-white border border-blue-200 px-3 py-2 text-xs text-gray-700 space-y-1"
+                      >
+                        <span className="font-semibold text-blue-800 block">
+                          Adjacent transferable experience:
+                        </span>
+                        {atsResult.transferableSkills.slice(0, 2).map((hint) => (
+                          <p key={hint.missingSkill}>{hint.suggestion}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Non-standard Heading Alerts with One-Click Standard Rename */}
+            {atsResult.diagnostics.headingIssues.length > 0 && (
+              <div
+                data-testid="live-heading-issues"
+                className="space-y-1.5"
+              >
+                {atsResult.diagnostics.headingIssues.map((issue) => (
+                  <div
+                    key={issue.sectionId}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900"
+                  >
+                    <span>{issue.message}</span>
+                    <button
+                      type="button"
+                      data-testid={`fix-heading-${issue.sectionId}`}
+                      onClick={() =>
+                        handleRenameSectionHeading(
+                          issue.sectionId,
+                          issue.suggestedStandardTitle
+                        )
+                      }
+                      className="px-2.5 py-1 rounded-md bg-white border border-amber-300 text-xs font-semibold text-amber-900 hover:bg-amber-100 shrink-0 transition-colors"
+                    >
+                      Rename to &ldquo;{issue.suggestedStandardTitle}&rdquo;
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Expanded Actionable Coaching Details */}
+            {atsExpanded && atsResult.suggestions.length > 0 && (
+              <ul
+                data-testid="live-ats-suggestions"
+                className="space-y-1.5 pt-1 border-t border-gray-100 text-xs text-gray-700"
+              >
+                {atsResult.suggestions.slice(0, 6).map((s, idx) => (
+                  <li key={`${idx}-${s}`} className="flex items-start gap-2">
+                    <ExclamationTriangleIcon
+                      className="h-4 w-4 text-amber-500 shrink-0 mt-0.5"
+                      aria-hidden="true"
+                    />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-[11px] text-gray-500">
+              {atsResult.guidanceDisclaimer}
+            </p>
+          </div>
+        </section>
+
         {/* Basic Information Card */}
         <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-4 sm:px-5 py-3.5 bg-neutral-50/80 border-b border-gray-100">
@@ -2350,6 +2747,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   isPrinting={isExporting}
                   onExportTxt={handleExportTxt}
                   isExportingTxt={isExportingTxt}
+                  onPageHeightChange={setPreviewPageHeight}
                 />
               </div>
             </Panel>
@@ -2365,6 +2763,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               isPrinting={isExporting}
               onExportTxt={handleExportTxt}
               isExportingTxt={isExportingTxt}
+              onPageHeightChange={setPreviewPageHeight}
             />
           </div>
         )}
@@ -2512,6 +2911,39 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                       className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       placeholder="Enter section title..."
                     />
+                    {customSectionTitle.trim().length > 0 &&
+                      !isStandardSectionHeading(
+                        customSectionTitle,
+                        SectionType.CUSTOM,
+                        true
+                      ) && (
+                        <div
+                          data-testid="custom-section-ats-hint"
+                          className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2"
+                        >
+                          <span>
+                            ATS tip: Non-standard headings like &ldquo;
+                            {customSectionTitle.trim()}&rdquo; may be skipped by
+                            parsers. Consider{" "}
+                            <strong>
+                              {suggestStandardHeading(customSectionTitle)}
+                            </strong>
+                            .
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCustomSectionTitle(
+                                suggestStandardHeading(customSectionTitle)
+                              )
+                            }
+                            className="px-2 py-0.5 rounded bg-white border border-amber-300 font-semibold text-amber-900 hover:bg-amber-100"
+                          >
+                            Use &ldquo;
+                            {suggestStandardHeading(customSectionTitle)}&rdquo;
+                          </button>
+                        </div>
+                      )}
                   </div>
 
                   <div className="flex justify-end gap-3 pt-2">

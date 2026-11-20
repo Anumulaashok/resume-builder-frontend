@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../../services/resume.service';
 import { ISection, SectionType } from '../../types/resume';
 import { JobMatchResult } from '../../types/jobMatch';
+import { ATS_GUIDANCE_DISCLAIMER } from '../../ats';
 import { Container } from '../ui/container';
 import { Skeleton } from '../ui/skeleton';
 
@@ -223,7 +224,7 @@ function AnalysisSkeleton() {
             <Skeleton className="h-3.5 w-36" />
           </div>
           <div className="flex-1 w-full space-y-4">
-            {[0, 1, 2].map((idx) => (
+            {[0, 1, 2, 3, 4].map((idx) => (
               <div key={idx} className="space-y-2">
                 <div className="flex justify-between">
                   <Skeleton className="h-4 w-32" />
@@ -391,6 +392,7 @@ export default function JobMatch({
   );
   const trimmedLength = jobDescription.trim().length;
   const canAnalyze = Boolean(selectedId) && trimmedLength >= MIN_JD_LENGTH && !analyzing;
+  const canRunStandalone = Boolean(selectedId) && trimmedLength === 0 && !analyzing;
 
   const runAnalysis = async () => {
     if (!canAnalyze) return;
@@ -400,6 +402,19 @@ export default function JobMatch({
       setResult(await resumeService.analyzeJobMatch(selectedId, jobDescription, jobTitle.trim()));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to analyze job match');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const runStandaloneCheck = async () => {
+    if (!canRunStandalone) return;
+    setAnalyzing(true);
+    setCheckedSuggestions({});
+    try {
+      setResult(await resumeService.analyzeJobMatch(selectedId, '', jobTitle.trim()));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to run standalone ATS check');
     } finally {
       setAnalyzing(false);
     }
@@ -589,19 +604,32 @@ export default function JobMatch({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={runAnalysis}
-              disabled={!canAnalyze}
-              aria-busy={analyzing}
-              className="w-full h-11 px-4 inline-flex items-center justify-center gap-2 rounded-control bg-primary-600 text-white text-sm font-semibold shadow-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
-            >
-              <SparklesIcon
-                className={`w-5 h-5 shrink-0 ${analyzing ? 'animate-pulse' : ''}`}
-                aria-hidden="true"
-              />
-              <span>{analyzing ? 'Analyzing…' : 'Analyze match'}</span>
-            </button>
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={runAnalysis}
+                disabled={!canAnalyze}
+                aria-busy={analyzing}
+                className="w-full h-11 px-4 inline-flex items-center justify-center gap-2 rounded-control bg-primary-600 text-white text-sm font-semibold shadow-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
+              >
+                <SparklesIcon
+                  className={`w-5 h-5 shrink-0 ${analyzing ? 'animate-pulse' : ''}`}
+                  aria-hidden="true"
+                />
+                <span>{analyzing ? 'Analyzing…' : 'Analyze match'}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="standalone-ats-check-btn"
+                onClick={runStandaloneCheck}
+                disabled={!canRunStandalone}
+                className="w-full h-10 px-4 inline-flex items-center justify-center gap-2 rounded-control border border-neutral-300 bg-white text-neutral-800 text-xs sm:text-sm font-semibold hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring"
+              >
+                <ClipboardDocumentCheckIcon className="w-4 h-4 shrink-0 text-primary-600" aria-hidden="true" />
+                <span>Run standalone ATS check (no job post needed)</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -647,27 +675,64 @@ export default function JobMatch({
                     </p>
                   </div>
 
-                  <div className="flex-1 w-full min-w-0 space-y-4">
+                  <div className="flex-1 w-full min-w-0 space-y-3.5">
                     <BreakdownBar
-                      label="Core skills"
-                      hint="Hard & technical keywords"
-                      value={result.breakdown.skills}
-                      colorClass="bg-primary-600"
+                      label="Keywords"
+                      hint="Role, title & JD term alignment"
+                      value={
+                        result.subScores?.keywords ??
+                        result.breakdown?.keywords ??
+                        result.breakdown?.title ??
+                        0
+                      }
+                      colorClass="bg-emerald-600"
                     />
                     <BreakdownBar
-                      label="Experience keywords"
-                      hint="Action & domain terms"
-                      value={result.breakdown.experience}
+                      label="Structure"
+                      hint="Standard headings, sections & dates"
+                      value={
+                        result.subScores?.structure ??
+                        result.breakdown?.structure ??
+                        100
+                      }
+                      colorClass="bg-blue-600"
+                    />
+                    <BreakdownBar
+                      label="Experience"
+                      hint="Action verbs, impact & domain terms"
+                      value={
+                        result.subScores?.experience ??
+                        result.breakdown?.experience ??
+                        0
+                      }
                       colorClass="bg-accent-600"
                     />
                     <BreakdownBar
-                      label="Title alignment"
-                      hint="Role headline match"
-                      value={result.breakdown.title}
-                      colorClass="bg-emerald-600"
+                      label="Formatting"
+                      hint="Page fit, 475–600 words & ATS layout"
+                      value={
+                        result.subScores?.formatting ??
+                        result.breakdown?.formatting ??
+                        100
+                      }
+                      colorClass="bg-indigo-600"
+                    />
+                    <BreakdownBar
+                      label="Skills"
+                      hint="Weighted required & preferred skills"
+                      value={
+                        result.subScores?.skills ??
+                        result.breakdown?.skills ??
+                        0
+                      }
+                      colorClass="bg-primary-600"
                     />
                   </div>
                 </div>
+
+                <p className="mt-4 pt-3 border-t border-neutral-100 text-xs text-neutral-500">
+                  {result.guidanceDisclaimer || ATS_GUIDANCE_DISCLAIMER}
+                </p>
               </section>
 
               {/* Matched vs Missing Keyword Chips */}
@@ -746,39 +811,104 @@ export default function JobMatch({
                         Add skills you genuinely have to update your resume and refresh your score:
                       </p>
                       <ul className="flex flex-wrap gap-2" aria-label="Missing keywords">
-                        {result.missingKeywords.map((k) => (
-                          <li
-                            key={k.keyword}
-                            data-testid="missing-keyword-chip"
-                            className="inline-flex flex-wrap items-center gap-1.5 max-w-full pl-3 pr-1.5 py-1 rounded-2xl sm:rounded-full text-xs font-semibold bg-amber-50/90 text-amber-900 ring-1 ring-inset ring-amber-200/90"
-                          >
-                            <span className="break-words min-w-0">{k.keyword}</span>
-                            {k.occurrences > 1 && (
-                              <span className="text-[11px] font-medium text-amber-700 tabular-nums">
-                                ×{k.occurrences}
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleAddSkill(k.keyword)}
-                              disabled={addingSkill !== null}
-                              aria-label={
-                                addingSkill === k.keyword
-                                  ? `Adding ${k.keyword} to skills`
-                                  : `Add to skills: ${k.keyword}`
-                              }
-                              className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-amber-300/90 hover:bg-primary-50 hover:text-primary-800 hover:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring shrink-0"
+                        {result.missingKeywords.map((k) => {
+                          const tierEntry = result.skillTiers?.find(
+                            (t) => t.keyword === k.keyword
+                          );
+                          return (
+                            <li
+                              key={k.keyword}
+                              data-testid="missing-keyword-chip"
+                              className="inline-flex flex-wrap items-center gap-1.5 max-w-full pl-3 pr-1.5 py-1 rounded-2xl sm:rounded-full text-xs font-semibold bg-amber-50/90 text-amber-900 ring-1 ring-inset ring-amber-200/90"
                             >
-                              <PlusIcon className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
-                              <span>{addingSkill === k.keyword ? 'Adding…' : 'Add to skills'}</span>
-                            </button>
-                          </li>
-                        ))}
+                              <span className="break-words min-w-0">{k.keyword}</span>
+                              {tierEntry && (
+                                <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.2 rounded bg-white/80 text-amber-800 ring-1 ring-inset ring-amber-200">
+                                  {tierEntry.tier === 'required' ? 'Required' : 'Preferred'}
+                                </span>
+                              )}
+                              {k.occurrences > 1 && (
+                                <span className="text-[11px] font-medium text-amber-700 tabular-nums">
+                                  ×{k.occurrences}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleAddSkill(k.keyword)}
+                                disabled={addingSkill !== null}
+                                aria-label={
+                                  addingSkill === k.keyword
+                                    ? `Adding ${k.keyword} to skills`
+                                    : `Add to skills: ${k.keyword}`
+                                }
+                                className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-amber-300/90 hover:bg-primary-50 hover:text-primary-800 hover:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-ring shrink-0"
+                              >
+                                <PlusIcon className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
+                                <span>{addingSkill === k.keyword ? 'Adding…' : 'Add to skills'}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </>
                   )}
                 </section>
               </div>
+
+              {/* Adjacent Transferable Skills & Fallback Domain Phrases */}
+              {result.transferableSkills && result.transferableSkills.length > 0 && (
+                <section
+                  data-testid="transferable-skills-card"
+                  aria-label="Adjacent transferable skills"
+                  className="bg-white rounded-card border border-neutral-200/90 shadow-card p-4 sm:p-6 space-y-2.5"
+                >
+                  <h2 className="text-base font-semibold text-neutral-900">
+                    Transferable domain skills
+                  </h2>
+                  <ul className="space-y-2 text-sm text-neutral-700">
+                    {result.transferableSkills.map((hint) => (
+                      <li
+                        key={hint.missingSkill}
+                        className="rounded-control bg-primary-50/50 border border-primary-100 px-3.5 py-2.5"
+                      >
+                        {hint.suggestion}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {result.fallbackKeywords &&
+                (result.fallbackKeywords.matched.length > 0 ||
+                  result.fallbackKeywords.missing.length > 0) && (
+                  <section
+                    data-testid="fallback-phrases-card"
+                    aria-label="Domain noun phrases"
+                    className="bg-white rounded-card border border-neutral-200/90 shadow-card p-4 sm:p-6 space-y-3"
+                  >
+                    <h2 className="text-base font-semibold text-neutral-900">
+                      Domain key phrases
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                      {result.fallbackKeywords.matched.map((fp) => (
+                        <span
+                          key={`m-${fp.keyword}`}
+                          className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200"
+                        >
+                          ✓ {fp.keyword}
+                        </span>
+                      ))}
+                      {result.fallbackKeywords.missing.map((fp) => (
+                        <span
+                          key={`x-${fp.keyword}`}
+                          className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200"
+                        >
+                          + {fp.keyword}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
               {/* Suggestions Checklist Card */}
               <section

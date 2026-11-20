@@ -25,11 +25,43 @@ const baseResume: any = {
 const analysis = {
   score: 60,
   label: 'Fair match',
-  breakdown: { skills: 50, experience: 70, title: 100 },
+  mode: 'job-match' as const,
+  guidanceDisclaimer:
+    'Deterministic ATS guidance based on formatting, structure, and keyword rules — not an automated hiring guarantee.',
+  breakdown: {
+    keywords: 75,
+    structure: 92,
+    experience: 70,
+    formatting: 85,
+    skills: 50,
+    title: 100,
+  },
+  subScores: {
+    keywords: 75,
+    structure: 92,
+    experience: 70,
+    formatting: 85,
+    skills: 50,
+  },
   matchedKeywords: [{ keyword: 'React', occurrences: 2 }],
   missingKeywords: [{ keyword: 'GraphQL', occurrences: 3 }],
+  skillTiers: [
+    { keyword: 'React', category: 'Frontend', tier: 'required', weight: 1, occurrences: 2, matched: true },
+    { keyword: 'GraphQL', category: 'Languages', tier: 'required', weight: 1, occurrences: 3, matched: false },
+  ],
+  transferableSkills: [
+    {
+      missingSkill: 'GraphQL',
+      tier: 'required',
+      resumeSkills: ['REST APIs'],
+      category: 'Languages',
+      suggestion: 'Missing GraphQL, and your resume includes related api experience (REST APIs).',
+    },
+  ],
+  fallbackKeywords: { matched: [], missing: [] },
   suggestions: ['Add GraphQL to your Skills section if you have experience with it — the job description mentions it 3 times.'],
   totals: { matched: 1, required: 2 },
+  wordCount: 490,
 };
 
 const JD = 'We need a React engineer with GraphQL, GraphQL and more GraphQL experience.';
@@ -138,9 +170,12 @@ describe('<JobMatch />', () => {
     expect(await screen.findByRole('img', { name: /match score 60%/i })).toBeInTheDocument();
     expect(screen.queryByTestId('job-match-skeleton')).not.toBeInTheDocument();
 
-    expect(screen.getByRole('progressbar', { name: /core skills/i })).toHaveAttribute('aria-valuenow', '50');
-    expect(screen.getByRole('progressbar', { name: /experience keywords/i })).toHaveAttribute('aria-valuenow', '70');
-    expect(screen.getByRole('progressbar', { name: /title alignment/i })).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.getByRole('progressbar', { name: 'Keywords' })).toHaveAttribute('aria-valuenow', '75');
+    expect(screen.getByRole('progressbar', { name: 'Structure' })).toHaveAttribute('aria-valuenow', '92');
+    expect(screen.getByRole('progressbar', { name: 'Experience' })).toHaveAttribute('aria-valuenow', '70');
+    expect(screen.getByRole('progressbar', { name: 'Formatting' })).toHaveAttribute('aria-valuenow', '85');
+    expect(screen.getByRole('progressbar', { name: 'Skills' })).toHaveAttribute('aria-valuenow', '50');
+    expect(screen.getByTestId('transferable-skills-card')).toHaveTextContent(/Missing GraphQL/i);
 
     const matchedChips = screen.getAllByTestId('matched-keyword-chip');
     const missingChips = screen.getAllByTestId('missing-keyword-chip');
@@ -174,5 +209,20 @@ describe('<JobMatch />', () => {
     expect(clearBtn).toHaveClass('focus-ring');
     fireEvent.click(clearBtn);
     expect(jdInput).toHaveValue('');
+  });
+
+  it('runs a standalone ATS check when no job description is provided', async () => {
+    render(<JobMatch />);
+    await screen.findByRole('option', { name: 'Frontend Resume' });
+
+    const standaloneBtn = screen.getByTestId('standalone-ats-check-btn');
+    expect(standaloneBtn).not.toBeDisabled();
+
+    fireEvent.click(standaloneBtn);
+
+    await waitFor(() => {
+      expect(resumeService.analyzeJobMatch).toHaveBeenCalledWith('r1', '', '');
+    });
+    expect(await screen.findByRole('progressbar', { name: 'Structure' })).toHaveAttribute('aria-valuenow', '92');
   });
 });

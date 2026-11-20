@@ -1,8 +1,14 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  LightBulbIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import { EducationItem, SectionType } from "../types/resume";
 import { formatResumeDate } from "../utils/date";
+import { analyzeBulletDiagnostics } from "../ats";
 import EducationForm from "./Education-form";
 
 export interface ContntProps {
@@ -449,6 +455,186 @@ const SECTION_META: Record<
   },
 };
 
+const BULLET_COACHED_TYPES = new Set<SectionType>([
+  SectionType.WORK,
+  SectionType.PROJECTS,
+  SectionType.ACHIVEMENTS,
+  SectionType.ORGANIZATIONS,
+  SectionType.CUSTOM,
+]);
+
+const InlineBulletGuidance: React.FC<{
+  text: string;
+  onReplaceWeakVerb?: (bulletIdx: number, replacementVerb: string) => void;
+}> = ({ text, onReplaceWeakVerb }) => {
+  const diagnostics = useMemo(() => analyzeBulletDiagnostics(text), [text]);
+
+  if (diagnostics.bullets.length === 0) {
+    return (
+      <div
+        data-testid="inline-bullet-guidance"
+        className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600 flex items-start gap-2"
+      >
+        <LightBulbIcon
+          className="h-4 w-4 text-blue-600 shrink-0 mt-0.5"
+          aria-hidden="true"
+        />
+        <span>
+          <strong className="font-semibold text-neutral-800">
+            ATS bullet tip:
+          </strong>{" "}
+          Start each line with a direct action verb (e.g., Built, Engineered,
+          Led), describe how you delivered it, and include a verifiable metric
+          you achieved — never invent numbers.
+        </span>
+      </div>
+    );
+  }
+
+  const weakIssues = diagnostics.issues.filter((i) => i.type === "weak_verb");
+  const longIssues = diagnostics.issues.filter((i) => i.type === "too_long");
+  const repeatedIssues = diagnostics.issues.filter(
+    (i) => i.type === "repeated_term"
+  );
+  const missingMetricIssues = diagnostics.issues.filter(
+    (i) => i.type === "missing_metric"
+  );
+
+  const allStrong =
+    weakIssues.length === 0 &&
+    longIssues.length === 0 &&
+    repeatedIssues.length === 0 &&
+    diagnostics.quantifiedBulletCount > 0;
+
+  return (
+    <div
+      data-testid="inline-bullet-guidance"
+      className="mt-2.5 rounded-lg border border-neutral-200 bg-neutral-50/90 p-3 space-y-2 text-xs"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-semibold text-neutral-800">
+          Bullet Impact Guidance ({diagnostics.quantifiedBulletCount}/
+          {diagnostics.bullets.length} quantified)
+        </span>
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full font-semibold ${
+            allStrong
+              ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
+              : "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200"
+          }`}
+        >
+          {allStrong ? "Strong impact" : `Bullet score ${diagnostics.score}%`}
+        </span>
+      </div>
+
+      {allStrong ? (
+        <div className="flex items-center gap-1.5 text-emerald-700">
+          <CheckCircleIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            Strong action verbs, concise bullet length, and measurable outcomes
+            detected.
+          </span>
+        </div>
+      ) : (
+        <ul className="space-y-1.5 text-neutral-700">
+          {weakIssues.map((issue) => (
+            <li
+              key={`weak-${issue.bulletIndex}`}
+              data-testid="bullet-issue-weak-verb"
+              className="flex flex-col gap-1"
+            >
+              <div className="flex items-start gap-1.5 text-amber-900">
+                <ExclamationTriangleIcon
+                  className="h-4 w-4 text-amber-600 shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                <span>{issue.message}</span>
+              </div>
+              {issue.suggestedVerbs &&
+                issue.suggestedVerbs.length > 0 &&
+                onReplaceWeakVerb && (
+                  <div className="pl-5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-neutral-500">
+                      Replace starter with:
+                    </span>
+                    {issue.suggestedVerbs.slice(0, 3).map((verb) => (
+                      <button
+                        key={verb}
+                        type="button"
+                        onClick={() =>
+                          onReplaceWeakVerb(issue.bulletIndex, verb)
+                        }
+                        className="px-2 py-0.5 rounded bg-white border border-amber-300 text-[11px] font-medium text-amber-900 hover:bg-amber-100 transition-colors"
+                      >
+                        {verb}
+                      </button>
+                    ))}
+                  </div>
+                )}
+            </li>
+          ))}
+
+          {longIssues.map((issue) => (
+            <li
+              key={`long-${issue.bulletIndex}`}
+              data-testid="bullet-issue-too-long"
+              className="flex items-start gap-1.5 text-amber-900"
+            >
+              <ExclamationTriangleIcon
+                className="h-4 w-4 text-amber-600 shrink-0 mt-0.5"
+                aria-hidden="true"
+              />
+              <span>{issue.message}</span>
+            </li>
+          ))}
+
+          {repeatedIssues.map((issue, idx) => (
+            <li
+              key={`rep-${idx}`}
+              data-testid="bullet-issue-repeated-term"
+              className="flex items-start gap-1.5 text-amber-900"
+            >
+              <ExclamationTriangleIcon
+                className="h-4 w-4 text-amber-600 shrink-0 mt-0.5"
+                aria-hidden="true"
+              />
+              <span>{issue.message}</span>
+            </li>
+          ))}
+
+          {missingMetricIssues.length > 0 && (
+            <li
+              data-testid="bullet-issue-missing-metric"
+              className="rounded-md bg-white border border-neutral-200 p-2 space-y-1"
+            >
+              <div className="flex items-start gap-1.5 text-neutral-800 font-medium">
+                <LightBulbIcon
+                  className="h-4 w-4 text-blue-600 shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                <span>
+                  {missingMetricIssues.length === 1
+                    ? missingMetricIssues[0].message
+                    : `${missingMetricIssues.length} bullets lack measurable outcomes. Add verifiable metrics you genuinely achieved — never invent numbers:`}
+                </span>
+              </div>
+              {missingMetricIssues[0].metricPrompts && (
+                <ul className="pl-5 list-disc text-[11px] text-neutral-600 space-y-0.5">
+                  {missingMetricIssues[0].metricPrompts
+                    .slice(0, 2)
+                    .map((prompt) => (
+                      <li key={prompt}>{prompt}</li>
+                    ))}
+                </ul>
+              )}
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 const GenericSectionItemForm: React.FC<{
   type: SectionType;
   initialItem: any;
@@ -532,6 +718,28 @@ const GenericSectionItemForm: React.FC<{
         }
 
         if (field.type === "textarea") {
+          const showBulletCoaching =
+            field.key === "description" && BULLET_COACHED_TYPES.has(type);
+          const rawTextValue = String(formState[field.key] ?? "");
+
+          const handleReplaceWeakVerb = (
+            bulletIdx: number,
+            replacementVerb: string
+          ) => {
+            const lines = rawTextValue
+              .split(/\r?\n/)
+              .map((l) => l.trim())
+              .filter(Boolean);
+            if (bulletIdx < 0 || bulletIdx >= lines.length) return;
+            const targetLine = lines[bulletIdx];
+            const cleaned = targetLine.replace(
+              /^(\s*(?:[-*•▪●◦]|\d+[.)])?\s*)(?:worked\s+(?:on|with|in)|helped(?:\s+(?:with|to|build|create|develop|manage|design))?|(?:was\s+)?responsible\s+for|assisted(?:\s+(?:in|with))?|participated\s+in|(?:was\s+)?involved\s+(?:in|with)|duties\s+included|tasked\s+with|handled|dealt\s+with|utilized|used)\b/i,
+              `$1${replacementVerb}`
+            );
+            lines[bulletIdx] = cleaned;
+            updateField(field, lines.join("\n"));
+          };
+
           return (
             <div key={field.key}>
               <label
@@ -548,6 +756,12 @@ const GenericSectionItemForm: React.FC<{
                 onChange={(e) => updateField(field, e.target.value)}
                 className="w-full px-3 py-2 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+              {showBulletCoaching && (
+                <InlineBulletGuidance
+                  text={rawTextValue}
+                  onReplaceWeakVerb={handleReplaceWeakVerb}
+                />
+              )}
             </div>
           );
         }

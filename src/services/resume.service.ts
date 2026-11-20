@@ -149,11 +149,23 @@ class ResumeService {
     return unwrapResumeResponse(response.data);
   }
 
-  async analyzeJobMatch(id: string, jobDescription: string, jobTitle?: string): Promise<JobMatchResult> {
-    const response = await axiosInstance.post<{ success: boolean; data: JobMatchResult }>(
-      `/api/resumes/${id}/job-match`,
-      { jobDescription, jobTitle: jobTitle || undefined }
-    );
+  async analyzeJobMatch(
+    id: string,
+    jobDescription = "",
+    jobTitle?: string
+  ): Promise<JobMatchResult> {
+    const trimmedJd = jobDescription.trim();
+    const payload: { jobDescription?: string; jobTitle?: string } = {};
+    if (trimmedJd.length > 0) {
+      payload.jobDescription = jobDescription;
+    }
+    if (jobTitle) {
+      payload.jobTitle = jobTitle;
+    }
+    const response = await axiosInstance.post<{
+      success: boolean;
+      data: JobMatchResult;
+    }>(`/api/resumes/${id}/job-match`, payload);
     return response.data.data;
   }
 
