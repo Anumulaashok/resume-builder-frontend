@@ -3,12 +3,15 @@ import toast from "react-hot-toast";
 import { IResume, ThemeConfig } from "../types/resume";
 import {
   ArrowPathIcon,
+  ArrowsPointingInIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SwatchIcon,
   PaintBrushIcon,
   PrinterIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { motion } from "framer-motion";
 import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
@@ -16,11 +19,23 @@ import { getThemeStyles } from "../constants/themeConstants";
 import { resumeService } from "../services/resume.service";
 import { triggerFileDownload } from "../utils/download";
 import {
+  A4_HEIGHT_PX,
+  A4_WIDTH_PX,
+  A4PageCountBadge,
+  A4PageGuidesOverlay,
+  computePageCount,
+  isShortPageOverflow,
+  useA4SheetHeight,
+} from "./common/A4PageGuides";
+import { runDomThemeAutoFit } from "../utils/themeAutoFit";
+import {
   getTemplate,
   mergeTemplateTheme,
   TemplateDefinition,
 } from "./templates/registry";
 import { TemplateGalleryModal } from "./templates/TemplateGalleryModal";
+
+export { A4_WIDTH_PX, A4_HEIGHT_PX };
 
 interface ResumePreviewProps {
   resume: IResume;
@@ -31,9 +46,6 @@ interface ResumePreviewProps {
   onExportTxt?: () => Promise<void> | void;
   isExportingTxt?: boolean;
 }
-
-export const A4_WIDTH_PX = 794; // 21cm at 96dpi
-export const A4_HEIGHT_PX = 1123; // 29.7cm at 96dpi
 
 function computeFitScale(availableWidth: number): number {
   if (!availableWidth || availableWidth <= 0) {
@@ -73,15 +85,31 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   );
   const [fitScale, setFitScale] = useState<number>(1);
   const [manualScale, setManualScale] = useState<number | null>(null);
-  const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
   const [internalExportingTxt, setInternalExportingTxt] =
     useState<boolean>(false);
+  const [isAutoFitting, setIsAutoFitting] = useState<boolean>(false);
+  const [manualTrimNotice, setManualTrimNotice] = useState<string | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const isSolvingRef = useRef<boolean>(false);
   const customisedKeysRef = useRef<Set<keyof ThemeConfig>>(new Set());
+  const autoFitUndoTrackerRef = useRef<{
+    previousTheme: ThemeConfig | undefined;
+    appliedTheme: ThemeConfig | undefined;
+    addedKeys: Array<keyof ThemeConfig>;
+  } | null>(null);
+
+  const pageHeight = useA4SheetHeight(
+    pageRef,
+    [activeTemplateId, resume],
+    true,
+    isSolvingRef
+  );
+  const pageCount = computePageCount(pageHeight);
+  const hasShortOverflow = !readOnly && isShortPageOverflow(pageHeight);
 
   useEffect(() => {
     if (externalTemplateId) {
@@ -119,29 +147,25 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Track unscaled page height so the scaled wrapper reserves exact vertical scroll space
+  // Clear manual-trim notice automatically once the sheet fits on 1 page or Undo reverts auto-fit
   useEffect(() => {
-    const pageEl = pageRef.current;
-    if (!pageEl) return;
-
-    const syncHeight = () => {
-      const h = Math.max(A4_HEIGHT_PX, pageEl.offsetHeight || 0);
-      setPageHeight(h);
-    };
-
-    syncHeight();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
+    if (pageCount <= 1 && manualTrimNotice) {
+      setManualTrimNotice(null);
     }
+  }, [pageCount, manualTrimNotice]);
 
-    const observer = new ResizeObserver(() => {
-      syncHeight();
-    });
-
-    observer.observe(pageEl);
-    return () => observer.disconnect();
-  }, [activeTemplateId, resume]);
+  useEffect(() => {
+    const tracker = autoFitUndoTrackerRef.current;
+    if (
+      tracker &&
+      resume.themeConfig !== tracker.appliedTheme &&
+      resume.themeConfig === tracker.previousTheme
+    ) {
+      tracker.addedKeys.forEach((key) => customisedKeysRef.current.delete(key));
+      autoFitUndoTrackerRef.current = null;
+      setManualTrimNotice(null);
+    }
+  }, [resume.themeConfig]);
 
   const effectiveScale = manualScale ?? fitScale;
   const isFitMode = manualScale === null;
@@ -224,6 +248,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
     setActiveTemplateId(nextTemplate.id);
     setShowTemplateGallery(false);
+    setManualTrimNotice(null);
 
     if (onChange) {
       onChange({
@@ -231,6 +256,60 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
         templateId: nextTemplate.id,
         themeConfig: nextThemeConfig,
       });
+    }
+  };
+
+  const handleFitToOnePage = async () => {
+    if (readOnly || isAutoFitting) return;
+    const pageEl = pageRef.current;
+    if (!pageEl) return;
+
+    setIsAutoFitting(true);
+    isSolvingRef.current = true;
+
+    try {
+      const result = await runDomThemeAutoFit({
+        pageEl,
+        currentTheme: resume.themeConfig,
+        templateDefaults: activeTemplate.defaultTheme,
+        targetHeight: A4_HEIGHT_PX,
+      });
+
+      if (result.alreadyFit) {
+        setManualTrimNotice(null);
+        toast.success("Resume already fits on 1 A4 page");
+        return;
+      }
+
+      const newlyAddedKeys = result.changedKeys.filter(
+        (key) => !customisedKeysRef.current.has(key)
+      );
+      result.changedKeys.forEach((key) => customisedKeysRef.current.add(key));
+
+      if (result.changedKeys.length > 0 && onChange) {
+        autoFitUndoTrackerRef.current = {
+          previousTheme: resume.themeConfig,
+          appliedTheme: result.themeConfig,
+          addedKeys: newlyAddedKeys,
+        };
+        onChange({
+          ...resume,
+          themeConfig: result.themeConfig,
+        });
+      }
+
+      if (result.fitted) {
+        setManualTrimNotice(null);
+        toast.success("Adjusted theme density to fit on 1 A4 page");
+      } else {
+        const trimMsg =
+          "Minimum readable theme spacing and font size (85%) applied, but your resume still exceeds 1 A4 page. Please trim bullet text or hide optional entries manually.";
+        setManualTrimNotice(trimMsg);
+        toast(trimMsg, { icon: "⚠️" });
+      }
+    } finally {
+      isSolvingRef.current = false;
+      setIsAutoFitting(false);
     }
   };
 
@@ -279,6 +358,24 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             <PaintBrushIcon className="h-4 w-4" />
             <span>Customize Theme</span>
           </button>
+
+          <A4PageCountBadge pageCount={pageCount} />
+
+          {!readOnly && pageCount > 1 && (
+            <button
+              type="button"
+              data-testid="toolbar-fit-to-one-page-btn"
+              disabled={isAutoFitting}
+              onClick={() => {
+                void handleFitToOnePage();
+              }}
+              title="Automatically tighten margins, spacing, line height, and font scale to fit 1 A4 page"
+              className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 disabled:opacity-60 transition-colors inline-flex items-center gap-1.5"
+            >
+              <ArrowsPointingInIcon className="h-4 w-4 text-amber-700 shrink-0" />
+              <span>{isAutoFitting ? "Fitting…" : "Fit to 1 page"}</span>
+            </button>
+          )}
         </div>
 
         {/* Right: Zoom & Print Controls */}
@@ -368,6 +465,67 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
         </div>
       </div>
 
+      {/* Short Page-2 Spillover Alert (<= 20% above 1123px) */}
+      {hasShortOverflow && !manualTrimNotice && (
+        <div
+          role="status"
+          data-testid="short-overflow-alert"
+          className="shrink-0 bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 print:hidden"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <ExclamationTriangleIcon
+              className="h-4 w-4 text-amber-600 shrink-0"
+              aria-hidden="true"
+            />
+            <span>
+              Your resume spills slightly onto page 2 (
+              {Math.max(
+                1,
+                Math.round(((pageHeight - A4_HEIGHT_PX) / A4_HEIGHT_PX) * 100)
+              )}
+              % over 1 A4 page). Auto-fit can tighten spacing and typography cleanly.
+            </span>
+          </div>
+          <button
+            type="button"
+            data-testid="alert-fit-to-one-page-btn"
+            disabled={isAutoFitting}
+            onClick={() => {
+              void handleFitToOnePage();
+            }}
+            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium shadow-xs disabled:opacity-60 transition-colors"
+          >
+            <ArrowsPointingInIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{isAutoFitting ? "Fitting…" : "Fit to 1 page"}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Manual Trim Guidance when readable theme floor cannot fit 1 A4 page */}
+      {!readOnly && manualTrimNotice && (
+        <div
+          role="alert"
+          data-testid="autofit-manual-trim-notice"
+          className="shrink-0 bg-amber-50 border-b border-amber-300 px-3 sm:px-4 py-2 flex items-start justify-between gap-3 text-xs text-amber-950 print:hidden"
+        >
+          <div className="flex items-start gap-2 min-w-0">
+            <ExclamationTriangleIcon
+              className="h-4 w-4 text-amber-600 shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <span>{manualTrimNotice}</span>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss auto-fit notice"
+            onClick={() => setManualTrimNotice(null)}
+            className="shrink-0 p-0.5 rounded text-amber-700 hover:text-amber-950 hover:bg-amber-100 transition-colors"
+          >
+            <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {/* Template Gallery Modal */}
       <TemplateGalleryModal
         isOpen={showTemplateGallery}
@@ -385,10 +543,15 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             themeConfig={resume.themeConfig}
             templateDefaultTheme={activeTemplate.defaultTheme}
             templateLayout={activeTemplate.layout}
+            pageCount={pageCount}
+            isAutoFitting={isAutoFitting}
+            autoFitNotice={manualTrimNotice}
+            onFitToOnePage={handleFitToOnePage}
             onKeysCustomised={(changedKeys) => {
               changedKeys.forEach((k) => customisedKeysRef.current.add(k));
             }}
             onChange={(newTheme) => {
+              setManualTrimNotice(null);
               if (onChange) {
                 onChange({
                   ...resume,
@@ -398,6 +561,8 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             }}
             onReset={(resetTheme) => {
               customisedKeysRef.current.clear();
+              autoFitUndoTrackerRef.current = null;
+              setManualTrimNotice(null);
               if (onChange) {
                 onChange({
                   ...resume,
@@ -429,7 +594,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             <div
               ref={pageRef}
               data-testid="resume-preview-page"
-              className="bg-white shadow-md ring-1 ring-black/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
+              className="relative bg-white shadow-md ring-1 ring-black/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
               style={{
                 width: `${A4_WIDTH_PX}px`,
                 minHeight: `${A4_HEIGHT_PX}px`,
@@ -451,6 +616,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
                   readOnly={readOnly}
                 />
               </motion.div>
+              <A4PageGuidesOverlay pageHeight={pageHeight} />
             </div>
           </div>
         </div>
