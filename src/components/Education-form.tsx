@@ -97,6 +97,54 @@ const MonthYearSelector: React.FC<{
   );
 };
 
+const LEGACY_SCHOOL_KEYWORDS =
+  /\b(university|college|institute|institution|school|academy|polytechnic|conservatory|seminary|faculty|campus|mit|stanford|berkeley|caltech|harvard|yale|princeton|columbia|cornell|oxford|cambridge|nyu|cmu|ucla|usc|ucsd|iit|nit|bits|eth)\b/i;
+
+function hydrateEducationContent(initialContent?: EducationItem): EducationItem {
+  if (!initialContent) {
+    return {
+      id: Date.now().toString(),
+      institution: "",
+      degree: "",
+      field: "",
+      score: "",
+      url: "",
+      location: "",
+      current: false,
+      startDate: { month: "", year: "" },
+      endDate: { month: "", year: "" },
+      description: "",
+    };
+  }
+
+  const rawInstitution =
+    typeof initialContent.institution === "string"
+      ? initialContent.institution
+      : "";
+  const rawField =
+    typeof initialContent.field === "string" ? initialContent.field : "";
+  const rawDegree =
+    typeof initialContent.degree === "string" ? initialContent.degree : "";
+
+  const shouldMigrateLegacyFieldToInstitution =
+    !rawInstitution.trim() &&
+    Boolean(rawField.trim()) &&
+    (initialContent.institution === undefined ||
+      LEGACY_SCHOOL_KEYWORDS.test(rawField) ||
+      /\bin\s+\S+/i.test(rawDegree));
+
+  return {
+    ...initialContent,
+    institution: shouldMigrateLegacyFieldToInstitution ? rawField : rawInstitution,
+    field: shouldMigrateLegacyFieldToInstitution ? "" : rawField,
+    score:
+      initialContent.score ??
+      ((initialContent as Record<string, any>).gpa as string | undefined) ??
+      "",
+    url: initialContent.url ?? "",
+  };
+}
+
 export default function EducationForm({
   initialContent,
   onSave,
@@ -106,22 +154,15 @@ export default function EducationForm({
   onSave: (content: any) => void;
   onCancel: () => void;
 }) {
-  const [content, setContent] = useState<EducationItem>(
-    initialContent ?? {
-      id: Date.now().toString(),
-      degree: "",
-      field: "",
-      location: "",
-      current: false,
-      startDate: { month: "", year: "" },
-      endDate: { month: "", year: "" },
-      description: "",
-    }
+  const [content, setContent] = useState<EducationItem>(() =>
+    hydrateEducationContent(initialContent)
   );
 
   const handleSave = () => {
     onSave({
       ...content,
+      institution: content.institution ?? "",
+      field: content.field ?? "",
       startDate: normalizeDateFields(content.startDate),
       endDate: normalizeDateFields(content.endDate),
     });
@@ -146,7 +187,7 @@ export default function EducationForm({
           </label>
           <Input
             id="edu-degree"
-            placeholder="e.g. B.S. in Computer Science"
+            placeholder="e.g. Bachelor of Science"
             className="bg-white text-gray-900 placeholder-gray-400 border-gray-300"
             value={content.degree || ""}
             onChange={(e) => handleChange("degree", e.target.value)}
@@ -165,15 +206,16 @@ export default function EducationForm({
               id="edu-school"
               placeholder="Enter school or university"
               className="bg-white text-gray-900 placeholder-gray-400 border-gray-300 flex-1"
-              value={content.field || ""}
-              onChange={(e) => handleChange("field", e.target.value)}
+              value={content.institution || ""}
+              onChange={(e) => handleChange("institution", e.target.value)}
             />
             <Button
               type="button"
               variant="outline"
               className="border-gray-300 text-gray-700 shrink-0"
-              title="Institution website"
-              aria-label="Institution website"
+              title="Focus website URL input"
+              aria-label="Focus website URL input"
+              onClick={() => document.getElementById("edu-url")?.focus()}
             >
               <LinkIcon className="h-4 w-4 mr-1.5" />
               Link
@@ -181,20 +223,73 @@ export default function EducationForm({
           </div>
         </div>
 
-        <div>
-          <label
-            htmlFor="edu-location"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Location
-          </label>
-          <Input
-            id="edu-location"
-            placeholder="e.g. Boston, MA"
-            className="bg-white text-gray-900 placeholder-gray-400 border-gray-300"
-            value={content.location || ""}
-            onChange={(e) => handleChange("location", e.target.value)}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label
+              htmlFor="edu-field"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Field of Study / Major
+            </label>
+            <Input
+              id="edu-field"
+              placeholder="e.g. Computer Science"
+              className="bg-white text-gray-900 placeholder-gray-400 border-gray-300"
+              value={content.field || ""}
+              onChange={(e) => handleChange("field", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="edu-score"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              GPA / Score
+            </label>
+            <Input
+              id="edu-score"
+              placeholder="e.g. 3.9 / 4.0"
+              className="bg-white text-gray-900 placeholder-gray-400 border-gray-300"
+              value={content.score || ""}
+              onChange={(e) => handleChange("score", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label
+              htmlFor="edu-location"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Location
+            </label>
+            <Input
+              id="edu-location"
+              placeholder="e.g. Boston, MA"
+              className="bg-white text-gray-900 placeholder-gray-400 border-gray-300"
+              value={content.location || ""}
+              onChange={(e) => handleChange("location", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="edu-url"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Institution Website
+            </label>
+            <Input
+              id="edu-url"
+              type="url"
+              placeholder="https://www.mit.edu"
+              className="bg-white text-gray-900 placeholder-gray-400 border-gray-300"
+              value={content.url || ""}
+              onChange={(e) => handleChange("url", e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

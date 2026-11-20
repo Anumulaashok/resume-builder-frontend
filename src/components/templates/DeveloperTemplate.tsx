@@ -136,9 +136,14 @@ const DeveloperProjectsSection: React.FC<{ section: ISection }> = ({ section }) 
                   field="description"
                   readOnly={readOnly}
                   placeholder="Project architecture, scale, and outcomes..."
-                  showWhenEmptyInEdit
+                  showWhenEmptyInEdit={highlights.length === 0}
                 />
-                <Bullets items={highlights} />
+                <Bullets
+                  items={highlights}
+                  sectionId={section.id}
+                  itemId={item.id}
+                  readOnly={readOnly}
+                />
               </div>
             );
           })}

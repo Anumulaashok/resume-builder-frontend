@@ -173,10 +173,13 @@ const StartupMetricSection: React.FC<{
                     field={descKey}
                     readOnly={readOnly}
                     placeholder="Describe velocity, ownership, and measurable outcomes..."
-                    showWhenEmptyInEdit
+                    showWhenEmptyInEdit={highlights.length === 0}
                   />
                   <Bullets
                     items={highlights}
+                    sectionId={section.id}
+                    itemId={item.id}
+                    readOnly={readOnly}
                     className="[&>li::marker]:text-[color:var(--theme-accent)] [&>li]:font-medium"
                   />
                   <KeywordList keywords={keywords} variant={keywordVariant} />
@@ -253,10 +256,13 @@ const StartupMetricSection: React.FC<{
                     field="description"
                     readOnly={readOnly}
                     placeholder="Product launch, traction, and impact..."
-                    showWhenEmptyInEdit
+                    showWhenEmptyInEdit={highlights.length === 0}
                   />
                   <Bullets
                     items={highlights}
+                    sectionId={section.id}
+                    itemId={item.id}
+                    readOnly={readOnly}
                     className="[&>li::marker]:text-[color:var(--theme-accent)] [&>li]:font-medium"
                   />
                   <KeywordList keywords={keywords} variant={keywordVariant} />
@@ -319,6 +325,9 @@ const StartupMetricSection: React.FC<{
                 />
                 <Bullets
                   items={highlights}
+                  sectionId={section.id}
+                  itemId={item.id}
+                  readOnly={readOnly}
                   className="[&>li::marker]:text-[color:var(--theme-accent)] [&>li]:font-medium"
                 />
               </div>

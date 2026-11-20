@@ -307,6 +307,15 @@ describe("Print-to-PDF & Backend ATS Plain-Text (.txt) Export Flow", () => {
                 description: "",
                 highlights: ["Shipped workflow engine"],
               },
+              {
+                id: "w2",
+                company: "Early Corp",
+                position: "Intern",
+                startDate: "2024",
+                current: false,
+                description: "",
+                highlights: [],
+              },
             ],
           },
         ],
@@ -325,10 +334,12 @@ describe("Print-to-PDF & Backend ATS Plain-Text (.txt) Export Flow", () => {
     const summaryHeading = screen.getByText("Professional Summary");
     expect(summaryHeading.closest("section")).toHaveClass("print:hidden");
 
-    const descPlaceholder = screen.getByText(
+    // Empty description placeholder hides above populated bullets (w1) and only renders for items without bullets (w2)
+    const descPlaceholders = screen.getAllByText(
       "Describe key responsibilities and achievements..."
     );
-    expect(descPlaceholder.closest(".print\\:hidden")).not.toBeNull();
+    expect(descPlaceholders).toHaveLength(1);
+    expect(descPlaceholders[0].closest(".print\\:hidden")).not.toBeNull();
 
     const populatedName = screen.getByText("Anumula Ashok");
     expect(populatedName.closest(".print\\:hidden")).toBeNull();

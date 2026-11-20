@@ -40,7 +40,8 @@ describe("EducationForm completion date handlers", () => {
       expect.objectContaining({
         id: "edu-1",
         degree: "B.S. in Computer Science",
-        field: "Massachusetts Institute of Technology",
+        institution: "Massachusetts Institute of Technology",
+        field: "",
         location: "Cambridge, MA",
         description: "Honors graduate",
         startDate: { month: "Sep", year: "2018" },
@@ -175,10 +176,93 @@ describe("EducationForm completion date handlers", () => {
     expect(onSave).toHaveBeenLastCalledWith(
       expect.objectContaining({
         degree: "B.Eng.",
-        field: "UC Berkeley",
+        institution: "UC Berkeley",
+        field: "",
         startDate: { month: "Aug", year: "2021" },
         endDate: { month: "May", year: "2025" },
       })
+    );
+  });
+
+  it("initializes institution in default state and saves degree, school, major, GPA, and URL independently", () => {
+    const onSave = jest.fn();
+    render(<EducationForm onSave={onSave} onCancel={jest.fn()} />);
+
+    const degreeInput = screen.getByLabelText(/Degree \/ Qualification/i) as HTMLInputElement;
+    const schoolInput = screen.getByLabelText(/School \/ Institution/i) as HTMLInputElement;
+    const fieldInput = screen.getByLabelText(/Field of Study \/ Major/i) as HTMLInputElement;
+    const scoreInput = screen.getByLabelText(/GPA \/ Score/i) as HTMLInputElement;
+    const urlInput = screen.getByLabelText(/Institution Website/i) as HTMLInputElement;
+
+    expect(schoolInput.id).toBe("edu-school");
+    expect(schoolInput.value).toBe("");
+
+    fireEvent.change(degreeInput, { target: { value: "Master of Science" } });
+    fireEvent.change(schoolInput, { target: { value: "Carnegie Mellon University" } });
+    fireEvent.change(fieldInput, { target: { value: "Distributed Systems" } });
+    fireEvent.change(scoreInput, { target: { value: "3.95 / 4.0" } });
+    fireEvent.change(urlInput, { target: { value: "https://www.cmu.edu" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        degree: "Master of Science",
+        institution: "Carnegie Mellon University",
+        field: "Distributed Systems",
+        score: "3.95 / 4.0",
+        url: "https://www.cmu.edu",
+      })
+    );
+  });
+
+  it("hydrates legacy school names from content.field when institution is empty without overwriting populated major fields", () => {
+    const onSave = jest.fn();
+    const { unmount } = render(
+      <EducationForm
+        initialContent={{
+          id: "edu-legacy",
+          institution: "",
+          degree: "B.S.",
+          field: "Georgia Institute of Technology",
+        }}
+        onSave={onSave}
+        onCancel={jest.fn()}
+      />
+    );
+
+    expect((screen.getByLabelText(/School \/ Institution/i) as HTMLInputElement).value).toBe(
+      "Georgia Institute of Technology"
+    );
+    expect((screen.getByLabelText(/Field of Study \/ Major/i) as HTMLInputElement).value).toBe(
+      ""
+    );
+    unmount();
+
+    render(
+      <EducationForm
+        initialContent={{
+          id: "edu-imported",
+          institution: "Stanford University",
+          degree: "B.S.",
+          field: "Computer Science",
+          score: "3.9",
+          url: "https://stanford.edu",
+        }}
+        onSave={onSave}
+        onCancel={jest.fn()}
+      />
+    );
+
+    expect((screen.getByLabelText(/School \/ Institution/i) as HTMLInputElement).value).toBe(
+      "Stanford University"
+    );
+    expect((screen.getByLabelText(/Field of Study \/ Major/i) as HTMLInputElement).value).toBe(
+      "Computer Science"
+    );
+    expect((screen.getByLabelText(/GPA \/ Score/i) as HTMLInputElement).value).toBe("3.9");
+    expect((screen.getByLabelText(/Institution Website/i) as HTMLInputElement).value).toBe(
+      "https://stanford.edu"
     );
   });
 });

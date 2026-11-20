@@ -116,9 +116,14 @@ const TimelineSection: React.FC<{
                     field={descKey}
                     readOnly={isReadOnly}
                     placeholder="Describe key responsibilities and achievements..."
-                    showWhenEmptyInEdit
+                    showWhenEmptyInEdit={highlights.length === 0}
                   />
-                  <Bullets items={highlights} />
+                  <Bullets
+                    items={highlights}
+                    sectionId={section.id}
+                    itemId={item.id}
+                    readOnly={isReadOnly}
+                  />
                   <KeywordList
                     keywords={keywords}
                     variant={effectiveKeywordVariant}
@@ -211,9 +216,14 @@ const TimelineSection: React.FC<{
                     field="description"
                     readOnly={isReadOnly}
                     placeholder="Honors, coursework, or thesis..."
-                    showWhenEmptyInEdit
+                    showWhenEmptyInEdit={highlights.length === 0}
                   />
-                  <Bullets items={highlights} />
+                  <Bullets
+                    items={highlights}
+                    sectionId={section.id}
+                    itemId={item.id}
+                    readOnly={isReadOnly}
+                  />
                 </>
               );
             }

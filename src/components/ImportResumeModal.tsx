@@ -248,6 +248,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   const [textStep, setTextStep] = useState<TextStep>('paste');
   const [reviewResume, setReviewResume] = useState<IResume | null>(null);
   const [newSectionType, setNewSectionType] = useState<SectionType>(SectionType.WORK);
+  const [bulletDrafts, setBulletDrafts] = useState<Record<string, string>>({});
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -274,6 +275,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
       setRawText('');
       setTextStep('paste');
       setReviewResume(null);
+      setBulletDrafts({});
       return;
     }
 
@@ -935,14 +937,36 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
             </label>
             <textarea
               rows={2}
-              value={bulletsVal || item.description || ''}
-              onChange={(e) =>
+              aria-label={`Description or bullets for ${item.name || 'project'}`}
+              value={
+                bulletDrafts[`${sectionId}:${itemId}`] ??
+                (bulletsVal || item.description || '')
+              }
+              onChange={(e) => {
+                const rawValue = e.target.value;
+                const draftKey = `${sectionId}:${itemId}`;
+                setBulletDrafts((prev) => ({ ...prev, [draftKey]: rawValue }));
+                const parsedHighlights = rawValue
+                  .split(/\r?\n/)
+                  .map((line) =>
+                    line.replace(/^\s*(?:[•●◦▪▸►✓✔*–—-]\s*|\d+[.)]\s+)/, '').trim()
+                  )
+                  .filter(Boolean);
                 updateReviewItem(sectionId, itemId, (curr) => ({
                   ...curr,
-                  description: e.target.value,
-                  highlights: [],
-                }))
-              }
+                  description: '',
+                  highlights: parsedHighlights,
+                }));
+              }}
+              onBlur={() => {
+                const draftKey = `${sectionId}:${itemId}`;
+                setBulletDrafts((prev) => {
+                  if (!(draftKey in prev)) return prev;
+                  const next = { ...prev };
+                  delete next[draftKey];
+                  return next;
+                });
+              }}
               className="w-full px-2.5 py-1.5 text-sm border border-neutral-300 rounded-control text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
