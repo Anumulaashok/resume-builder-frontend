@@ -86,7 +86,10 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
         return null;
       }
       return (
-        <div className="text-[0.96em] leading-relaxed text-slate-700">
+        <div
+          className="text-[0.96em] leading-relaxed"
+          style={{ color: 'var(--theme-text-color, #374151)' }}
+        >
           {rawContent}
         </div>
       );
@@ -106,6 +109,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               ? 'grid-cols-1 gap-y-1.5'
               : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5'
           }`}
+          style={{ color: 'var(--theme-text-color, #374151)' }}
         >
           {enabledItems.map((item: any, idx: number) => {
             const langKey = item.name !== undefined ? 'name' : 'language';
@@ -159,11 +163,11 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                         }
                         readOnly={isReadOnly}
                         placeholder="Proficiency"
-                        textClassName="text-xs text-slate-500 [overflow-wrap:anywhere]"
+                        textClassName="text-xs opacity-75 [overflow-wrap:anywhere]"
                       />
                     )}
                     {showExtraProficiencyPct && (
-                      <span className="text-xs text-slate-400 tabular-nums">
+                      <span className="text-xs opacity-65 tabular-nums">
                         ({Math.round(item.proficiency)}%)
                       </span>
                     )}
@@ -193,8 +197,11 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                 return (
                   <span
                     key={item.id || `${nameVal}-${idx}`}
-                    className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50"
-                    style={{ overflowWrap: 'anywhere' }}
+                    className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 border border-slate-200/90 print:bg-slate-50"
+                    style={{
+                      overflowWrap: 'anywhere',
+                      color: 'var(--theme-text-color, #374151)',
+                    }}
                   >
                     {nameVal}
                   </span>
@@ -203,8 +210,11 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               return (
                 <div
                   key={item.id || idx}
-                  className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90"
-                  style={{ overflowWrap: 'anywhere' }}
+                  className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 border border-slate-200/90"
+                  style={{
+                    overflowWrap: 'anywhere',
+                    color: 'var(--theme-text-color, #374151)',
+                  }}
                 >
                   <InlineEdit
                     value={nameVal}
@@ -317,7 +327,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
         const extraEducationMeta = (
           <>
             {institutionVal && fieldVal && (
-              <span className="text-slate-400" aria-hidden="true">
+              <span className="opacity-50" aria-hidden="true">
                 ·
               </span>
             )}
@@ -333,14 +343,14 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                 placeholder="Institution / Field of Study"
                 textClassName={
                   tone === 'classic'
-                    ? 'text-[0.96em] text-slate-700 italic'
+                    ? 'text-[0.96em] italic opacity-90'
                     : institutionVal
-                    ? 'text-[0.96em] text-slate-600'
-                    : 'text-[1em] font-medium text-slate-700'
+                    ? 'text-[0.96em] opacity-85'
+                    : 'text-[1em] font-medium'
                 }
               />
             )}
-            {gpaVal && <span className="text-xs text-slate-500">· GPA: {gpaVal}</span>}
+            {gpaVal && <span className="text-xs opacity-75">· GPA: {gpaVal}</span>}
           </>
         );
 
@@ -395,15 +405,15 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
         const projectExtraMeta = companyVal ? (
           <>
             {roleVal && (
-              <span className="text-slate-400" aria-hidden="true">
+              <span className="opacity-50" aria-hidden="true">
                 ·
               </span>
             )}
             <span
               className={
                 tone === 'classic'
-                  ? 'italic text-slate-600'
-                  : 'text-slate-600 font-medium'
+                  ? 'italic opacity-85'
+                  : 'opacity-85 font-medium'
               }
             >
               {companyVal}
@@ -672,11 +682,11 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                 contactVal ? (
                   <>
                     {roleAndCompany && (
-                      <span className="text-slate-400" aria-hidden="true">
+                      <span className="opacity-50" aria-hidden="true">
                         ·
                       </span>
                     )}
-                    <span className="text-xs text-slate-500">{contactVal}</span>
+                    <span className="text-xs opacity-75">{contactVal}</span>
                   </>
                 ) : undefined
               }
@@ -826,10 +836,13 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <Bullets items={highlights} />
           <KeywordList keywords={keywords} variant={effectiveKeywordVariant} />
           {extraCustomFields.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-600">
+            <div
+              className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs opacity-85"
+              style={{ color: 'var(--theme-text-color, #374151)' }}
+            >
               {extraCustomFields.map((ef) => (
                 <span key={ef.key}>
-                  <span className="font-medium text-slate-700">{ef.label}:</span>{' '}
+                  <span className="font-medium">{ef.label}:</span>{' '}
                   <span>{ef.value}</span>
                 </span>
               ))}
@@ -849,11 +862,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           <section
             key={section.id}
             data-section-id={section.id}
-            style={
-              isLastSection
-                ? undefined
-                : { marginBottom: 'var(--theme-section-spacing, 1.5rem)' }
-            }
+            style={{
+              color: 'var(--theme-text-color, #374151)',
+              ...(isLastSection
+                ? {}
+                : { marginBottom: 'var(--theme-section-spacing, 1.5rem)' }),
+            }}
           >
             <SectionHeading
               title={section.title}

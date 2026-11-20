@@ -162,7 +162,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
           <button
             type="button"
             onClick={() => setIsEditingUrl(true)}
-            className="text-xs text-neutral-400 italic hover:text-slate-600 transition-colors print:hidden"
+            className="text-xs text-neutral-400 italic hover:opacity-80 transition-colors print:hidden"
           >
             {urlPlaceholder}
           </button>
@@ -214,7 +214,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
   );
 
   return (
-    <div>
+    <div style={{ color: 'var(--theme-text-color, #374151)' }}>
       <div className="flex flex-wrap justify-between items-baseline gap-x-4 gap-y-0.5">
         <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
           {handleTitleEdit && !isReadOnly ? (
@@ -255,7 +255,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
           current={current}
           className={`text-xs ${
             tone === 'classic' ? 'font-semibold' : 'font-medium'
-          } text-slate-500 tabular-nums shrink-0`}
+          } opacity-75 tabular-nums shrink-0`}
         />
       </div>
 
@@ -275,27 +275,17 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
                   placeholder={subtitlePlaceholder}
                   textClassName={
                     tone === 'classic'
-                      ? 'text-[1em] font-semibold text-slate-700'
+                      ? 'text-[1em] font-semibold'
                       : 'text-[1em] font-medium'
                   }
-                  style={
-                    tone === 'classic'
-                      ? undefined
-                      : { color: 'var(--theme-primary, #334155)' }
-                  }
+                  style={{ color: 'var(--theme-primary, #334155)' }}
                 />
               ) : (
                 <span
                   className={
-                    tone === 'classic'
-                      ? 'font-semibold text-slate-700'
-                      : 'font-medium'
+                    tone === 'classic' ? 'font-semibold' : 'font-medium'
                   }
-                  style={
-                    tone === 'classic'
-                      ? undefined
-                      : { color: 'var(--theme-primary, #334155)' }
-                  }
+                  style={{ color: 'var(--theme-primary, #334155)' }}
                 >
                   {subtitle}
                 </span>
@@ -307,7 +297,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
 
           {formattedLocation && (
             <span
-              className={`text-xs text-slate-500 ${
+              className={`text-xs opacity-75 ${
                 tone === 'classic' ? 'italic' : ''
               }`}
             >

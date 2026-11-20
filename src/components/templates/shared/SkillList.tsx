@@ -75,8 +75,11 @@ export const KeywordList: React.FC<KeywordListProps> = ({
   if (variant === 'comma') {
     return (
       <div
-        className="mt-1 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs text-slate-600 leading-relaxed [overflow-wrap:anywhere]"
-        style={{ overflowWrap: 'anywhere' }}
+        className="mt-1 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs opacity-85 leading-relaxed [overflow-wrap:anywhere]"
+        style={{
+          overflowWrap: 'anywhere',
+          color: 'var(--theme-text-color, #374151)',
+        }}
       >
         {keywords.map((kw, idx) => (
           <span
@@ -86,7 +89,7 @@ export const KeywordList: React.FC<KeywordListProps> = ({
           >
             {kw}
             {idx < keywords.length - 1 && (
-              <span className="text-slate-400">{', '}</span>
+              <span className="opacity-60">{', '}</span>
             )}
           </span>
         ))}
@@ -99,8 +102,11 @@ export const KeywordList: React.FC<KeywordListProps> = ({
       {keywords.map((kw, idx) => (
         <span
           key={`${kw}-${idx}`}
-          className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
-          style={{ overflowWrap: 'anywhere' }}
+          className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
+          style={{
+            overflowWrap: 'anywhere',
+            color: 'var(--theme-text-color, #374151)',
+          }}
         >
           {kw}
         </span>
@@ -203,7 +209,7 @@ export const SkillList: React.FC<SkillListProps> = ({
 
   const canEdit = Boolean(!isReadOnly && (onUpdateItem || effectiveSectionId));
 
-  const renderEditableLevel = (item: any, textClassName = 'text-xs text-slate-500') => {
+  const renderEditableLevel = (item: any, textClassName = 'text-xs opacity-75') => {
     const levelLabel = formatSkillLevel(item?.level);
     if (!levelLabel) return null;
     if (!canEdit) {
@@ -265,6 +271,7 @@ export const SkillList: React.FC<SkillListProps> = ({
             ? 'grid-cols-1 gap-y-2.5'
             : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5'
         }`}
+        style={{ color: 'var(--theme-text-color, #374151)' }}
       >
         {enabledItems.map((item: any, idx: number) => {
           const label = item.name || item.category || item.title || '';
@@ -281,7 +288,7 @@ export const SkillList: React.FC<SkillListProps> = ({
                 {renderEditableLabel(item, 'Skill', 'text-[0.95em] font-medium', {
                   color: 'var(--theme-heading-color, #1e293b)',
                 })}
-                {renderEditableLevel(item, 'text-[11px] text-slate-500 shrink-0')}
+                {renderEditableLevel(item, 'text-[11px] opacity-75 shrink-0')}
               </div>
               <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden print:border print:border-slate-300">
                 <div
@@ -294,7 +301,7 @@ export const SkillList: React.FC<SkillListProps> = ({
               </div>
               {keywords.length > 0 && (
                 <div
-                  className="mt-1 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs text-slate-600 [overflow-wrap:anywhere]"
+                  className="mt-1 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs opacity-85 [overflow-wrap:anywhere]"
                   style={{ overflowWrap: 'anywhere' }}
                 >
                   {keywords.map((kw, kwIdx) => (
@@ -305,7 +312,7 @@ export const SkillList: React.FC<SkillListProps> = ({
                     >
                       {kw}
                       {kwIdx < keywords.length - 1 && (
-                        <span className="text-slate-400">{', '}</span>
+                        <span className="opacity-60">{', '}</span>
                       )}
                     </span>
                   ))}
@@ -329,6 +336,7 @@ export const SkillList: React.FC<SkillListProps> = ({
             ? 'grid-cols-1 gap-y-2'
             : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2'
         }`}
+        style={{ color: 'var(--theme-text-color, #374151)' }}
       >
         {enabledItems.map((item: any, idx: number) => {
           const label = item.name || item.category || item.title || '';
@@ -369,7 +377,7 @@ export const SkillList: React.FC<SkillListProps> = ({
               </div>
               {keywords.length > 0 && (
                 <div
-                  className="mt-0.5 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs text-slate-600 [overflow-wrap:anywhere]"
+                  className="mt-0.5 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs opacity-85 [overflow-wrap:anywhere]"
                   style={{ overflowWrap: 'anywhere' }}
                 >
                   {keywords.map((kw, kwIdx) => (
@@ -380,7 +388,7 @@ export const SkillList: React.FC<SkillListProps> = ({
                     >
                       {kw}
                       {kwIdx < keywords.length - 1 && (
-                        <span className="text-slate-400">{', '}</span>
+                        <span className="opacity-60">{', '}</span>
                       )}
                     </span>
                   ))}
@@ -407,6 +415,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         data-skill-variant="columns"
         data-skill-layout={isNarrow ? 'stacked' : 'inline'}
         className={`grid min-w-0 max-w-full ${columnsGridClass}`}
+        style={{ color: 'var(--theme-text-color, #374151)' }}
       >
         {enabledItems.map((item: any, idx: number) => {
           const label = item.name || item.category || item.title || '';
@@ -437,11 +446,11 @@ export const SkillList: React.FC<SkillListProps> = ({
                       }
                     : undefined
                 )}
-                {renderEditableLevel(item, 'text-xs text-slate-500')}
+                {renderEditableLevel(item, 'text-xs opacity-75')}
               </div>
               {keywords.length > 0 && (
                 <div
-                  className="pl-3.5 mt-0.5 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs text-slate-600 leading-relaxed [overflow-wrap:anywhere]"
+                  className="pl-3.5 mt-0.5 flex flex-wrap gap-x-1 min-w-0 max-w-full text-xs opacity-85 leading-relaxed [overflow-wrap:anywhere]"
                   style={{ overflowWrap: 'anywhere' }}
                 >
                   {keywords.map((kw, kwIdx) => (
@@ -452,7 +461,7 @@ export const SkillList: React.FC<SkillListProps> = ({
                     >
                       {kw}
                       {kwIdx < keywords.length - 1 && (
-                        <span className="text-slate-400">{', '}</span>
+                        <span className="opacity-60">{', '}</span>
                       )}
                     </span>
                   ))}
@@ -476,17 +485,20 @@ export const SkillList: React.FC<SkillListProps> = ({
           ref={containerRef}
           data-skill-variant="comma"
           data-skill-layout={isNarrow ? 'stacked' : 'inline'}
-          className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 max-w-full text-[0.96em] text-slate-700 [overflow-wrap:anywhere]"
-          style={{ overflowWrap: 'anywhere' }}
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 max-w-full text-[0.96em] [overflow-wrap:anywhere]"
+          style={{
+            overflowWrap: 'anywhere',
+            color: 'var(--theme-text-color, #374151)',
+          }}
         >
           {enabledItems.map((item: any, idx: number) => {
             const label = item.name || item.title || '';
-            const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
+            const levelNode = renderEditableLevel(item, 'text-xs italic opacity-75');
             if (!canEdit && !label) return null;
             return (
               <React.Fragment key={item.id || `${label}-${idx}`}>
                 {idx > 0 && (
-                  <span className="text-slate-400" aria-hidden="true">
+                  <span className="opacity-50" aria-hidden="true">
                     •
                   </span>
                 )}
@@ -507,11 +519,12 @@ export const SkillList: React.FC<SkillListProps> = ({
         data-skill-variant="comma"
         data-skill-layout={isNarrow ? 'stacked' : 'inline'}
         className="space-y-2 min-w-0 max-w-full"
+        style={{ color: 'var(--theme-text-color, #374151)' }}
       >
         {enabledItems.map((item: any, idx: number) => {
           const groupName = item.name || item.category || item.title || '';
           const keywords = extractKeywords(item);
-          const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
+          const levelNode = renderEditableLevel(item, 'text-xs italic opacity-75');
 
           const groupRowClass = isNarrow
             ? 'break-inside-avoid flex flex-col gap-0.5 min-w-0 max-w-full text-[0.96em] leading-relaxed'
@@ -522,8 +535,8 @@ export const SkillList: React.FC<SkillListProps> = ({
             : 'flex flex-wrap items-baseline gap-x-1.5 shrink-0 min-w-0 max-w-full [overflow-wrap:anywhere]';
 
           const commaListClass = isNarrow
-            ? 'flex flex-wrap gap-x-1 min-w-0 max-w-full text-[0.96em] text-slate-700 [overflow-wrap:anywhere]'
-            : 'flex flex-wrap gap-x-1 flex-1 min-w-0 max-w-full text-[0.96em] text-slate-700 [overflow-wrap:anywhere]';
+            ? 'flex flex-wrap gap-x-1 min-w-0 max-w-full text-[0.96em] [overflow-wrap:anywhere]'
+            : 'flex flex-wrap gap-x-1 flex-1 min-w-0 max-w-full text-[0.96em] [overflow-wrap:anywhere]';
 
           return (
             <div
@@ -538,7 +551,12 @@ export const SkillList: React.FC<SkillListProps> = ({
                 })}
                 {levelNode}
                 {keywords.length > 0 && groupName && (
-                  <span className="font-bold text-slate-700 mr-0.5">:</span>
+                  <span
+                    className="font-bold mr-0.5"
+                    style={{ color: 'var(--theme-heading-color, #1e293b)' }}
+                  >
+                    :
+                  </span>
                 )}
               </div>
               {keywords.length > 0 && (
@@ -554,7 +572,7 @@ export const SkillList: React.FC<SkillListProps> = ({
                     >
                       {kw}
                       {kwIdx < keywords.length - 1 && (
-                        <span className="text-slate-400">{', '}</span>
+                        <span className="opacity-60">{', '}</span>
                       )}
                     </span>
                   ))}
@@ -575,6 +593,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         data-skill-variant="chips"
         data-skill-layout={isNarrow ? 'stacked' : 'inline'}
         className="flex flex-wrap gap-1.5 min-w-0 max-w-full"
+        style={{ color: 'var(--theme-text-color, #374151)' }}
       >
         {enabledItems.map((item: any, idx: number) => {
           const label = item.name || item.title || '';
@@ -584,13 +603,16 @@ export const SkillList: React.FC<SkillListProps> = ({
             return (
               <span
                 key={item.id || `${label}-${idx}`}
-                className="inline-flex items-center gap-1.5 max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
-                style={{ overflowWrap: 'anywhere' }}
+                className="inline-flex items-center gap-1.5 max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
+                style={{
+                  overflowWrap: 'anywhere',
+                  color: 'var(--theme-text-color, #374151)',
+                }}
               >
                 {levelLabel ? (
                   <>
                     <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
-                    <span className="text-[11px] text-slate-500 font-normal shrink-0">
+                    <span className="text-[11px] opacity-75 font-normal shrink-0">
                       {levelLabel}
                     </span>
                   </>
@@ -603,11 +625,14 @@ export const SkillList: React.FC<SkillListProps> = ({
           return (
             <div
               key={item.id || idx}
-              className="inline-flex items-center gap-1.5 max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90"
-              style={{ overflowWrap: 'anywhere' }}
+              className="inline-flex items-center gap-1.5 max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 border border-slate-200/90"
+              style={{
+                overflowWrap: 'anywhere',
+                color: 'var(--theme-text-color, #374151)',
+              }}
             >
               {renderEditableLabel(item, 'Skill', 'text-xs font-medium')}
-              {renderEditableLevel(item, 'text-[11px] text-slate-500 font-normal')}
+              {renderEditableLevel(item, 'text-[11px] opacity-75 font-normal')}
             </div>
           );
         })}
@@ -621,11 +646,12 @@ export const SkillList: React.FC<SkillListProps> = ({
       data-skill-variant="chips"
       data-skill-layout={isNarrow ? 'stacked' : 'inline'}
       className="space-y-2.5 min-w-0 max-w-full"
+      style={{ color: 'var(--theme-text-color, #374151)' }}
     >
       {enabledItems.map((item: any, idx: number) => {
         const groupName = item.name || item.category || item.title || '';
         const keywords = extractKeywords(item);
-        const levelNode = renderEditableLevel(item, 'text-xs text-slate-500');
+        const levelNode = renderEditableLevel(item, 'text-xs opacity-75');
 
         const groupRowClass = isNarrow
           ? 'break-inside-avoid flex flex-col gap-1 min-w-0 max-w-full'
@@ -657,8 +683,11 @@ export const SkillList: React.FC<SkillListProps> = ({
                 {keywords.map((kw, kwIdx) => (
                   <span
                     key={`${kw}-${kwIdx}`}
-                    className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
-                    style={{ overflowWrap: 'anywhere' }}
+                    className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
+                    style={{
+                      overflowWrap: 'anywhere',
+                      color: 'var(--theme-text-color, #374151)',
+                    }}
                   >
                     {kw}
                   </span>

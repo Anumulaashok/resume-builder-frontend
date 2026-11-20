@@ -26,7 +26,7 @@ export const DateRange: React.FC<DateRangeProps> = ({
   date,
   current,
   dateFormat,
-  className = 'text-xs font-medium text-slate-500 tabular-nums shrink-0',
+  className = 'text-xs font-medium opacity-75 tabular-nums shrink-0',
   style,
 }) => {
   const ctx = useTemplateContext();
