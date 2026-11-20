@@ -22,6 +22,8 @@ export interface CheckMatchPrefill {
   resumeId: string;
   jobDescription: string;
   jobTitle?: string;
+  company?: string;
+  applicationId?: string;
 }
 
 interface ApplicationDrawerProps {
@@ -211,14 +213,33 @@ export const ApplicationDrawer: React.FC<ApplicationDrawerProps> = ({
       return;
     }
 
+    let resolvedApplicationId =
+      mode === 'edit' ? application?.id || application?._id : undefined;
+
     // Persist edits if editing an existing application with valid fields before switching tabs
     if (mode === 'edit' && application && company.trim() && role.trim()) {
       const payload = buildPayload();
       if (payload) {
         try {
-          await onSave(payload, application.id || application._id);
+          const savedApp = await onSave(payload, application.id || application._id);
+          if (savedApp && (savedApp.id || savedApp._id)) {
+            resolvedApplicationId = savedApp.id || savedApp._id;
+          }
         } catch {
           // Even if background save warns, still allow jumping to Job Match
+        }
+      }
+    } else if (mode === 'create' && company.trim() && role.trim()) {
+      // If starting from a filled new application form, save it first so branching can relink it
+      const payload = buildPayload();
+      if (payload) {
+        try {
+          const createdApp = await onSave(payload, undefined);
+          if (createdApp && (createdApp.id || createdApp._id)) {
+            resolvedApplicationId = createdApp.id || createdApp._id;
+          }
+        } catch {
+          // Still proceed to Job Match with the form context if save fails
         }
       }
     }
@@ -227,6 +248,8 @@ export const ApplicationDrawer: React.FC<ApplicationDrawerProps> = ({
       resumeId,
       jobDescription,
       jobTitle: role.trim() || undefined,
+      company: company.trim() || undefined,
+      applicationId: resolvedApplicationId,
     });
   };
 

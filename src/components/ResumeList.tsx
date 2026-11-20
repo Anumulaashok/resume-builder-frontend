@@ -8,6 +8,7 @@ import {
   SparklesIcon,
   ShareIcon,
   ArrowUpTrayIcon,
+  BriefcaseIcon,
 } from "@heroicons/react/24/outline";
 import {
   Resume,
@@ -48,6 +49,19 @@ const getTemplateLabel = (resume: ResumeWithMeta): string => {
   if (normalized === "professional") return "Professional";
   if (normalized === "modern") return "Modern";
   return raw.charAt(0).toUpperCase() + raw.slice(1);
+};
+
+const formatAtsBadgeClasses = (score: number): string => {
+  if (score >= 80) {
+    return "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200";
+  }
+  if (score >= 60) {
+    return "bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200";
+  }
+  if (score >= 40) {
+    return "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200";
+  }
+  return "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200";
 };
 
 const formatUpdatedDate = (updatedAt?: string, createdAt?: string): string => {
@@ -132,11 +146,13 @@ export default function ResumeList({
       const {
         _id: _mongoId,
         id: _,
+        userId: _userId,
         createdAt: _createdAt,
         updatedAt: __,
         sharing: _sharing,
+        history: _history,
         ...cloneData
-      } = resume;
+      } = resume as ResumeWithMeta & { history?: unknown };
       const created = await resumeService.createResume({
         ...cloneData,
         title: `${cloneData.title || "Untitled Resume"} (Copy)`,
@@ -283,6 +299,15 @@ export default function ResumeList({
           "Untitled Resume";
         const candidateRole =
           resume.content?.basics?.label?.trim() || `${templateName} layout`;
+        const targetRole = resume.targetRole?.trim() || "";
+        const targetCompany = resume.targetCompany?.trim() || "";
+        const hasTargetMeta = Boolean(targetRole || targetCompany);
+        const hasAtsScore =
+          typeof resume.atsScore === "number" &&
+          Number.isFinite(resume.atsScore);
+        const roundedAtsScore = hasAtsScore
+          ? Math.max(0, Math.min(100, Math.round(resume.atsScore as number)))
+          : null;
 
         return (
           <article
@@ -296,9 +321,21 @@ export default function ResumeList({
               className="bg-gradient-to-br from-primary-50/80 via-neutral-50 to-accent-50/70 border-b border-neutral-200/80 px-4 pt-3.5 pb-0"
             >
               <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/95 text-primary-700 ring-1 ring-inset ring-primary-200/80 shadow-sm">
-                  {templateName}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/95 text-primary-700 ring-1 ring-inset ring-primary-200/80 shadow-sm shrink-0">
+                    {templateName}
+                  </span>
+                  {roundedAtsScore !== null && (
+                    <span
+                      data-testid="resume-card-ats-badge"
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums shrink-0 ${formatAtsBadgeClasses(
+                        roundedAtsScore
+                      )}`}
+                    >
+                      ATS {roundedAtsScore}%
+                    </span>
+                  )}
+                </div>
                 <span className="text-xs text-neutral-500 truncate">
                   Updated {updatedLabel}
                 </span>
@@ -336,6 +373,33 @@ export default function ResumeList({
                 <p className="mt-1 text-xs text-neutral-500">
                   {templateName} template · Last updated: {updatedLabel}
                 </p>
+                {(hasTargetMeta || roundedAtsScore !== null) && (
+                  <div
+                    data-testid="resume-card-job-badges"
+                    className="mt-2.5 flex flex-wrap items-center gap-1.5"
+                  >
+                    {targetCompany && (
+                      <span
+                        data-testid="resume-card-company-badge"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800 ring-1 ring-inset ring-neutral-200/90 max-w-full truncate"
+                      >
+                        <BriefcaseIcon
+                          className="h-3 w-3 shrink-0 text-neutral-500"
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">{targetCompany}</span>
+                      </span>
+                    )}
+                    {targetRole && (
+                      <span
+                        data-testid="resume-card-role-badge"
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-accent-50 text-accent-700 ring-1 ring-inset ring-accent-200/80 max-w-full truncate"
+                      >
+                        <span className="truncate">{targetRole}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-3 border-t border-neutral-100">

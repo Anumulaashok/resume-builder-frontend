@@ -2,13 +2,13 @@ import React, { useState, useCallback } from 'react';
 import { ArrowUpTrayIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
+import { ActiveJobContext } from '../types/jobMatch';
 import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
 import CoverLettersWorkspace from './coverLetters/CoverLettersWorkspace';
 import ImportResumeModal from './ImportResumeModal';
 import JobMatch from './jobMatch/JobMatch';
 import JobTracker from './jobTracker/JobTracker';
-import { CheckMatchPrefill } from './jobTracker/ApplicationDrawer';
 import ResumeEditor from './ResumeEditor';
 import ResumeList from './ResumeList';
 import { PortfolioList } from './portfolio/PortfolioList';
@@ -49,7 +49,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [portfolioView, setPortfolioView] = useState<'list' | 'editor'>(initialView);
-  const [jobMatchPrefill, setJobMatchPrefill] = useState<CheckMatchPrefill | null>(null);
+  const [activeJobContext, setActiveJobContext] = useState<ActiveJobContext | null>(null);
   const [coverLetterResetKey, setCoverLetterResetKey] = useState(0);
 
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
@@ -193,7 +193,43 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
           {activeView === 'editor' && (
             <ResumeEditor
               initialResume={selectedResume || undefined}
-              onSave={() => {
+              activeJob={activeJobContext}
+              onResumeCloned={(cloned) => {
+                setSelectedResume(cloned);
+              }}
+              onOpenJobMatch={() => {
+                const currentId = selectedResume?._id || selectedResume?.id;
+                if (currentId) {
+                  setActiveJobContext((prev) => ({
+                    ...(prev || {}),
+                    resumeId: currentId,
+                    company: prev?.company || selectedResume?.targetCompany,
+                    jobTitle: prev?.jobTitle || selectedResume?.targetRole,
+                    jobDescription:
+                      prev?.jobDescription || selectedResume?.jobDescription || '',
+                    atsScore: prev?.atsScore ?? selectedResume?.atsScore ?? null,
+                  }));
+                }
+                setActiveTab('job-match');
+              }}
+              onOpenCoverLetters={() => {
+                const currentId = selectedResume?._id || selectedResume?.id;
+                setActiveJobContext((prev) => ({
+                  ...(prev || {}),
+                  ...(currentId ? { resumeId: currentId } : {}),
+                  company: prev?.company || selectedResume?.targetCompany,
+                  jobTitle: prev?.jobTitle || selectedResume?.targetRole,
+                  jobDescription:
+                    prev?.jobDescription || selectedResume?.jobDescription || '',
+                  atsScore: prev?.atsScore ?? selectedResume?.atsScore ?? null,
+                }));
+                setCoverLetterResetKey((k) => k + 1);
+                setActiveTab('cover-letters');
+              }}
+              onSave={(savedResume) => {
+                if (savedResume) {
+                  setSelectedResume(savedResume);
+                }
                 toast.success('Resume saved successfully!');
                 setActiveView('list');
               }}
@@ -204,15 +240,39 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
       )}
 
       {activeTab === 'cover-letters' && (
-        <CoverLettersWorkspace user={user} resetSignal={coverLetterResetKey} />
+        <CoverLettersWorkspace
+          user={user}
+          resetSignal={coverLetterResetKey}
+          activeJob={activeJobContext}
+        />
       )}
 
       {activeTab === 'job-match' && (
         <Container as="main" className="pt-24 sm:pt-28 pb-12">
           <JobMatch
-            initialResumeId={jobMatchPrefill?.resumeId}
-            initialJobDescription={jobMatchPrefill?.jobDescription}
-            initialJobTitle={jobMatchPrefill?.jobTitle}
+            initialResumeId={activeJobContext?.resumeId}
+            initialJobDescription={activeJobContext?.jobDescription}
+            initialJobTitle={activeJobContext?.jobTitle}
+            initialCompany={activeJobContext?.company}
+            initialApplicationId={activeJobContext?.applicationId}
+            activeJob={activeJobContext}
+            onJobContextChange={(nextContext) => {
+              setActiveJobContext((prev) => ({
+                ...(prev || {}),
+                ...nextContext,
+              }));
+            }}
+            onOpenInEditor={(tailoredResume, nextContext) => {
+              setActiveJobContext(nextContext);
+              setSelectedResume(tailoredResume);
+              setActiveTab('resumes');
+              setActiveView('editor');
+            }}
+            onOpenCoverLetters={(nextContext) => {
+              setActiveJobContext(nextContext);
+              setCoverLetterResetKey((k) => k + 1);
+              setActiveTab('cover-letters');
+            }}
           />
         </Container>
       )}
@@ -221,7 +281,16 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
         <Container as="main" className="pt-24 sm:pt-28 pb-12">
           <JobTracker
             onCheckMatch={(prefill) => {
-              setJobMatchPrefill(prefill);
+              setActiveJobContext({
+                applicationId: prefill.applicationId,
+                resumeId: prefill.resumeId,
+                baseResumeId: prefill.resumeId,
+                company: prefill.company,
+                jobTitle: prefill.jobTitle,
+                jobDescription: prefill.jobDescription,
+                atsScore: null,
+                matchResult: null,
+              });
               setActiveTab('job-match');
             }}
           />

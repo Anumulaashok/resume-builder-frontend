@@ -66,6 +66,11 @@ export interface IResume {
   summary?: string;
   templateId?: string;
   themeConfig?: ThemeConfig;
+  targetRole?: string;
+  targetCompany?: string;
+  jobDescription?: string;
+  atsScore?: number | null;
+  parentResumeId?: string | null;
   sharing?: ISharing;
   content: {
     basics: {

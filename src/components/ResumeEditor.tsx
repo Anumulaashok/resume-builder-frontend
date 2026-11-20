@@ -32,6 +32,8 @@ import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
   CodeBracketIcon,
+  BriefcaseIcon,
+  EnvelopeIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -67,6 +69,7 @@ import {
   SectionOption,
   SectionType,
 } from "../types/resume";
+import { ActiveJobContext } from "../types/jobMatch";
 import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
 import ShareModal from "./ShareModal";
@@ -84,6 +87,10 @@ import { downloadResumeAsJson } from "../utils/importers";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
+  activeJob?: ActiveJobContext | null;
+  onResumeCloned?: (cloned: IResume) => void;
+  onOpenJobMatch?: () => void;
+  onOpenCoverLetters?: () => void;
   onSave?: (resume: IResume) => void;
   onBack: () => void;
 }
@@ -195,7 +202,7 @@ const sectionOptions: SectionOption[] = [
 ];
 
 type SaveStatus = "unsaved_new" | "saving" | "saved" | "failed";
-type SaveOrigin = "autosave" | "manual" | "retry";
+type SaveOrigin = "autosave" | "manual" | "retry" | "clone";
 type SaveResult = { ok: true; data: any } | { ok: false; error: unknown };
 
 const EXPORT_COOLDOWN_MS = 500;
@@ -210,6 +217,11 @@ function serializeResumeSnapshot(input: IResume): string {
     summary: input.summary ?? "",
     templateId: input.templateId ?? "",
     themeConfig: input.themeConfig ?? null,
+    targetRole: input.targetRole ?? "",
+    targetCompany: input.targetCompany ?? "",
+    jobDescription: input.jobDescription ?? "",
+    atsScore: input.atsScore ?? null,
+    parentResumeId: input.parentResumeId ?? null,
     sharing: input.sharing ?? null,
     content: input.content,
   });
@@ -674,6 +686,10 @@ const SortableItem: React.FC<SortableItemProps> = ({
 
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
   initialResume,
+  activeJob = null,
+  onResumeCloned,
+  onOpenJobMatch,
+  onOpenCoverLetters,
   onSave,
   onBack,
 }) => {
@@ -737,9 +753,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const hasGlobalModalRef = useRef(hasGlobalModal);
   hasGlobalModalRef.current = hasGlobalModal;
   const isSavingRef = useRef(false);
+  const saveEpochRef = useRef(0);
   const queuedSaveRef = useRef<{
     resume: IResume;
     origin: SaveOrigin;
+    epoch: number;
     resolvers: Array<(result: SaveResult) => void>;
   } | null>(null);
   const titleBeforeEditRef = useRef<string>(resume.title || "");
@@ -762,17 +780,25 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const enqueueSave = useCallback(
     (targetResume: IResume, origin: SaveOrigin): Promise<SaveResult> => {
+      const requestEpoch = saveEpochRef.current;
       return new Promise((resolve) => {
         if (isSavingRef.current) {
           if (!queuedSaveRef.current) {
             queuedSaveRef.current = {
               resume: targetResume,
               origin,
+              epoch: requestEpoch,
               resolvers: [resolve],
             };
           } else {
             queuedSaveRef.current.resume = targetResume;
-            if (origin === "manual") {
+            queuedSaveRef.current.epoch = requestEpoch;
+            if (origin === "clone") {
+              queuedSaveRef.current.origin = "clone";
+            } else if (
+              origin === "manual" &&
+              queuedSaveRef.current.origin !== "clone"
+            ) {
               queuedSaveRef.current.origin = "manual";
             } else if (
               origin === "retry" &&
@@ -783,7 +809,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             queuedSaveRef.current.resolvers.push(resolve);
           }
 
-          if (origin === "manual" || origin === "retry") {
+          if (origin === "manual" || origin === "retry" || origin === "clone") {
             updateSaveStatus("saving");
           }
           return;
@@ -793,6 +819,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         if (
           origin === "manual" ||
           origin === "retry" ||
+          origin === "clone" ||
           saveStatusRef.current !== "failed"
         ) {
           updateSaveStatus("saving");
@@ -801,15 +828,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         const runLoop = async (
           firstResume: IResume,
           firstOrigin: SaveOrigin,
+          firstEpoch: number,
           firstResolvers: Array<(result: SaveResult) => void>
         ) => {
           let currentResume = firstResume;
           let currentOrigin = firstOrigin;
+          let currentEpoch = firstEpoch;
           let currentResolvers = firstResolvers;
 
           while (true) {
             const activeId =
-              currentResume._id || currentResume.id || persistedIdRef.current;
+              currentOrigin === "clone"
+                ? undefined
+                : persistedIdRef.current ||
+                  currentResume._id ||
+                  currentResume.id;
 
             if (!activeId && currentOrigin === "autosave") {
               for (let i = 0; i < currentResolvers.length; i += 1) {
@@ -820,9 +853,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               try {
                 let savedData: any;
                 if (activeId) {
-                  const payload = currentResume._id
-                    ? currentResume
-                    : { ...currentResume, _id: activeId };
+                  const payload =
+                    currentResume._id === activeId &&
+                    currentResume.id === activeId
+                      ? currentResume
+                      : { ...currentResume, _id: activeId, id: activeId };
                   savedData = await resumeService.updateResume(
                     activeId,
                     payload
@@ -830,19 +865,36 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 } else {
                   savedData = await resumeService.createResume(currentResume);
                   const createdId = extractCreatedResumeId(savedData);
-                  if (createdId) {
+                  if (createdId && currentEpoch === saveEpochRef.current) {
                     persistedIdRef.current = createdId;
+                    const hydratedCreated = normalizeResume({
+                      ...currentResume,
+                      ...(savedData && typeof savedData === "object"
+                        ? savedData
+                        : {}),
+                      _id: createdId,
+                      id: createdId,
+                      sharing: undefined,
+                    });
+                    latestResumeRef.current = hydratedCreated;
+                    lastSavedSnapshotRef.current =
+                      serializeResumeSnapshot(hydratedCreated);
                     if (isMountedRef.current) {
                       setPersistedId(createdId);
+                      setResume(hydratedCreated);
                     }
                   }
                 }
 
-                lastSavedSnapshotRef.current = snapshotAttempted;
-                hasShownAutoSaveErrorToastRef.current = false;
+                if (currentEpoch === saveEpochRef.current) {
+                  if (activeId) {
+                    lastSavedSnapshotRef.current = snapshotAttempted;
+                  }
+                  hasShownAutoSaveErrorToastRef.current = false;
 
-                if (!queuedSaveRef.current) {
-                  updateSaveStatus("saved");
+                  if (!queuedSaveRef.current) {
+                    updateSaveStatus("saved");
+                  }
                 }
                 for (let i = 0; i < currentResolvers.length; i += 1) {
                   currentResolvers[i]({ ok: true, data: savedData });
@@ -873,8 +925,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                       pendingQueued.resolvers[i]({ ok: false, error });
                     }
                   }
-                  updateSaveStatus("failed");
-                } else {
+                  if (currentEpoch === saveEpochRef.current) {
+                    updateSaveStatus("failed");
+                  }
+                } else if (currentEpoch === saveEpochRef.current) {
                   if (
                     currentOrigin === "autosave" &&
                     !hasShownAutoSaveErrorToastRef.current
@@ -897,10 +951,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               queuedSaveRef.current = null;
               currentResume = nextBatch.resume;
               currentOrigin = nextBatch.origin;
+              currentEpoch = nextBatch.epoch;
               currentResolvers = nextBatch.resolvers;
               if (
                 currentOrigin === "manual" ||
                 currentOrigin === "retry" ||
+                currentOrigin === "clone" ||
                 saveStatusRef.current !== "failed"
               ) {
                 updateSaveStatus("saving");
@@ -912,10 +968,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           }
         };
 
-        void runLoop(targetResume, origin, [resolve]);
+        void runLoop(targetResume, origin, requestEpoch, [resolve]);
       });
     },
-    [updateSaveStatus]
+    [setResume, updateSaveStatus]
   );
 
   const debouncedAutoSave = useMemo(
@@ -1052,6 +1108,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   useEffect(() => {
     if (initialResume && initialResume !== prevInitialResumeRef.current) {
       prevInitialResumeRef.current = initialResume;
+      const incomingId = initialResume._id || initialResume.id;
+      if (
+        incomingId &&
+        incomingId === persistedIdRef.current &&
+        serializeResumeSnapshot(normalizeResume(initialResume)) ===
+          lastSavedSnapshotRef.current
+      ) {
+        return;
+      }
       debouncedAutoSave.cancel();
       const normalized = normalizeResume(initialResume);
       const nextId = normalized._id || normalized.id;
@@ -1311,6 +1376,85 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     } catch (error) {
       if (!isUnauthorizedError(error) && !sessionExpiredRef.current) {
         toast.error("Failed to save resume");
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleCloneInEditor = async () => {
+    setShowOverflowMenu(false);
+    debouncedAutoSave.cancel();
+    saveEpochRef.current += 1;
+
+    // Discard any pending autosave queued for the original resume before cloning
+    if (queuedSaveRef.current && queuedSaveRef.current.origin === "autosave") {
+      const dropped = queuedSaveRef.current;
+      queuedSaveRef.current = null;
+      for (let i = 0; i < dropped.resolvers.length; i += 1) {
+        dropped.resolvers[i]({ ok: true, data: latestResumeRef.current });
+      }
+    }
+
+    if (sessionExpiredRef.current) {
+      handleReopenReauth();
+      return;
+    }
+
+    const source = latestResumeRef.current as IResume & {
+      userId?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      history?: unknown;
+    };
+    const {
+      _id: _sourceMongoId,
+      id: _sourceId,
+      userId: _sourceUserId,
+      createdAt: _sourceCreatedAt,
+      updatedAt: _sourceUpdatedAt,
+      sharing: _sourceSharing,
+      history: _sourceHistory,
+      ...restSource
+    } = source;
+
+    const clonedTitle = `${restSource.title || "Untitled Resume"} (Copy)`;
+    const clonedDraft: IResume = {
+      ...restSource,
+      title: clonedTitle,
+      sharing: undefined,
+      content: {
+        ...restSource.content,
+        basics: {
+          ...restSource.content.basics,
+          name: restSource.content?.basics?.name?.trim() || "Your Name",
+          email:
+            restSource.content?.basics?.email?.trim() || "you@example.com",
+        },
+      },
+    };
+
+    // Unbind from the source resume immediately so no autosave can target the old ID
+    persistedIdRef.current = undefined;
+    setPersistedId(undefined);
+    lastSavedSnapshotRef.current = null;
+    latestResumeRef.current = clonedDraft;
+    setResume(clonedDraft);
+    setLoading(true);
+
+    try {
+      const result = await enqueueSave(clonedDraft, "clone");
+      if (!result.ok) {
+        throw result.error;
+      }
+      toast.success("Resume cloned successfully");
+      prevInitialResumeRef.current = latestResumeRef.current;
+      onResumeCloned?.(latestResumeRef.current);
+    } catch (error) {
+      if (!isUnauthorizedError(error) && !sessionExpiredRef.current) {
+        toast.error("Failed to clone resume");
       }
     } finally {
       if (isMountedRef.current) {
@@ -1825,6 +1969,32 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const summaryValue =
     resume.content?.basics?.summary ?? resume.summary ?? "";
 
+  const matchesActiveJobResume = Boolean(
+    activeJob &&
+      (!activeJob.resumeId ||
+        !effectiveResumeId ||
+        activeJob.resumeId === effectiveResumeId)
+  );
+  const bannerCompany =
+    (matchesActiveJobResume ? activeJob?.company?.trim() : "") ||
+    resume.targetCompany?.trim() ||
+    "";
+  const bannerRole =
+    (matchesActiveJobResume ? activeJob?.jobTitle?.trim() : "") ||
+    resume.targetRole?.trim() ||
+    "";
+  const rawBannerScore =
+    (matchesActiveJobResume ? activeJob?.atsScore : null) ??
+    resume.atsScore ??
+    null;
+  const bannerScore =
+    typeof rawBannerScore === "number" && Number.isFinite(rawBannerScore)
+      ? Math.max(0, Math.min(100, Math.round(rawBannerScore)))
+      : null;
+  const showActiveJobBanner = Boolean(
+    bannerCompany || bannerRole || bannerScore !== null || resume.parentResumeId
+  );
+
   const editorToolbar = (
     <div
       data-testid="resume-editor-toolbar"
@@ -2031,15 +2201,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <button
                     type="button"
                     role="menuitem"
+                    data-testid="clone-resume-menu-item"
+                    disabled={loading}
                     onClick={() => {
-                      setResume((prev) => ({
-                        ...prev,
-                        title: `${prev.title || "Untitled Resume"} (Copy)`,
-                      }));
-                      setShowOverflowMenu(false);
-                      toast.success("Prepared copy title");
+                      void handleCloneInEditor();
                     }}
-                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2.5 transition-colors"
                   >
                     <DocumentDuplicateIcon className="h-4 w-4 text-gray-500" />
                     <span>Clone</span>
@@ -2083,6 +2250,59 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             </div>
           </div>
         </div>
+      {showActiveJobBanner && (
+        <div
+          data-testid="editor-active-job-banner"
+          className="mt-2.5 pt-2.5 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs"
+        >
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200">
+              <BriefcaseIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                {resume.parentResumeId ? "Tailored branch" : "Target job"}
+              </span>
+            </span>
+            {(bannerCompany || bannerRole) && (
+              <span className="font-medium text-gray-800 truncate">
+                {[bannerCompany, bannerRole].filter(Boolean).join(" · ")}
+              </span>
+            )}
+            {bannerScore !== null && (
+              <span
+                data-testid="editor-job-ats-badge"
+                className="inline-flex items-center px-2 py-0.5 rounded-full font-semibold tabular-nums bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
+              >
+                ATS {bannerScore}%
+              </span>
+            )}
+          </div>
+          {(onOpenJobMatch || onOpenCoverLetters) && (
+            <div className="flex items-center gap-2 shrink-0">
+              {onOpenJobMatch && (
+                <button
+                  type="button"
+                  data-testid="editor-back-to-job-match-btn"
+                  onClick={onOpenJobMatch}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-gray-200 bg-white text-gray-700 font-medium hover:bg-neutral-50 hover:text-gray-900 transition-colors"
+                >
+                  <span>Job Match</span>
+                </button>
+              )}
+              {onOpenCoverLetters && (
+                <button
+                  type="button"
+                  data-testid="editor-open-cover-letters-btn"
+                  onClick={onOpenCoverLetters}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-gray-200 bg-white text-gray-700 font-medium hover:bg-neutral-50 hover:text-gray-900 transition-colors"
+                >
+                  <EnvelopeIcon className="h-3.5 w-3.5 text-gray-500" aria-hidden="true" />
+                  <span>Cover Letter</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 

@@ -61,6 +61,10 @@ export function buildSnapshotPreviewResume(
 ): IResume {
   const currentTemplateId =
     currentResume.templateId || (currentResume as any).template;
+  const snapshotTemplateId =
+    typeof snapshot.templateId === "string" && snapshot.templateId.trim()
+      ? snapshot.templateId.trim()
+      : currentTemplateId;
 
   // Snapshots often persist `content` without top-level `summary` while the
   // Professional Summary lives in top-level `currentResume.summary`.
@@ -73,7 +77,7 @@ export function buildSnapshotPreviewResume(
     ...defaultResume,
     title: snapshot.title || currentResume.title || "Untitled Resume",
     summary: fallbackTopSummary,
-    templateId: currentTemplateId,
+    templateId: snapshotTemplateId,
     themeConfig: snapshot.themeConfig ?? currentResume.themeConfig,
     content: snapshot.content || defaultResume.content,
   });
@@ -297,8 +301,6 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
 
   const currentTemplateId =
     currentResume.templateId || (currentResume as any).template;
-  const activeTemplate = getTemplate(currentTemplateId);
-  const ActiveTemplateComponent = activeTemplate.component;
 
   const previewResume = useMemo(
     () =>
@@ -307,6 +309,11 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
         : null,
     [activeSnapshot, currentResume]
   );
+
+  const previewTemplateId =
+    previewResume?.templateId || activeSnapshot?.templateId || currentTemplateId;
+  const activeTemplate = getTemplate(previewTemplateId);
+  const ActiveTemplateComponent = activeTemplate.component;
 
   const themeStyles = useMemo(
     () =>
