@@ -677,9 +677,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   onSave,
   onBack,
 }) => {
-  const { resume, setResume, undo, redo, canUndo, canRedo } = useResumeHistory(
-    normalizeResume(initialResume)
-  );
+  const { resume, setResume, resetResume, undo, redo, canUndo, canRedo } =
+    useResumeHistory(normalizeResume(initialResume));
   const { hasGlobalModal } = useContext(AuthModalContext);
   const isDesktop = useIsDesktop();
   const initialResumeId = initialResume?._id || initialResume?.id;
@@ -1312,6 +1311,119 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       if (!isUnauthorizedError(error) && !sessionExpiredRef.current) {
         toast.error("Failed to save resume");
       }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleClone = async () => {
+    if (loading || isSavingRef.current || saveStatusRef.current === "saving") {
+      return;
+    }
+
+    setShowOverflowMenu(false);
+    setIsEditingTitle(false);
+    debouncedAutoSave.cancel();
+
+    const currentResume = latestResumeRef.current;
+    const activeId =
+      currentResume._id || currentResume.id || persistedIdRef.current;
+    const clonedTitle = `${currentResume.title || "Untitled Resume"} (Copy)`;
+
+    const clonePayload: IResume & Record<string, unknown> = {
+      ...currentResume,
+      title: clonedTitle,
+    };
+    delete clonePayload._id;
+    delete clonePayload.id;
+    delete clonePayload.sharing;
+    delete clonePayload.createdAt;
+    delete clonePayload.updatedAt;
+    delete clonePayload.history;
+    delete clonePayload.__v;
+
+    if (!activeId) {
+      const unsavedClone = normalizeResume(clonePayload);
+      delete unsavedClone._id;
+      delete unsavedClone.id;
+      delete unsavedClone.sharing;
+      persistedIdRef.current = undefined;
+      if (isMountedRef.current) {
+        setPersistedId(undefined);
+      }
+      lastSavedSnapshotRef.current = null;
+      hasShownAutoSaveErrorToastRef.current = false;
+      latestResumeRef.current = unsavedClone;
+      updateSaveStatus("unsaved_new");
+      if (isMountedRef.current) {
+        resetResume(unsavedClone);
+      }
+      toast.success("Prepared copy title");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const created = await resumeService.createResume(clonePayload);
+      const createdId = extractCreatedResumeId(created);
+      if (!createdId) {
+        throw new Error("Failed to retrieve ID for cloned resume");
+      }
+
+      const createdRecord =
+        created &&
+        typeof created === "object" &&
+        "data" in created &&
+        (created as { data?: Partial<IResume> }).data
+          ? (created as { data: Partial<IResume> }).data
+          : created;
+
+      const mergedCloneSource: IResume = {
+        ...clonePayload,
+        ...(createdRecord && typeof createdRecord === "object"
+          ? {
+              ...(typeof createdRecord.title === "string"
+                ? { title: createdRecord.title }
+                : {}),
+              ...(typeof createdRecord.summary === "string"
+                ? { summary: createdRecord.summary }
+                : {}),
+              ...(typeof createdRecord.templateId === "string"
+                ? { templateId: createdRecord.templateId }
+                : {}),
+              ...(createdRecord.themeConfig !== undefined
+                ? { themeConfig: createdRecord.themeConfig }
+                : {}),
+              ...(createdRecord.content !== undefined
+                ? { content: createdRecord.content }
+                : {}),
+            }
+          : {}),
+        _id: createdRecord?._id || createdId,
+        id: createdRecord?.id || createdId,
+      };
+      delete mergedCloneSource.sharing;
+
+      const clonedResume = normalizeResume(mergedCloneSource);
+      delete clonedResume.sharing;
+
+      persistedIdRef.current = createdId;
+      if (isMountedRef.current) {
+        setPersistedId(createdId);
+      }
+      lastSavedSnapshotRef.current = serializeResumeSnapshot(clonedResume);
+      hasShownAutoSaveErrorToastRef.current = false;
+      pendingRetryAfterAuthRef.current = false;
+      latestResumeRef.current = clonedResume;
+      updateSaveStatus("saved");
+      if (isMountedRef.current) {
+        resetResume(clonedResume);
+      }
+      toast.success("Resume cloned successfully");
+    } catch {
+      toast.error("Failed to clone resume");
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -2031,15 +2143,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <button
                     type="button"
                     role="menuitem"
+                    disabled={loading || saveStatus === "saving"}
                     onClick={() => {
-                      setResume((prev) => ({
-                        ...prev,
-                        title: `${prev.title || "Untitled Resume"} (Copy)`,
-                      }));
-                      setShowOverflowMenu(false);
-                      toast.success("Prepared copy title");
+                      void handleClone();
                     }}
-                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 transition-colors"
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                   >
                     <DocumentDuplicateIcon className="h-4 w-4 text-gray-500" />
                     <span>Clone</span>
@@ -2583,6 +2691,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
       {effectiveResumeId && (
         <ShareModal
+          key={effectiveResumeId}
           isOpen={showShareModal}
           onClose={() => setShowShareModal(false)}
           resumeId={effectiveResumeId}

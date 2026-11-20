@@ -14,7 +14,8 @@ export type ResumeUpdateAction = IResume | ((prev: IResume) => IResume);
 export type HistoryAction =
   | { type: 'PUSH'; payload: ResumeUpdateAction }
   | { type: 'UNDO' }
-  | { type: 'REDO' };
+  | { type: 'REDO' }
+  | { type: 'RESET'; payload: IResume };
 
 const clampIndex = (index: number, length: number): number => {
   if (length <= 0) {
@@ -89,6 +90,13 @@ export function historyReducer(
         index: nextIndex,
       };
     }
+    case 'RESET': {
+      const nextState = action.payload ?? defaultResume;
+      return {
+        history: [nextState],
+        index: 0,
+      };
+    }
     default:
       return state;
   }
@@ -110,6 +118,11 @@ export function useResumeHistory(initialState: IResume) {
     dispatch({ type: 'PUSH', payload: action });
   }, []);
 
+  const resetResume = useCallback((nextResume: IResume) => {
+    fallbackRef.current = nextResume ?? defaultResume;
+    dispatch({ type: 'RESET', payload: nextResume });
+  }, []);
+
   const undo = useCallback(() => {
     dispatch({ type: 'UNDO' });
   }, []);
@@ -128,6 +141,7 @@ export function useResumeHistory(initialState: IResume) {
   return {
     resume,
     setResume,
+    resetResume,
     undo,
     redo,
     canUndo: safeIndex > 0,

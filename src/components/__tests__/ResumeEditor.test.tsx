@@ -840,3 +840,290 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(printSpy).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("ResumeEditor Clone persistence and session rebinding", () => {
+  let toastErrorSpy: jest.SpyInstance;
+  let toastSuccessSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    toastErrorSpy = jest
+      .spyOn(toast, "error")
+      .mockImplementation(() => "error-toast-id");
+    toastSuccessSpy = jest
+      .spyOn(toast, "success")
+      .mockImplementation(() => "success-toast-id");
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    toastErrorSpy.mockRestore();
+    toastSuccessSpy.mockRestore();
+  });
+
+  it("persists a separate resume via createResume, strips _id and sharing, cancels pending autosave on original ID, and routes subsequent autosaves to the cloned ID", async () => {
+    (resumeService.createResume as jest.Mock).mockResolvedValueOnce({
+      _id: "res-202",
+      id: "res-202",
+      title: "Staff Frontend Resume (Copy)",
+    });
+    (resumeService.updateResume as jest.Mock).mockResolvedValue({
+      _id: "res-202",
+    });
+    (resumeService.getShareSettings as jest.Mock).mockResolvedValueOnce({
+      isPublic: false,
+      shareToken: null,
+      slug: null,
+      privacy: { hideEmail: false, hidePhone: false, hideAddress: false },
+    });
+
+    const sharedOriginal = buildSampleResume({
+      _id: "res-101",
+      id: "res-101",
+      sharing: {
+        isPublic: true,
+        shareToken: "public-tok-101",
+        slug: "jordan-lee",
+        privacy: { hideEmail: false, hidePhone: false, hideAddress: false },
+      },
+    });
+
+    render(<ResumeEditor initialResume={sharedOriginal} onBack={jest.fn()} />);
+
+    // Make an edit so a 2000ms debounced autosave toward res-101 is pending, then immediately Clone
+    const nameInput = screen.getByLabelText("Full Name");
+    fireEvent.change(nameInput, { target: { value: "Jordan Cloned" } });
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /^clone$/i }));
+    });
+
+    expect(resumeService.createResume).toHaveBeenCalledTimes(1);
+    const createPayload = (resumeService.createResume as jest.Mock).mock
+      .calls[0][0];
+    expect(createPayload.title).toBe("Staff Frontend Resume (Copy)");
+    expect(createPayload._id).toBeUndefined();
+    expect(createPayload.id).toBeUndefined();
+    expect(createPayload.sharing).toBeUndefined();
+    expect(createPayload.content.basics.name).toBe("Jordan Cloned");
+
+    // Advance well past 2000ms: original res-101 must NEVER be overwritten and no spurious autosave fires
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+    expect(resumeService.updateResume).not.toHaveBeenCalled();
+
+    expect(
+      within(screen.getByTestId("resume-title-heading")).getByRole("heading", {
+        level: 1,
+      })
+    ).toHaveTextContent("Staff Frontend Resume (Copy)");
+    expect(screen.getByTestId("save-status-indicator")).toHaveTextContent(
+      "All changes saved"
+    );
+    expect(toastSuccessSpy).toHaveBeenCalledWith("Resume cloned successfully");
+
+    // Opening Share modal queries share settings for res-202 (since original sharing metadata was stripped)
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("share-resume-btn-1"));
+    });
+    expect(resumeService.getShareSettings).toHaveBeenCalledWith("res-202");
+
+    // Subsequent edits in the editor auto-save to res-202, NOT res-101
+    fireEvent.change(nameInput, { target: { value: "Jordan Cloned V2" } });
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(resumeService.updateResume).toHaveBeenCalledTimes(1);
+    expect(resumeService.updateResume).toHaveBeenCalledWith(
+      "res-202",
+      expect.objectContaining({
+        _id: "res-202",
+        title: "Staff Frontend Resume (Copy)",
+        content: expect.objectContaining({
+          basics: expect.objectContaining({ name: "Jordan Cloned V2" }),
+        }),
+      })
+    );
+    expect(
+      (resumeService.updateResume as jest.Mock).mock.calls[0][1].sharing
+    ).toBeUndefined();
+  });
+
+  it("isolates Undo/Redo history on Clone so Undo cannot restore the original resume _id", async () => {
+    (resumeService.createResume as jest.Mock).mockResolvedValueOnce({
+      data: {
+        _id: "res-cloned-303",
+        title: "Staff Frontend Resume (Copy)",
+      },
+    });
+    (resumeService.updateResume as jest.Mock).mockResolvedValue({
+      _id: "res-cloned-303",
+    });
+
+    render(
+      <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
+    );
+
+    const nameInput = screen.getByLabelText("Full Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Before Clone Edit" } });
+
+    const undoBtn = screen.getByRole("button", { name: "Undo" });
+    expect(undoBtn).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /^clone$/i }));
+    });
+
+    // History was reset to the cloned resume at index 0
+    expect(undoBtn).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+
+    // Edit after cloning, then Undo back to cloned root
+    fireEvent.change(nameInput, { target: { value: "After Clone Edit" } });
+    expect(undoBtn).not.toBeDisabled();
+
+    fireEvent.click(undoBtn);
+    expect(nameInput.value).toBe("Before Clone Edit");
+    expect(undoBtn).toBeDisabled();
+
+    // Manual Save still targets res-cloned-303, never res-101
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(resumeService.updateResume).toHaveBeenCalledWith(
+      "res-cloned-303",
+      expect.objectContaining({
+        _id: "res-cloned-303",
+        title: "Staff Frontend Resume (Copy)",
+      })
+    );
+  });
+
+  it("keeps original resume ID and title unchanged and shows an error toast when createResume fails or returns no ID, and disables Clone while saving", async () => {
+    let resolveInFlightSave!: (val: any) => void;
+    (resumeService.updateResume as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveInFlightSave = resolve;
+        })
+    );
+
+    render(
+      <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
+    );
+
+    // Trigger an in-flight autosave so saveStatus === "saving"
+    const nameInput = screen.getByLabelText("Full Name");
+    fireEvent.change(nameInput, { target: { value: "Jordan Saving" } });
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+    expect(screen.getByTestId("save-status-indicator")).toHaveTextContent(
+      "Saving…"
+    );
+
+    // Clone menu item is disabled while saveStatus === "saving"
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    const disabledCloneBtn = screen.getByRole("menuitem", { name: /^clone$/i });
+    expect(disabledCloneBtn).toBeDisabled();
+    fireEvent.click(disabledCloneBtn);
+    expect(resumeService.createResume).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveInFlightSave({ _id: "res-101" });
+    });
+    // Close and reopen menu or click now-enabled item
+    if (!screen.queryByRole("menuitem", { name: /^clone$/i })) {
+      fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    }
+
+    // 1. createResume rejects
+    (resumeService.createResume as jest.Mock).mockRejectedValueOnce(
+      new Error("Server error")
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /^clone$/i }));
+    });
+
+    expect(toastErrorSpy).toHaveBeenCalledWith("Failed to clone resume");
+    expect(
+      within(screen.getByTestId("resume-title-heading")).getByRole("heading", {
+        level: 1,
+      })
+    ).toHaveTextContent("Staff Frontend Resume");
+
+    // 2. createResume resolves with no ID
+    (resumeService.createResume as jest.Mock).mockResolvedValueOnce({});
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /^clone$/i }));
+    });
+
+    expect(toastErrorSpy).toHaveBeenCalledTimes(2);
+    expect(
+      within(screen.getByTestId("resume-title-heading")).getByRole("heading", {
+        level: 1,
+      })
+    ).toHaveTextContent("Staff Frontend Resume");
+
+    // Subsequent save still updates original res-101
+    (resumeService.updateResume as jest.Mock).mockResolvedValueOnce({
+      _id: "res-101",
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    });
+    expect(resumeService.updateResume).toHaveBeenLastCalledWith(
+      "res-101",
+      expect.objectContaining({
+        _id: "res-101",
+        title: "Staff Frontend Resume",
+      })
+    );
+  });
+
+  it("skips createResume and resets history to an unsaved copy when cloning an unsaved draft", async () => {
+    render(<ResumeEditor onBack={jest.fn()} />);
+
+    expect(screen.getByTestId("save-status-indicator")).toHaveTextContent(
+      "Not saved yet"
+    );
+
+    // Edit draft without filling required email, then click Clone
+    fireEvent.change(screen.getByLabelText("Full Name"), {
+      target: { value: "Draft Author" },
+    });
+    expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /^clone$/i }));
+    });
+
+    expect(resumeService.createResume).not.toHaveBeenCalled();
+    expect(resumeService.updateResume).not.toHaveBeenCalled();
+    expect(
+      within(screen.getByTestId("resume-title-heading")).getByRole("heading", {
+        level: 1,
+      })
+    ).toHaveTextContent("Untitled Resume (Copy)");
+    expect(screen.getByTestId("save-status-indicator")).toHaveTextContent(
+      "Not saved yet"
+    );
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+    // Advancing timers still does not auto-save an unsaved draft
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+    expect(resumeService.createResume).not.toHaveBeenCalled();
+    expect(resumeService.updateResume).not.toHaveBeenCalled();
+  });
+});
