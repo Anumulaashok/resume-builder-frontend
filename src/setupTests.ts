@@ -11,4 +11,10 @@ if (typeof globalThis.TextDecoder === 'undefined') {
 if (typeof globalThis.ReadableStream === 'undefined') {
   (globalThis as any).ReadableStream = ReadableStream;
 }
+if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+  (globalThis as any).DOMMatrix = class DOMMatrix {};
+}
+if (typeof (globalThis as any).Path2D === 'undefined') {
+  (globalThis as any).Path2D = class Path2D {};
+}
 
