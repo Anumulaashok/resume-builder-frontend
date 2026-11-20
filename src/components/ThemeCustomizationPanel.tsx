@@ -3,12 +3,14 @@ import { ThemeConfig } from '../types/resume';
 import {
   fontPairingOptions,
   colorOptions,
+  textColorOptions,
   spacingOptions,
   pageMarginOptions,
   headingStyleOptions,
   skillStyleOptions,
   dateFormatOptions,
   defaultThemeConfig,
+  resolveFontScale,
   resolveTemplateDefaultTheme,
   PageMarginPreset,
   HeadingStyleOptionId,
@@ -84,6 +86,10 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
     emitUpdate({ accentColor: hexValue }, ['accentColor']);
   };
 
+  const handleTextColorSelect = (hexValue: string) => {
+    emitUpdate({ textColor: hexValue }, ['textColor']);
+  };
+
   const handleSpacingSelect = (spacingId: 'compact' | 'normal' | 'spacious') => {
     emitUpdate({ sectionSpacing: spacingId }, ['sectionSpacing']);
   };
@@ -127,8 +133,7 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
     }
   };
 
-  const resolvedFontScale =
-    typeof currentTheme.fontScale === 'number' ? currentTheme.fontScale : 1;
+  const resolvedFontScale = resolveFontScale(themeConfig, templateDefaultTheme);
   const resolvedLineHeight =
     typeof currentTheme.lineHeight === 'number' ? currentTheme.lineHeight : 1.5;
   const resolvedSidebarWidth =
@@ -300,6 +305,70 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
                   }
                   onChange={(e) => handleAccentColorSelect(e.target.value)}
                   data-testid="accent-color-picker-input"
+                  className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                />
+                <span className="text-[10px] text-gray-400 font-bold">+</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Body Text Color Palette */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-xs font-medium text-gray-300">
+                Body Text Colour
+              </label>
+              <span className="text-xs font-mono text-gray-400">
+                {currentTheme.textColor || '#374151'}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {textColorOptions.map((c) => {
+                const effectiveText = currentTheme.textColor || '#374151';
+                const isSelected =
+                  effectiveText.toLowerCase() === c.value.toLowerCase();
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleTextColorSelect(c.value)}
+                    title={`Body Text: ${c.name}`}
+                    data-testid={`text-color-option-${c.id}`}
+                    className={`w-6 h-6 rounded-full transition-transform focus:outline-none flex items-center justify-center ${
+                      isSelected
+                        ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-gray-900 shadow-md'
+                        : 'hover:scale-105 opacity-90 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: c.value }}
+                  >
+                    {isSelected && (
+                      <svg
+                        className="w-3 h-3 text-white drop-shadow"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+
+              <label
+                title="Custom Body Text Color"
+                className="relative w-6 h-6 rounded-full border border-dashed border-gray-600 hover:border-gray-400 flex items-center justify-center cursor-pointer overflow-hidden bg-gray-800"
+              >
+                <input
+                  type="color"
+                  value={currentTheme.textColor || '#374151'}
+                  onChange={(e) => handleTextColorSelect(e.target.value)}
+                  data-testid="text-color-picker-input"
                   className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
                 />
                 <span className="text-[10px] text-gray-400 font-bold">+</span>

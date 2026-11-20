@@ -84,9 +84,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const customisedKeysRef = useRef<Set<keyof ThemeConfig>>(new Set());
 
   useEffect(() => {
-    if (externalTemplateId) {
-      setActiveTemplateId(getTemplate(externalTemplateId).id);
-    }
+    setActiveTemplateId(getTemplate(externalTemplateId).id);
   }, [externalTemplateId]);
 
   // Fit-to-width scaling via ResizeObserver on the preview pane viewport
@@ -429,6 +427,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
             <div
               ref={pageRef}
               data-testid="resume-preview-page"
+              data-active-template={activeTemplate.id}
               className="bg-white shadow-md ring-1 ring-black/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
               style={{
                 width: `${A4_WIDTH_PX}px`,

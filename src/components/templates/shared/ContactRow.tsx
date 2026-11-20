@@ -162,9 +162,10 @@ export const ContactRow: React.FC<ContactRowProps> = ({
     const isRight = variant === 'stacked-right';
     return (
       <div
-        className={`text-xs text-slate-600 space-y-1 shrink-0 ${
+        className={`text-xs space-y-1 shrink-0 ${
           isRight ? 'sm:text-right' : 'text-left'
         } ${!hasAnyNonEmptyEntry ? 'print:hidden' : ''} ${className}`}
+        style={{ color: 'var(--theme-text-color, #475569)' }}
       >
         {entries.map((entry) => (
           <div
@@ -186,9 +187,10 @@ export const ContactRow: React.FC<ContactRowProps> = ({
 
   return (
     <div
-      className={`text-xs text-slate-600 flex flex-wrap ${justifyClass} items-center gap-x-2.5 gap-y-1 ${
+      className={`text-xs flex flex-wrap ${justifyClass} items-center gap-x-2.5 gap-y-1 ${
         !hasAnyNonEmptyEntry ? 'print:hidden' : ''
       } ${className}`}
+      style={{ color: 'var(--theme-text-color, #475569)' }}
     >
       {entries.map((entry, idx) => {
         const hasPriorPrintVisibleEntry = entries
@@ -201,7 +203,7 @@ export const ContactRow: React.FC<ContactRowProps> = ({
           <React.Fragment key={entry.key}>
             {idx > 0 && (
               <span
-                className={`text-slate-400 ${
+                className={`opacity-50 ${
                   hideSeparatorInPrint ? 'print:hidden' : ''
                 }`}
                 aria-hidden="true"

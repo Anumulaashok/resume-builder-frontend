@@ -26,7 +26,7 @@ export const Description: React.FC<DescriptionProps> = ({
   placeholder = 'Describe key responsibilities and achievements...',
   showWhenEmptyInEdit = true,
   className = '',
-  textClassName = 'text-[0.96em] text-slate-600 mt-1.5 block whitespace-pre-wrap break-words',
+  textClassName = 'text-[0.96em] mt-1.5 block whitespace-pre-wrap break-words',
   style,
 }) => {
   const ctx = useTemplateContext();

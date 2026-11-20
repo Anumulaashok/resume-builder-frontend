@@ -1,3 +1,20 @@
+@import '@fontsource/merriweather/latin-ext-400.css';
+@import '@fontsource/merriweather/latin-400.css';
+@import '@fontsource/merriweather/latin-ext-400-italic.css';
+@import '@fontsource/merriweather/latin-400-italic.css';
+@import '@fontsource/merriweather/latin-ext-600.css';
+@import '@fontsource/merriweather/latin-600.css';
+@import '@fontsource/merriweather/latin-ext-700.css';
+@import '@fontsource/merriweather/latin-700.css';
+@import '@fontsource/playfair-display/latin-ext-400.css';
+@import '@fontsource/playfair-display/latin-400.css';
+@import '@fontsource/playfair-display/latin-ext-400-italic.css';
+@import '@fontsource/playfair-display/latin-400-italic.css';
+@import '@fontsource/playfair-display/latin-ext-600.css';
+@import '@fontsource/playfair-display/latin-600.css';
+@import '@fontsource/playfair-display/latin-ext-700.css';
+@import '@fontsource/playfair-display/latin-700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

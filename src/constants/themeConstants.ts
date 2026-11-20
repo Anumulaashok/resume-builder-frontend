@@ -109,6 +109,17 @@ export const colorOptions: ColorOption[] = [
   { id: 'dark-gray', name: 'Graphite', value: '#374151' },
 ];
 
+export const textColorOptions: ColorOption[] = [
+  { id: 'ink', name: 'Rich Ink', value: '#111827' },
+  { id: 'charcoal', name: 'Deep Charcoal', value: '#1f2937' },
+  { id: 'dark-slate', name: 'Dark Slate', value: '#1e293b' },
+  { id: 'slate', name: 'Balanced Slate', value: '#334155' },
+  { id: 'graphite', name: 'Graphite Gray', value: '#374151' },
+  { id: 'muted-slate', name: 'Soft Slate', value: '#475569' },
+  { id: 'stone', name: 'Warm Stone', value: '#292524' },
+  { id: 'midnight', name: 'Midnight Navy', value: '#0f172a' },
+];
+
 export const spacingOptions: SpacingOption[] = [
   {
     id: 'compact',
@@ -143,6 +154,52 @@ export const defaultThemeConfig: ThemeConfig = {
   sectionSpacing: 'normal',
   fontSize: 'base',
 };
+
+const LEGACY_FONT_SIZE_SCALES: Record<string, number> = {
+  sm: 0.9,
+  small: 0.9,
+  base: 1,
+  md: 1,
+  medium: 1,
+  normal: 1,
+  lg: 1.1,
+  large: 1.1,
+};
+
+export function mapLegacyFontSizeToScale(fontSize?: string): number | undefined {
+  if (typeof fontSize !== 'string') {
+    return undefined;
+  }
+  const normalized = fontSize.trim().toLowerCase();
+  return LEGACY_FONT_SIZE_SCALES[normalized];
+}
+
+export function resolveFontScale(
+  themeConfig?: ThemeConfig,
+  templateDefaults?: Partial<ThemeConfig>
+): number {
+  if (
+    typeof themeConfig?.fontScale === 'number' &&
+    !Number.isNaN(themeConfig.fontScale)
+  ) {
+    return themeConfig.fontScale;
+  }
+  const explicitLegacyScale = mapLegacyFontSizeToScale(themeConfig?.fontSize);
+  if (explicitLegacyScale !== undefined) {
+    return explicitLegacyScale;
+  }
+  if (
+    typeof templateDefaults?.fontScale === 'number' &&
+    !Number.isNaN(templateDefaults.fontScale)
+  ) {
+    return templateDefaults.fontScale;
+  }
+  const templateLegacyScale = mapLegacyFontSizeToScale(templateDefaults?.fontSize);
+  if (templateLegacyScale !== undefined) {
+    return templateLegacyScale;
+  }
+  return mapLegacyFontSizeToScale(defaultThemeConfig.fontSize) ?? 1;
+}
 
 export function resolveSidebarWidthCss(sidebarWidth?: number | string): string {
   if (sidebarWidth === undefined || sidebarWidth === null || sidebarWidth === '') {
@@ -217,10 +274,7 @@ export function getThemeStyles(
     templateDefaults?.headingColor ??
     (themeConfig?.primaryColor ? themeConfig.primaryColor : activeTheme.headingColor || primaryColor);
 
-  const fontScale =
-    typeof activeTheme.fontScale === 'number' && !Number.isNaN(activeTheme.fontScale)
-      ? activeTheme.fontScale
-      : 1;
+  const fontScale = resolveFontScale(themeConfig, templateDefaults);
   const lineHeight =
     typeof activeTheme.lineHeight === 'number' && !Number.isNaN(activeTheme.lineHeight)
       ? activeTheme.lineHeight

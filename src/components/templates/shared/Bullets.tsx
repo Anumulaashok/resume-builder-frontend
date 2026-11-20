@@ -11,7 +11,7 @@ export const Bullets: React.FC<BulletsProps> = ({ items = [], className = '' }) 
 
   return (
     <ul
-      className={`mt-1.5 list-disc pl-4 space-y-0.5 text-[0.96em] text-slate-600 ${className}`}
+      className={`mt-1.5 list-disc pl-4 space-y-0.5 text-[0.96em] ${className}`}
       style={{
         lineHeight: 'var(--theme-line-height, 1.5)',
         color: 'var(--theme-text-color, #475569)',
