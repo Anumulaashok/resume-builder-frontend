@@ -81,10 +81,14 @@ import {
 } from "../utils/authEventBus";
 import { getStoredUser } from "../utils/token";
 import { downloadResumeAsJson } from "../utils/importers";
+import UnsavedChangesDialog from "./common/UnsavedChangesDialog";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
   onSave?: (resume: IResume) => void;
+  onPersist?: (resume: IResume) => void;
+  onDirtyChange?: (isDirty: boolean) => void;
+  registerDiscardHandler?: (handler: (() => void) | null) => void;
   onBack: () => void;
 }
 
@@ -199,6 +203,163 @@ type SaveOrigin = "autosave" | "manual" | "retry";
 type SaveResult = { ok: true; data: any } | { ok: false; error: unknown };
 
 const EXPORT_COOLDOWN_MS = 500;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+interface BasicsFieldErrors {
+  name?: string;
+  email?: string;
+}
+
+function validateBasicsName(name: string | undefined): string | undefined {
+  return (name || "").trim() ? undefined : "Full name is required";
+}
+
+function validateBasicsEmail(email: string | undefined): string | undefined {
+  const trimmed = (email || "").trim();
+  if (!trimmed) {
+    return "Email address is required";
+  }
+  if (!EMAIL_PATTERN.test(trimmed)) {
+    return "Please enter a valid email address";
+  }
+  return undefined;
+}
+
+function hasValidRequiredBasics(input: IResume): boolean {
+  const hasTitle = Boolean((input.title || "").trim());
+  return (
+    hasTitle &&
+    !validateBasicsName(input.content?.basics?.name) &&
+    !validateBasicsEmail(input.content?.basics?.email)
+  );
+}
+
+function extractSaveErrorFeedback(
+  error: unknown,
+  attemptedResume: IResume
+): {
+  fieldErrors: BasicsFieldErrors;
+  validationMessage?: string;
+  serverMessage?: string;
+} {
+  const errObj: Record<string, any> =
+    error && typeof error === "object" ? (error as Record<string, any>) : {};
+  const fieldErrors: BasicsFieldErrors = {};
+  const messages: string[] = [];
+
+  const pushMsg = (msg: string | undefined) => {
+    if (msg && !messages.includes(msg)) {
+      messages.push(msg);
+    }
+  };
+
+  const mapFromField = (fieldKey: string, rawMsg: unknown) => {
+    const cleanMsg =
+      typeof rawMsg === "string" &&
+      rawMsg.trim() &&
+      rawMsg.trim().toLowerCase() !== "invalid value"
+        ? rawMsg.trim()
+        : undefined;
+
+    if (
+      fieldKey === "content.basics.name" ||
+      fieldKey === "basics.name" ||
+      fieldKey === "name"
+    ) {
+      const resolved = cleanMsg || "Full name is required";
+      if (!fieldErrors.name) {
+        fieldErrors.name = resolved;
+      }
+      pushMsg(resolved);
+    } else if (
+      fieldKey === "content.basics.email" ||
+      fieldKey === "basics.email" ||
+      fieldKey === "email"
+    ) {
+      const resolved =
+        cleanMsg ||
+        validateBasicsEmail(attemptedResume.content?.basics?.email) ||
+        "Please enter a valid email address";
+      if (!fieldErrors.email) {
+        fieldErrors.email = resolved;
+      }
+      pushMsg(resolved);
+    } else if (cleanMsg) {
+      pushMsg(cleanMsg);
+    }
+  };
+
+  if (errObj?.fieldErrors && typeof errObj.fieldErrors === "object") {
+    for (const [key, val] of Object.entries(errObj.fieldErrors)) {
+      mapFromField(key, val);
+    }
+  }
+
+  const rawArray = Array.isArray(errObj?.errors)
+    ? errObj.errors
+    : Array.isArray(errObj?.response?.data?.errors)
+    ? errObj.response.data.errors
+    : null;
+
+  if (rawArray) {
+    for (const entry of rawArray) {
+      if (!entry || typeof entry !== "object") continue;
+      const fieldKey =
+        entry.field || entry.path || entry.param || "";
+      mapFromField(String(fieldKey), entry.message ?? entry.msg);
+    }
+  }
+
+  const status = errObj?.status ?? errObj?.response?.status;
+  const rawMessage =
+    (typeof errObj?.response?.data?.message === "string" &&
+      errObj.response.data.message.trim()) ||
+    (typeof errObj?.message === "string" && errObj.message.trim()) ||
+    "";
+
+  const isGenericAxiosOrDefaultMessage =
+    !rawMessage ||
+    /^request failed/i.test(rawMessage) ||
+    rawMessage.toLowerCase() === "invalid value" ||
+    rawMessage.toLowerCase() === "failed to save resume";
+
+  const localNameError = validateBasicsName(
+    attemptedResume.content?.basics?.name
+  );
+  const localEmailError = validateBasicsEmail(
+    attemptedResume.content?.basics?.email
+  );
+  const titleMissing = !(attemptedResume.title || "").trim();
+
+  if (
+    status === 400 ||
+    messages.length > 0 ||
+    (isGenericAxiosOrDefaultMessage &&
+      (localNameError || localEmailError || titleMissing))
+  ) {
+    if (localNameError && !fieldErrors.name) {
+      fieldErrors.name = localNameError;
+      pushMsg(localNameError);
+    }
+    if (localEmailError && !fieldErrors.email) {
+      fieldErrors.email = localEmailError;
+      pushMsg(localEmailError);
+    }
+    if (titleMissing) {
+      pushMsg("Resume title is required");
+    }
+  }
+
+  const validationMessage =
+    messages.length > 0 ? messages.join("; ") : undefined;
+  const serverMessage = !isGenericAxiosOrDefaultMessage ? rawMessage : undefined;
+
+  return {
+    fieldErrors,
+    validationMessage,
+    serverMessage,
+  };
+}
 
 function extractCreatedResumeId(saved: any): string | undefined {
   return saved?._id || saved?.id || saved?.data?._id || saved?.data?.id;
@@ -675,6 +836,9 @@ const SortableItem: React.FC<SortableItemProps> = ({
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
   initialResume,
   onSave,
+  onPersist,
+  onDirtyChange,
+  registerDiscardHandler,
   onBack,
 }) => {
   const { resume, setResume, undo, redo, canUndo, canRedo } = useResumeHistory(
@@ -715,6 +879,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [deletableSection, setDeletableSection] = useState<ISection | null>(
     null
   );
+  const [basicsErrors, setBasicsErrors] = useState<BasicsFieldErrors>({});
+  const [touchedBasics, setTouchedBasics] = useState<{
+    name?: boolean;
+    email?: boolean;
+  }>({});
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+
+  const onPersistRef = useRef(onPersist);
+  onPersistRef.current = onPersist;
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange;
+  const discardingChangesRef = useRef(false);
 
   const prevInitialResumeRef = useRef<IResume | undefined>(initialResume);
   const isInitialMountRef = useRef(true);
@@ -811,7 +987,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             const activeId =
               currentResume._id || currentResume.id || persistedIdRef.current;
 
-            if (!activeId && currentOrigin === "autosave") {
+            if (
+              !activeId &&
+              currentOrigin === "autosave" &&
+              !hasValidRequiredBasics(currentResume)
+            ) {
               for (let i = 0; i < currentResolvers.length; i += 1) {
                 currentResolvers[i]({ ok: true, data: currentResume });
               }
@@ -840,6 +1020,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
                 lastSavedSnapshotRef.current = snapshotAttempted;
                 hasShownAutoSaveErrorToastRef.current = false;
+                if (isMountedRef.current) {
+                  setBasicsErrors({});
+                }
+                if (savedData) {
+                  onPersistRef.current?.(savedData);
+                }
 
                 if (!queuedSaveRef.current) {
                   updateSaveStatus("saved");
@@ -875,12 +1061,30 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   }
                   updateSaveStatus("failed");
                 } else {
+                  const feedback = extractSaveErrorFeedback(
+                    error,
+                    currentResume
+                  );
+                  if (
+                    isMountedRef.current &&
+                    (feedback.fieldErrors.name || feedback.fieldErrors.email)
+                  ) {
+                    setBasicsErrors(feedback.fieldErrors);
+                    setTouchedBasics((prev) => ({
+                      name: prev.name || Boolean(feedback.fieldErrors.name),
+                      email: prev.email || Boolean(feedback.fieldErrors.email),
+                    }));
+                  }
                   if (
                     currentOrigin === "autosave" &&
                     !hasShownAutoSaveErrorToastRef.current
                   ) {
                     hasShownAutoSaveErrorToastRef.current = true;
-                    toast.error("Auto-save failed");
+                    toast.error(
+                      feedback.validationMessage ||
+                        feedback.serverMessage ||
+                        "Auto-save failed"
+                    );
                   }
                   if (!queuedSaveRef.current) {
                     updateSaveStatus("failed");
@@ -921,10 +1125,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const debouncedAutoSave = useMemo(
     () =>
       createDebouncedCallback((resumeToSave: IResume) => {
-        if (sessionExpiredRef.current) return;
+        if (sessionExpiredRef.current || discardingChangesRef.current) return;
         const activeId =
           resumeToSave._id || resumeToSave.id || persistedIdRef.current;
-        if (!activeId) return;
+        if (!activeId && !hasValidRequiredBasics(resumeToSave)) return;
         void enqueueSave(resumeToSave, "autosave");
       }, 2000),
     [enqueueSave]
@@ -1052,19 +1256,35 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   useEffect(() => {
     if (initialResume && initialResume !== prevInitialResumeRef.current) {
       prevInitialResumeRef.current = initialResume;
-      debouncedAutoSave.cancel();
       const normalized = normalizeResume(initialResume);
       const nextId = normalized._id || normalized.id;
+      if (nextId && persistedIdRef.current && nextId === persistedIdRef.current) {
+        return;
+      }
+      debouncedAutoSave.cancel();
       persistedIdRef.current = nextId;
       setPersistedId(nextId);
       const snap = serializeResumeSnapshot(normalized);
       initialBlankSnapshotRef.current = snap;
       lastSavedSnapshotRef.current = nextId ? snap : null;
       hasShownAutoSaveErrorToastRef.current = false;
+      setBasicsErrors({});
+      setTouchedBasics({});
       updateSaveStatus(nextId ? "saved" : "unsaved_new");
       setResume(normalized);
     }
   }, [initialResume, setResume, debouncedAutoSave, updateSaveStatus]);
+
+  useEffect(() => {
+    if (!registerDiscardHandler) return;
+    registerDiscardHandler(() => {
+      discardingChangesRef.current = true;
+      debouncedAutoSave.cancel();
+    });
+    return () => {
+      registerDiscardHandler(null);
+    };
+  }, [registerDiscardHandler, debouncedAutoSave]);
 
   useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
@@ -1114,6 +1334,25 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
 
   const handleChange = (section: string, value: any) => {
+    if (section === "basics" && value) {
+      const prevBasics = latestResumeRef.current.content?.basics;
+      const nameChanged = value.name !== prevBasics?.name;
+      const emailChanged = value.email !== prevBasics?.email;
+
+      if (nameChanged && (touchedBasics.name || basicsErrors.name)) {
+        const nextNameErr = validateBasicsName(value.name);
+        setBasicsErrors((prev) =>
+          prev.name === nextNameErr ? prev : { ...prev, name: nextNameErr }
+        );
+      }
+      if (emailChanged && (touchedBasics.email || basicsErrors.email)) {
+        const nextEmailErr = validateBasicsEmail(value.email);
+        setBasicsErrors((prev) =>
+          prev.email === nextEmailErr ? prev : { ...prev, email: nextEmailErr }
+        );
+      }
+    }
+
     setResume((prev) => {
       const nextSummary =
         section === "basics" && value?.summary !== undefined
@@ -1232,11 +1471,19 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
 
     const activeId = resume._id || resume.id || persistedIdRef.current;
+    const currentSnapshot = serializeResumeSnapshot(resume);
     if (!activeId) {
+      if (
+        currentSnapshot === initialBlankSnapshotRef.current ||
+        !hasValidRequiredBasics(resume)
+      ) {
+        debouncedAutoSave.cancel();
+        return;
+      }
+      debouncedAutoSave(resume);
       return;
     }
 
-    const currentSnapshot = serializeResumeSnapshot(resume);
     if (
       !isSavingRef.current &&
       lastSavedSnapshotRef.current !== null &&
@@ -1250,14 +1497,20 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   }, [resume, debouncedAutoSave]);
 
   useEffect(() => {
+    onDirtyChangeRef.current?.(hasUnsavedChanges());
+  }, [resume, saveStatus, persistedId, hasUnsavedChanges]);
+
+  useEffect(() => {
     isMountedRef.current = true;
+    discardingChangesRef.current = false;
     return () => {
       isMountedRef.current = false;
+      onDirtyChangeRef.current?.(false);
       if (exportCooldownTimerRef.current !== null) {
         clearTimeout(exportCooldownTimerRef.current);
         exportCooldownTimerRef.current = null;
       }
-      if (!sessionExpiredRef.current) {
+      if (!sessionExpiredRef.current && !discardingChangesRef.current) {
         debouncedAutoSave.flush();
       } else {
         debouncedAutoSave.cancel();
@@ -1293,6 +1546,22 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     void enqueueSave(latestResumeRef.current, "retry");
   };
 
+  const handleBackClick = useCallback(() => {
+    if (hasUnsavedChanges()) {
+      setShowDiscardDialog(true);
+      return;
+    }
+    onBack();
+  }, [hasUnsavedChanges, onBack]);
+
+  const handleConfirmDiscardBack = useCallback(() => {
+    discardingChangesRef.current = true;
+    debouncedAutoSave.cancel();
+    setShowDiscardDialog(false);
+    onDirtyChangeRef.current?.(false);
+    onBack();
+  }, [debouncedAutoSave, onBack]);
+
   const handleSave = async () => {
     debouncedAutoSave.cancel();
     if (sessionExpiredRef.current) {
@@ -1310,7 +1579,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       onSave?.(result.data);
     } catch (error) {
       if (!isUnauthorizedError(error) && !sessionExpiredRef.current) {
-        toast.error("Failed to save resume");
+        const feedback = extractSaveErrorFeedback(
+          error,
+          latestResumeRef.current
+        );
+        toast.error(
+          feedback.validationMessage ||
+            feedback.serverMessage ||
+            "Failed to save resume"
+        );
       }
     } finally {
       if (isMountedRef.current) {
@@ -1335,6 +1612,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         if (isMountedRef.current) {
           setShowShareModal(true);
         }
+      } else if (!result.ok) {
+        const feedback = extractSaveErrorFeedback(
+          result.error,
+          latestResumeRef.current
+        );
+        toast.error(
+          feedback.validationMessage ||
+            feedback.serverMessage ||
+            "Failed to save resume before sharing"
+        );
       } else {
         toast.error("Failed to save resume before sharing");
       }
@@ -1834,7 +2121,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         <div className="flex items-center gap-2 min-w-[220px] sm:min-w-[260px] flex-1">
             <button
               type="button"
-              onClick={onBack}
+              onClick={handleBackClick}
               title="Back to resumes"
               aria-label="Back"
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shrink-0"
@@ -2105,11 +2392,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   htmlFor="basics-name"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Full Name
+                  Full Name{" "}
+                  <span aria-hidden="true" className="text-red-500">
+                    *
+                  </span>
                 </label>
                 <input
                   id="basics-name"
+                  aria-label="Full Name"
                   type="text"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(basicsErrors.name)}
+                  aria-describedby={
+                    basicsErrors.name ? "basics-name-error" : undefined
+                  }
                   value={resume.content.basics.name || ""}
                   onChange={(e) =>
                     handleChange("basics", {
@@ -2117,9 +2414,30 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                       name: e.target.value,
                     })
                   }
+                  onBlur={() => {
+                    setTouchedBasics((prev) => ({ ...prev, name: true }));
+                    setBasicsErrors((prev) => ({
+                      ...prev,
+                      name: validateBasicsName(resume.content.basics.name),
+                    }));
+                  }}
                   placeholder="e.g. Jane Doe"
-                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className={`w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border rounded-lg shadow-sm focus:outline-none focus:ring-2 sm:text-sm ${
+                    basicsErrors.name
+                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  }`}
                 />
+                {basicsErrors.name && (
+                  <p
+                    id="basics-name-error"
+                    role="alert"
+                    data-testid="basics-name-error"
+                    className="mt-1 text-xs font-medium text-red-600"
+                  >
+                    {basicsErrors.name}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -2149,11 +2467,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   htmlFor="basics-email"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Email
+                  Email{" "}
+                  <span aria-hidden="true" className="text-red-500">
+                    *
+                  </span>
                 </label>
                 <input
                   id="basics-email"
+                  aria-label="Email"
                   type="email"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(basicsErrors.email)}
+                  aria-describedby={
+                    basicsErrors.email ? "basics-email-error" : undefined
+                  }
                   value={resume.content.basics.email || ""}
                   onChange={(e) =>
                     handleChange("basics", {
@@ -2161,9 +2489,30 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                       email: e.target.value,
                     })
                   }
+                  onBlur={() => {
+                    setTouchedBasics((prev) => ({ ...prev, email: true }));
+                    setBasicsErrors((prev) => ({
+                      ...prev,
+                      email: validateBasicsEmail(resume.content.basics.email),
+                    }));
+                  }}
                   placeholder="jane@example.com"
-                  className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className={`w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border rounded-lg shadow-sm focus:outline-none focus:ring-2 sm:text-sm ${
+                    basicsErrors.email
+                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  }`}
                 />
+                {basicsErrors.email && (
+                  <p
+                    id="basics-email-error"
+                    role="alert"
+                    data-testid="basics-email-error"
+                    className="mt-1 text-xs font-medium text-red-600"
+                  >
+                    {basicsErrors.email}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -2609,6 +2958,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           onDismiss={() => setShowLocalReauthModal(false)}
         />
       )}
+
+      <UnsavedChangesDialog
+        isOpen={showDiscardDialog}
+        onCancel={() => setShowDiscardDialog(false)}
+        onConfirmDiscard={handleConfirmDiscardBack}
+      />
     </div>
   );
 };

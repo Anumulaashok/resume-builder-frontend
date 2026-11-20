@@ -46,4 +46,60 @@ describe('axios response interceptor', () => {
     expect(onLogout).not.toHaveBeenCalled();
     window.removeEventListener(AUTH_LOGOUT_EVENT, onLogout);
   });
+
+  it('preserves structured validation errors and fieldErrors on 400 responses', async () => {
+    const adapter = (config: InternalAxiosRequestConfig) =>
+      Promise.reject(
+        new AxiosError('Request failed with status code 400', '400', config, null, {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+          config: { ...config, headers: new AxiosHeaders() },
+          data: {
+            success: false,
+            message: 'Full name is required; Please enter a valid email address',
+            errors: [
+              { path: 'content.basics.name', msg: 'Full name is required' },
+              { path: 'content.basics.email', msg: 'Please enter a valid email address' },
+            ],
+          },
+        })
+      );
+
+    await expect(
+      axiosInstance.post('/api/resumes', {}, { adapter })
+    ).rejects.toMatchObject({
+      message: 'Full name is required; Please enter a valid email address',
+      status: 400,
+      fieldErrors: {
+        'content.basics.name': 'Full name is required',
+        'content.basics.email': 'Please enter a valid email address',
+      },
+    });
+  });
+
+  it('derives human-readable field messages when server errors contain raw Invalid value', async () => {
+    const adapter = (config: InternalAxiosRequestConfig) =>
+      Promise.reject(
+        new AxiosError('Request failed with status code 400', '400', config, null, {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+          config: { ...config, headers: new AxiosHeaders() },
+          data: {
+            errors: [{ path: 'content.basics.email', msg: 'Invalid value' }],
+          },
+        })
+      );
+
+    await expect(
+      axiosInstance.post('/api/resumes', {}, { adapter })
+    ).rejects.toMatchObject({
+      message: 'Please enter a valid email address',
+      status: 400,
+      fieldErrors: {
+        'content.basics.email': 'Please enter a valid email address',
+      },
+    });
+  });
 });

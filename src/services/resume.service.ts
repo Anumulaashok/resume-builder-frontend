@@ -138,6 +138,14 @@ class ResumeService {
     return resumes.map((resume) => normalizeResumeIdentifiers(resume));
   }
 
+  async getResumeById(id: string): Promise<ResumeWithMeta> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data: ResumeWithMeta;
+    }>(`/api/resumes/${encodeURIComponent(id)}`);
+    return unwrapResumeResponse(response.data);
+  }
+
   async updateResume(
     id: string,
     resumeData: Partial<Resume>
