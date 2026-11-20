@@ -7,8 +7,20 @@ import ReauthModal from './components/ReauthModal';
 import { PortfolioPublicView } from './components/portfolio/PortfolioPublicView';
 import { Toaster } from 'react-hot-toast';
 import { useIsSmUp } from './components/common/Header';
-import { getStoredUser, isAuthenticated, StoredUser } from './utils/token';
+import {
+  getStoredUser,
+  getToken,
+  getUserIdFromToken,
+  isAuthenticated,
+  StoredUser,
+} from './utils/token';
 import { AuthModalContext, authEventBus } from './utils/authEventBus';
+import {
+  identifyTelemetryUser,
+  initTelemetry,
+  resetTelemetryUser,
+  setPublicRoutePrivacyMode,
+} from './services/telemetry';
 
 export const getShareTokenFromLocation = (): string | null => {
   if (typeof window === 'undefined') return null;
@@ -66,6 +78,23 @@ function App() {
     pathname.startsWith('/portfolio/') ||
     hash.startsWith('#/p/') ||
     hash.startsWith('#/portfolio/');
+  const isPublicRoute = Boolean(isPublicPortfolio || shareToken || publicSlug);
+
+  useEffect(() => {
+    initTelemetry();
+    setPublicRoutePrivacyMode(isPublicRoute);
+
+    if (isPublicRoute) {
+      return;
+    }
+
+    if (authenticated) {
+      const opaqueUserId = user?.id || getUserIdFromToken(getToken());
+      if (opaqueUserId) {
+        identifyTelemetryUser(opaqueUserId);
+      }
+    }
+  }, [authenticated, user, isPublicRoute]);
 
   useEffect(() => {
     const authed = isAuthenticated();
@@ -155,6 +184,7 @@ function App() {
           <HomePage
             user={user}
             onLogout={() => {
+              resetTelemetryUser();
               setShowReauthModal(false);
               setUser(null);
               setAuthenticated(false);

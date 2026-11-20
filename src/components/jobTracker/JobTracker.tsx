@@ -20,11 +20,16 @@ import {
   APPLICATION_STATUSES,
   ApplicationReorderMove,
   ApplicationStatus,
+  IApplicationAttributionSummary,
   IJobApplication,
   UpsertApplicationPayload,
 } from '../../types/application';
 import { ICoverLetter } from '../../types/coverLetter';
 import { applicationService } from '../../services/application.service';
+import {
+  computeAttributionSummary,
+  hasApplicationReachedInterview,
+} from '../../utils/applicationAttribution';
 import { coverLetterService } from '../../services/coverLetter.service';
 import { ResumeWithMeta, resumeService } from '../../services/resume.service';
 import { Skeleton } from '../ui/skeleton';
@@ -158,13 +163,33 @@ export function computeBoardMove(
     reordered.splice(insertAt, 0, { ...movingApp, status: targetStatus });
     grouped[sourceStatus] = reordered.map((item, idx) => ({ ...item, order: idx }));
   } else {
+    const nowIso = new Date().toISOString();
+    const nextAppliedAt =
+      movingApp.appliedAt || (targetStatus !== 'wishlist' ? nowIso : null);
+    const nextReachedInterviewAt =
+      movingApp.reachedInterviewAt ||
+      (targetStatus === 'interview' || targetStatus === 'offer' ? nowIso : null);
+    const prevHistory = Array.isArray(movingApp.stageHistory)
+      ? movingApp.stageHistory
+      : [{ status: sourceStatus, changedAt: movingApp.createdAt || nowIso }];
+    const updatedMovingApp: IJobApplication = {
+      ...movingApp,
+      status: targetStatus,
+      appliedAt: nextAppliedAt,
+      reachedInterviewAt: nextReachedInterviewAt,
+      stageHistory: [
+        ...prevHistory,
+        { status: targetStatus, changedAt: nowIso },
+      ],
+    };
+
     grouped[sourceStatus] = sourceList.map((item, idx) => ({ ...item, order: idx }));
     const destBase = [...grouped[targetStatus]];
     const insertAt =
       targetIndex === undefined
         ? destBase.length
         : Math.max(0, Math.min(destBase.length, targetIndex));
-    destBase.splice(insertAt, 0, { ...movingApp, status: targetStatus });
+    destBase.splice(insertAt, 0, updatedMovingApp);
     grouped[targetStatus] = destBase.map((item, idx) => ({ ...item, order: idx }));
   }
 
@@ -243,6 +268,8 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
   const [applications, setApplications] = useState<IJobApplication[]>([]);
   const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
   const [coverLetters, setCoverLetters] = useState<ICoverLetter[]>([]);
+  const [serverAttribution, setServerAttribution] =
+    useState<IApplicationAttributionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -276,6 +303,24 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
       setApplications(appsResult);
       setResumes(resumesResult);
       setCoverLetters(coverLettersResult);
+
+      if (
+        typeof (
+          applicationService as {
+            getAttributionSummary?: () => Promise<IApplicationAttributionSummary | null>;
+          }
+        ).getAttributionSummary === 'function'
+      ) {
+        Promise.resolve(applicationService.getAttributionSummary())
+          .then((summary) => {
+            if (summary) {
+              setServerAttribution(summary);
+            }
+          })
+          .catch(() => {
+            // Live client computation serves as immediate source of truth
+          });
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load job applications');
     } finally {
@@ -328,9 +373,9 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
 
       if (app.status !== 'wishlist') {
         submittedCount += 1;
-      }
-      if (app.status === 'interview' || app.status === 'offer') {
-        interviewOrOfferCount += 1;
+        if (hasApplicationReachedInterview(app)) {
+          interviewOrOfferCount += 1;
+        }
       }
     }
 
@@ -345,6 +390,18 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
       interviewOrOfferCount,
     };
   }, [applications]);
+
+  const attribution = useMemo(() => {
+    const computed = computeAttributionSummary(applications, resumes);
+    if (
+      applications.length === 0 &&
+      resumes.length === 0 &&
+      serverAttribution
+    ) {
+      return serverAttribution;
+    }
+    return computed;
+  }, [applications, resumes, serverAttribution]);
 
   // Upcoming next-actions list (sorted chronologically)
   const upcomingActions = useMemo(() => {
@@ -396,7 +453,24 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
     setApplications(nextApplications);
 
     try {
-      await applicationService.reorderApplications(moves);
+      const updatedRecords = await applicationService.reorderApplications(moves);
+      if (Array.isArray(updatedRecords) && updatedRecords.length > 0) {
+        const updatedById = new Map(
+          updatedRecords.map((item) => [item.id || item._id || '', item])
+        );
+        setApplications((prev) =>
+          prev.map((item) => {
+            const key = item.id || item._id || '';
+            const serverItem = updatedById.get(key);
+            if (!serverItem) return item;
+            return {
+              ...item,
+              ...serverItem,
+              id: item.id || serverItem.id,
+            };
+          })
+        );
+      }
     } catch (err) {
       setApplications(snapshot);
       toast.error(
@@ -632,6 +706,112 @@ export const JobTracker: React.FC<JobTrackerProps> = ({ onCheckMatch }) => {
                   ? `${stats.interviewOrOfferCount} of ${stats.submittedCount} applied reached interview/offer`
                   : 'Move applications past Wishlist to track conversion'}
               </p>
+            </div>
+          </section>
+
+          {/* Resume & Template Conversion Attribution Breakdown */}
+          <section
+            aria-labelledby="attribution-breakdown-heading"
+            data-testid="job-tracker-attribution"
+            className="bg-white rounded-card border border-neutral-200/90 shadow-card overflow-hidden"
+          >
+            <div className="px-4 sm:px-5 py-3.5 border-b border-neutral-200/80 bg-neutral-50/70 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <DocumentTextIcon className="h-4 w-4 text-primary-600" aria-hidden="true" />
+                <h2
+                  id="attribution-breakdown-heading"
+                  className="text-sm font-semibold text-neutral-900"
+                >
+                  Resume &amp; Template Conversion Attribution
+                </h2>
+              </div>
+              <span className="text-xs font-medium text-neutral-500">
+                Historical interview attainment preserved across stage changes
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-neutral-200/80">
+              <div data-testid="attribution-by-resume" className="p-4 sm:p-5">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
+                  By Linked Resume
+                </h3>
+                {attribution.byResume.length === 0 ? (
+                  <p className="text-xs sm:text-sm text-neutral-500">
+                    Link a resume on any application card to compare interview rates across versions.
+                  </p>
+                ) : (
+                  <ul className="space-y-2.5">
+                    {attribution.byResume.map((item) => (
+                      <li
+                        key={item.resumeId}
+                        data-testid={`resume-attribution-row-${item.resumeId}`}
+                        className="flex items-center justify-between gap-3 rounded-control border border-neutral-200/80 bg-neutral-50/50 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-neutral-900 truncate">
+                            {item.title}
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            Template: <span className="font-medium text-neutral-700">{item.templateId}</span>
+                            {' · '}
+                            {item.submittedCount} submitted ({item.totalApplications} linked)
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
+                            item.submittedCount > 0 && item.interviewRate > 0
+                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                              : 'bg-neutral-100 text-neutral-700 ring-neutral-200'
+                          }`}
+                        >
+                          {item.interviewRate}% interview rate
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div data-testid="attribution-by-template" className="p-4 sm:p-5">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
+                  By Template
+                </h3>
+                {attribution.byTemplate.length === 0 ? (
+                  <p className="text-xs sm:text-sm text-neutral-500">
+                    Create or link a resume template to track layout effectiveness.
+                  </p>
+                ) : (
+                  <ul className="space-y-2.5">
+                    {attribution.byTemplate.map((tpl) => (
+                      <li
+                        key={tpl.templateId}
+                        data-testid={`template-attribution-row-${tpl.templateId}`}
+                        className="flex items-center justify-between gap-3 rounded-control border border-neutral-200/80 bg-neutral-50/50 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-neutral-900 capitalize truncate">
+                            {tpl.templateId}
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            {tpl.resumeCount} {tpl.resumeCount === 1 ? 'resume' : 'resumes'}
+                            {' · '}
+                            {tpl.submittedCount} submitted
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
+                            tpl.submittedCount > 0 && tpl.interviewRate > 0
+                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                              : 'bg-neutral-100 text-neutral-700 ring-neutral-200'
+                          }`}
+                        >
+                          {tpl.interviewRate}% interview rate
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </section>
 

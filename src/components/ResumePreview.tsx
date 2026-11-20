@@ -15,6 +15,7 @@ import { ThemeCustomizationPanel } from "./ThemeCustomizationPanel";
 import { getThemeStyles } from "../constants/themeConstants";
 import { resumeService } from "../services/resume.service";
 import { triggerFileDownload } from "../utils/download";
+import { captureClientEvent } from "../services/telemetry";
 import {
   getTemplate,
   mergeTemplateTheme,
@@ -153,6 +154,28 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     if (onDownloadPdf) {
       onDownloadPdf();
       return;
+    }
+    if (!readOnly) {
+      const resumeId = resume._id || (resume as { id?: string }).id || null;
+      const templateId =
+        resume.templateId || (resume as { template?: string }).template || "modern";
+      const createdAtRaw = (resume as { createdAt?: string }).createdAt;
+      const createdAtMs = createdAtRaw ? new Date(createdAtRaw).getTime() : NaN;
+      const durationMs = Number.isFinite(createdAtMs)
+        ? Math.max(0, Date.now() - createdAtMs)
+        : 0;
+      captureClientEvent("resume_exported", {
+        resume_id: resumeId,
+        template_id: templateId,
+        format: "pdf",
+      });
+      captureClientEvent("time_to_export", {
+        resume_id: resumeId,
+        template_id: templateId,
+        format: "pdf",
+        duration_ms: durationMs,
+        duration_seconds: Math.round(durationMs / 1000),
+      });
     }
     if (typeof window !== "undefined" && typeof window.print === "function") {
       window.print();

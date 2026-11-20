@@ -22,6 +22,7 @@
     "framer-motion": "^12.42.0",
     "lodash": "^4.18.1",
     "lucide-react": "^0.511.0",
+    "posthog-js": "^1.453.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",

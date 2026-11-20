@@ -14,6 +14,11 @@ export interface IApplicationContact {
   role: string;
 }
 
+export interface IStageHistoryEntry {
+  status: ApplicationStatus;
+  changedAt: string;
+}
+
 export interface IJobApplication {
   id: string;
   _id?: string;
@@ -25,6 +30,8 @@ export interface IJobApplication {
   status: ApplicationStatus;
   order: number;
   appliedAt?: string | null;
+  reachedInterviewAt?: string | null;
+  stageHistory?: IStageHistoryEntry[];
   salary?: string;
   notes?: string;
   resumeId?: string | null;
@@ -35,6 +42,32 @@ export interface IJobApplication {
   nextActionNote?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface IApplicationAttributionMetrics {
+  totalApplications: number;
+  submittedCount: number;
+  interviewCount: number;
+  offerCount: number;
+  interviewRate: number;
+}
+
+export interface IResumeAttributionItem extends IApplicationAttributionMetrics {
+  resumeId: string;
+  title: string;
+  templateId: string;
+}
+
+export interface ITemplateAttributionItem extends IApplicationAttributionMetrics {
+  templateId: string;
+  resumeCount: number;
+}
+
+export interface IApplicationAttributionSummary {
+  totals: IApplicationAttributionMetrics;
+  byResume: IResumeAttributionItem[];
+  byTemplate: ITemplateAttributionItem[];
+  unlinked: IApplicationAttributionMetrics;
 }
 
 export interface ApplicationReorderMove {

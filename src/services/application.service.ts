@@ -2,9 +2,14 @@ import axiosInstance from './axios';
 import {
   ApplicationReorderMove,
   ApplicationStatus,
+  IApplicationAttributionSummary,
   IJobApplication,
   UpsertApplicationPayload,
 } from '../types/application';
+export {
+  computeAttributionSummary,
+  hasApplicationReachedInterview,
+} from '../utils/applicationAttribution';
 
 export function normalizeApplication(raw: Partial<IJobApplication> & { _id?: string; id?: string }): IJobApplication {
   const resolvedId = raw.id || raw._id || '';
@@ -19,6 +24,15 @@ export function normalizeApplication(raw: Partial<IJobApplication> & { _id?: str
     status: raw.status || 'wishlist',
     order: typeof raw.order === 'number' ? raw.order : 0,
     appliedAt: raw.appliedAt ?? null,
+    reachedInterviewAt: raw.reachedInterviewAt ?? null,
+    stageHistory: Array.isArray(raw.stageHistory)
+      ? raw.stageHistory
+          .filter((entry) => Boolean(entry && entry.status))
+          .map((entry) => ({
+            status: entry.status,
+            changedAt: entry.changedAt || new Date().toISOString(),
+          }))
+      : [],
     salary: raw.salary || '',
     notes: raw.notes || '',
     resumeId: raw.resumeId ?? null,
@@ -73,8 +87,29 @@ class ApplicationService {
     await axiosInstance.delete(`/api/applications/${id}`);
   }
 
-  async reorderApplications(moves: ApplicationReorderMove[]): Promise<void> {
-    await axiosInstance.patch('/api/applications/reorder', { moves });
+  async reorderApplications(
+    moves: ApplicationReorderMove[]
+  ): Promise<IJobApplication[] | undefined> {
+    const response = await axiosInstance.patch<{
+      success: boolean;
+      data?: {
+        updatedCount?: number;
+        moves?: ApplicationReorderMove[];
+        applications?: IJobApplication[];
+      };
+    }>('/api/applications/reorder', { moves });
+    const updated = response?.data?.data?.applications;
+    return Array.isArray(updated)
+      ? updated.map((item) => normalizeApplication(item))
+      : undefined;
+  }
+
+  async getAttributionSummary(): Promise<IApplicationAttributionSummary | null> {
+    const response = await axiosInstance.get<{
+      success: boolean;
+      data?: IApplicationAttributionSummary;
+    }>('/api/applications/attribution');
+    return response?.data?.data || null;
   }
 }
 

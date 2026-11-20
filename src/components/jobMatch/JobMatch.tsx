@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../../services/resume.service';
+import { captureClientEvent } from '../../services/telemetry';
 import { ISection, SectionType } from '../../types/resume';
 import { JobMatchResult } from '../../types/jobMatch';
 import { Container } from '../ui/container';
@@ -416,6 +417,13 @@ export default function JobMatch({
         templateId: updated.templateId,
         themeConfig: updated.themeConfig,
         content: updated.content,
+      });
+      captureClientEvent('resume_tailored', {
+        resume_id: selectedId,
+        template_id: updated.templateId || 'modern',
+        source: 'job_match',
+        action: 'add_missing_skill',
+        previous_score: result?.score ?? null,
       });
       setResumes((prev) =>
         prev.map((r) => (resumeIdOf(r) === selectedId ? { ...r, content: updated.content } : r))
