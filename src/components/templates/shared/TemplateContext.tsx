@@ -1,5 +1,9 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { IResume } from '../../../types/resume';
+import {
+  ensureTemplateResumeIds,
+  hasValidIdentifier,
+} from '../../../utils/resumeNormalizer';
 import { DateFormatPattern } from '../templateHelpers';
 
 export type HeadingStyleVariant = 'underline' | 'bar' | 'caps' | 'pill' | 'side-label';
@@ -60,15 +64,19 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
   children,
 }) => {
   const effectiveReadOnly = Boolean(readOnly || !onChange);
+  const normalizedResume = useMemo(
+    () => ensureTemplateResumeIds(resume),
+    [resume]
+  );
 
   const updateBasics = (field: string, value: string) => {
     if (effectiveReadOnly || !onChange) return;
     onChange({
-      ...resume,
+      ...normalizedResume,
       content: {
-        ...resume.content,
+        ...normalizedResume.content,
         basics: {
-          ...(resume.content?.basics || {}),
+          ...(normalizedResume.content?.basics || {}),
           [field]: value,
         },
       },
@@ -81,17 +89,20 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
     patch: Record<string, any>
   ) => {
     if (effectiveReadOnly || !onChange) return;
+    if (!hasValidIdentifier(sectionId) || !hasValidIdentifier(itemId)) return;
     onChange({
-      ...resume,
+      ...normalizedResume,
       content: {
-        ...resume.content,
-        sections: (resume.content?.sections || []).map((sec) =>
+        ...normalizedResume.content,
+        sections: (normalizedResume.content?.sections || []).map((sec) =>
           sec.id === sectionId
             ? {
                 ...sec,
                 content: Array.isArray(sec.content)
                   ? sec.content.map((item) =>
-                      item && item.id === itemId ? { ...item, ...patch } : item
+                      item && hasValidIdentifier(item.id) && item.id === itemId
+                        ? { ...item, ...patch }
+                        : item
                     )
                   : sec.content,
               }
@@ -111,15 +122,16 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
   };
 
   const headingStyle: HeadingStyleVariant =
-    resume.themeConfig?.headingStyle || defaultHeadingStyle;
+    normalizedResume.themeConfig?.headingStyle || defaultHeadingStyle;
   const skillStyle: SkillStyleVariant =
-    resume.themeConfig?.skillStyle || defaultSkillStyle;
-  const dateFormat: DateFormatPattern | undefined = resume.themeConfig?.dateFormat;
+    normalizedResume.themeConfig?.skillStyle || defaultSkillStyle;
+  const dateFormat: DateFormatPattern | undefined =
+    normalizedResume.themeConfig?.dateFormat;
 
   return (
     <TemplateContext.Provider
       value={{
-        resume,
+        resume: normalizedResume,
         readOnly: effectiveReadOnly,
         onChange,
         updateBasics,

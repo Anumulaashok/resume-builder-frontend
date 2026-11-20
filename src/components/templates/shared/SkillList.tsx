@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ISection } from '../../../types/resume';
+import { hasValidIdentifier } from '../../../utils/resumeNormalizer';
 import { InlineEdit } from '../../ui/InlineEdit';
 import {
   extractKeywords,
@@ -137,7 +138,15 @@ export const SkillList: React.FC<SkillListProps> = ({
   const effectiveSectionId = sectionId || section?.id;
 
   const rawItems = items ?? (Array.isArray(section?.content) ? section!.content : []);
-  const enabledItems = rawItems.filter(
+  const hydratedItems = rawItems.map((item: any, idx: number) => {
+    if (!item || typeof item !== 'object') return item;
+    if (hasValidIdentifier(item.id)) return item;
+    return {
+      ...item,
+      id: `${effectiveSectionId || 'skills'}-item-${idx + 1}`,
+    };
+  });
+  const enabledItems = hydratedItems.filter(
     (item: any) => item && item.enabled !== false
   );
 
@@ -179,7 +188,7 @@ export const SkillList: React.FC<SkillListProps> = ({
   });
 
   const handleEditName = (itemId: string, val: string) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !hasValidIdentifier(itemId)) return;
     if (onUpdateItem) {
       onUpdateItem(itemId, 'name', val);
       return;
@@ -190,7 +199,7 @@ export const SkillList: React.FC<SkillListProps> = ({
   };
 
   const handleEditLevel = (item: any, rawVal: string) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !hasValidIdentifier(item?.id)) return;
     const parsed = parseSkillLevelInput(rawVal);
     if (onUpdateItem) {
       onUpdateItem(item.id, 'level', String(parsed));
