@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircleIcon,
   CheckIcon,
@@ -7,6 +7,7 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
   LightBulbIcon,
+  PencilSquareIcon,
   PlusIcon,
   SparklesIcon,
   XMarkIcon,
@@ -15,6 +16,11 @@ import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../../services/resume.service';
 import { ISection, SectionType } from '../../types/resume';
 import { JobMatchResult } from '../../types/jobMatch';
+import {
+  extractKeywords,
+  getOrderedSections,
+  resolveSectionKind,
+} from '../templates/templateHelpers';
 import { Container } from '../ui/container';
 import { Skeleton } from '../ui/skeleton';
 
@@ -54,25 +60,147 @@ const scoreTone = (score: number) => {
   };
 };
 
+let skillInsertionSeq = 0;
+const createSkillId = (prefix: string) => `${prefix}-${Date.now()}-${++skillInsertionSeq}`;
+
+const CATCH_ALL_SKILL_GROUP_RE =
+  /^(?:additional(?:\s+skills|\s+technologies|\s+tools)?|other(?:\s+skills|\s+technologies|\s+tools)?|general(?:\s+skills)?|skills|technical\s+skills|core\s+skills|technologies|tools)$/i;
+
+const isSoftSkillsSection = (section: ISection): boolean => {
+  const rawType = String(section.type ?? '').trim().toLowerCase();
+  const rawId = String(section.id ?? '').trim().toLowerCase();
+  const rawTitle = String(section.title ?? '').trim().toLowerCase();
+  return (
+    rawType === SectionType.SOFTSKILSS.toLowerCase() ||
+    rawType === 'softskills' ||
+    rawType === 'soft_skills' ||
+    rawId === 'softskills' ||
+    rawId === 'soft_skills' ||
+    /^soft\s*skills?$/i.test(rawTitle)
+  );
+};
+
+const detectSkillKeywordField = (
+  section: ISection,
+  sampleItem?: Record<string, any>
+): string => {
+  if (sampleItem) {
+    if (sampleItem.technologies !== undefined) return 'technologies';
+    if (sampleItem.subSkills !== undefined) return 'subSkills';
+    if (sampleItem.keywords !== undefined) return 'keywords';
+    if (sampleItem.items !== undefined) return 'items';
+    if (sampleItem.skills !== undefined) return 'skills';
+  }
+  const secType = String(section.type ?? '').trim().toLowerCase();
+  if (
+    secType === SectionType.TECK_SKILLS.toLowerCase() ||
+    secType === 'technicalskills' ||
+    secType === 'technical_skills'
+  ) {
+    return 'technologies';
+  }
+  return 'subSkills';
+};
+
 export const addSkillToResume = (resume: Resume, skill: string): Resume => {
+  const trimmedSkill = skill.trim();
+  if (!trimmedSkill) return resume;
+
   const sections = resume.content.sections || [];
-  const skillsSection = sections.find((s) => s.type === SectionType.SKILLS);
-  const newItem = { id: `skill-item-${Date.now()}`, name: skill };
+  const orderedEnabled = getOrderedSections(sections, resume.content.sectionOrder || []);
+  const canonicalSkillSections = orderedEnabled.filter(
+    (s) => resolveSectionKind(s) === 'skills'
+  );
+  const skillsSection =
+    canonicalSkillSections.find((s) => !isSoftSkillsSection(s)) ||
+    canonicalSkillSections[0];
 
   if (skillsSection) {
+    const rawItems = Array.isArray(skillsSection.content) ? skillsSection.content : [];
+    const lowerSkill = trimmedSkill.toLowerCase();
+
+    const alreadyInEnabled = rawItems.some((item: any) => {
+      if (!item || typeof item !== 'object' || item.enabled === false) return false;
+      const label = String(item.name || item.category || item.title || '').trim().toLowerCase();
+      if (label === lowerSkill) return true;
+      return extractKeywords(item).some((kw) => kw.toLowerCase() === lowerSkill);
+    });
+    if (alreadyInEnabled) {
+      return resume;
+    }
+
+    const hiddenFlatIdx = rawItems.findIndex((item: any) => {
+      if (!item || typeof item !== 'object' || item.enabled !== false) return false;
+      if (extractKeywords(item).length > 0) return false;
+      const label = String(item.name || item.category || item.title || '').trim().toLowerCase();
+      return label === lowerSkill;
+    });
+
+    let nextContent: any[];
+    if (hiddenFlatIdx >= 0) {
+      nextContent = rawItems.map((item: any, idx: number) =>
+        idx === hiddenFlatIdx ? { ...item, enabled: true } : item
+      );
+    } else {
+      const enabledItems = rawItems.filter(
+        (item: any) => item && typeof item === 'object' && item.enabled !== false
+      );
+      const groupedItems = enabledItems.filter(
+        (item: any) => extractKeywords(item).length > 0
+      );
+
+      if (groupedItems.length > 0) {
+        const catchAllGroup = groupedItems.find((item: any) => {
+          const label = String(item.name || item.category || item.title || '').trim();
+          return !label || CATCH_ALL_SKILL_GROUP_RE.test(label);
+        });
+
+        if (catchAllGroup) {
+          const field = detectSkillKeywordField(skillsSection, catchAllGroup);
+          const rawArr = (catchAllGroup as Record<string, any>)[field];
+          const usesObjectEntries =
+            Array.isArray(rawArr) &&
+            rawArr.some((entry) => entry && typeof entry === 'object' && typeof entry.name === 'string');
+          const nextKeywords = usesObjectEntries
+            ? [...rawArr, { name: trimmedSkill }]
+            : [...extractKeywords(catchAllGroup), trimmedSkill];
+
+          nextContent = rawItems.map((item: any) =>
+            item === catchAllGroup ? { ...item, [field]: nextKeywords } : item
+          );
+        } else {
+          const field = detectSkillKeywordField(skillsSection, groupedItems[0]);
+          nextContent = [
+            ...rawItems,
+            {
+              id: createSkillId('skill-item'),
+              name: 'Additional Skills',
+              [field]: [trimmedSkill],
+            },
+          ];
+        }
+      } else {
+        nextContent = [
+          ...rawItems,
+          { id: createSkillId('skill-item'), name: trimmedSkill },
+        ];
+      }
+    }
+
     return {
       ...resume,
       content: {
         ...resume.content,
         sections: sections.map((s) =>
-          s.id === skillsSection.id ? { ...s, content: [...(s.content || []), newItem] } : s
+          s.id === skillsSection.id ? { ...s, content: nextContent } : s
         ) as ISection[],
       },
     };
   }
 
+  const newItem = { id: createSkillId('skill-item'), name: trimmedSkill };
   const newSection = {
-    id: `skills-${Date.now()}`,
+    id: createSkillId('skills'),
     type: SectionType.SKILLS,
     title: 'Skills',
     content: [newItem],
@@ -333,26 +461,69 @@ function PreAnalysisEmptyState() {
   );
 }
 
+export interface JobMatchSessionState {
+  selectedId: string;
+  jobTitle: string;
+  jobDescription: string;
+  result: JobMatchResult | null;
+  checkedSuggestions: Record<string, boolean>;
+}
+
 export interface JobMatchProps {
   initialResumeId?: string;
   initialJobDescription?: string;
   initialJobTitle?: string;
+  persistedState?: JobMatchSessionState;
+  onStateChange?: (state: JobMatchSessionState) => void;
+  onEditResume?: (resume: Resume) => void;
 }
 
 export default function JobMatch({
   initialResumeId,
   initialJobDescription,
   initialJobTitle,
+  persistedState,
+  onStateChange,
+  onEditResume,
 }: JobMatchProps = {}) {
   const [resumes, setResumes] = useState<ResumeWithId[]>([]);
   const [loadingResumes, setLoadingResumes] = useState(true);
-  const [selectedId, setSelectedId] = useState(initialResumeId || '');
-  const [jobTitle, setJobTitle] = useState(initialJobTitle || '');
-  const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
+  const [selectedId, setSelectedId] = useState(
+    persistedState?.selectedId || initialResumeId || ''
+  );
+  const [jobTitle, setJobTitle] = useState(
+    persistedState?.jobTitle ?? initialJobTitle ?? ''
+  );
+  const [jobDescription, setJobDescription] = useState(
+    persistedState?.jobDescription ?? initialJobDescription ?? ''
+  );
   const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<JobMatchResult | null>(null);
+  const [result, setResult] = useState<JobMatchResult | null>(
+    persistedState?.result ?? null
+  );
   const [addingSkill, setAddingSkill] = useState<string | null>(null);
-  const [checkedSuggestions, setCheckedSuggestions] = useState<Record<string, boolean>>({});
+  const [checkedSuggestions, setCheckedSuggestions] = useState<Record<string, boolean>>(
+    persistedState?.checkedSuggestions ?? {}
+  );
+
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
+
+  const preferredIdRef = useRef(persistedState?.selectedId || initialResumeId || '');
+  const shouldRefreshOnMountRef = useRef(
+    Boolean(
+      persistedState?.result &&
+        (persistedState.selectedId || initialResumeId) &&
+        (persistedState.jobDescription ?? '').trim().length >= MIN_JD_LENGTH
+    )
+  );
+  const mountInputsRef = useRef({
+    jd: persistedState?.jobDescription ?? initialJobDescription ?? '',
+    title: persistedState?.jobTitle ?? initialJobTitle ?? '',
+  });
+  const prevInitialJdRef = useRef(initialJobDescription);
+  const prevInitialTitleRef = useRef(initialJobTitle);
+  const prevInitialResumeIdRef = useRef(initialResumeId);
 
   useEffect(() => {
     resumeService
@@ -361,18 +532,56 @@ export default function JobMatch({
         const typedList = list as ResumeWithId[];
         setResumes(typedList);
         if (typedList.length) {
-          const matchingInitial = initialResumeId
-            ? typedList.find((r) => resumeIdOf(r) === initialResumeId)
+          const preferredId = preferredIdRef.current;
+          const matchingPreferred = preferredId
+            ? typedList.find((r) => resumeIdOf(r) === preferredId)
             : undefined;
-          setSelectedId(resumeIdOf(matchingInitial || typedList[0]));
+          const resolvedId = resumeIdOf(matchingPreferred || typedList[0]);
+          setSelectedId(resolvedId);
+
+          if (preferredId && !matchingPreferred) {
+            shouldRefreshOnMountRef.current = false;
+            setResult(null);
+            setCheckedSuggestions({});
+          } else if (shouldRefreshOnMountRef.current && resolvedId) {
+            shouldRefreshOnMountRef.current = false;
+            const { jd, title } = mountInputsRef.current;
+            resumeService
+              .analyzeJobMatch(resolvedId, jd, title.trim())
+              .then((fresh) => {
+                if (fresh && typeof fresh.score === 'number') {
+                  setResult(fresh);
+                }
+              })
+              .catch(() => {
+                // Keep preserved score if silent refresh fails
+              });
+          }
         }
       })
       .catch((error: Error) => toast.error(error.message))
       .finally(() => setLoadingResumes(false));
+  }, []);
+
+  useEffect(() => {
+    if (
+      initialResumeId !== undefined &&
+      initialResumeId !== prevInitialResumeIdRef.current
+    ) {
+      prevInitialResumeIdRef.current = initialResumeId;
+      preferredIdRef.current = initialResumeId;
+      setSelectedId(initialResumeId);
+      setResult(null);
+      setCheckedSuggestions({});
+    }
   }, [initialResumeId]);
 
   useEffect(() => {
-    if (initialJobDescription !== undefined) {
+    if (
+      initialJobDescription !== undefined &&
+      initialJobDescription !== prevInitialJdRef.current
+    ) {
+      prevInitialJdRef.current = initialJobDescription;
       setJobDescription(initialJobDescription);
       setResult(null);
       setCheckedSuggestions({});
@@ -380,10 +589,24 @@ export default function JobMatch({
   }, [initialJobDescription]);
 
   useEffect(() => {
-    if (initialJobTitle !== undefined) {
+    if (
+      initialJobTitle !== undefined &&
+      initialJobTitle !== prevInitialTitleRef.current
+    ) {
+      prevInitialTitleRef.current = initialJobTitle;
       setJobTitle(initialJobTitle);
     }
   }, [initialJobTitle]);
+
+  useEffect(() => {
+    onStateChangeRef.current?.({
+      selectedId,
+      jobTitle,
+      jobDescription,
+      result,
+      checkedSuggestions,
+    });
+  }, [selectedId, jobTitle, jobDescription, result, checkedSuggestions]);
 
   const selectedResume = useMemo(
     () => resumes.find((r) => resumeIdOf(r) === selectedId),
@@ -495,12 +718,26 @@ export default function JobMatch({
 
           <div className="p-4 sm:p-6 space-y-5">
             <div>
-              <label
-                htmlFor="jm-resume"
-                className="block text-sm font-medium text-neutral-800 mb-1.5"
-              >
-                Target resume
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                <label
+                  htmlFor="jm-resume"
+                  className="block text-sm font-medium text-neutral-800"
+                >
+                  Target resume
+                </label>
+                {onEditResume && selectedResume && (
+                  <button
+                    type="button"
+                    data-testid="jm-edit-resume-btn"
+                    onClick={() => onEditResume(selectedResume)}
+                    disabled={loadingResumes}
+                    className="inline-flex items-center gap-1 rounded-control px-2.5 py-1 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 ring-1 ring-inset ring-primary-200/80 disabled:opacity-50 transition-colors focus-ring"
+                  >
+                    <PencilSquareIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Edit resume</span>
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <select
                   id="jm-resume"
