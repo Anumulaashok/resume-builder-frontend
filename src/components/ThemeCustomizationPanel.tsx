@@ -16,12 +16,26 @@ import {
   DateFormatOptionId,
 } from '../constants/themeConstants';
 import { TemplateLayout } from './templates/registry';
-import { XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import {
+  XMarkIcon,
+  ArrowPathIcon,
+  ArrowsPointingInIcon,
+} from '@heroicons/react/24/outline';
+import {
+  AUTO_FIT_MIN_FONT_SCALE,
+  AUTO_FIT_MIN_LINE_HEIGHT,
+  AUTO_FIT_MIN_PAGE_MARGINS,
+  AUTO_FIT_MIN_SECTION_SPACING,
+} from '../utils/themeAutoFit';
 
 interface ThemeCustomizationPanelProps {
   themeConfig?: ThemeConfig;
   templateDefaultTheme?: Partial<ThemeConfig>;
   templateLayout?: TemplateLayout;
+  pageCount?: number;
+  isAutoFitting?: boolean;
+  autoFitNotice?: string | null;
+  onFitToOnePage?: () => Promise<void> | void;
   onChange: (theme: ThemeConfig) => void;
   onKeysCustomised?: (keys: Array<keyof ThemeConfig>) => void;
   onReset?: (theme: ThemeConfig) => void;
@@ -32,6 +46,10 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
   themeConfig,
   templateDefaultTheme,
   templateLayout,
+  pageCount,
+  isAutoFitting = false,
+  autoFitNotice,
+  onFitToOnePage,
   onChange,
   onKeysCustomised,
   onReset,
@@ -114,6 +132,22 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
 
   const handleSidebarWidthChange = (widthPct: number) => {
     emitUpdate({ sidebarWidth: widthPct }, ['sidebarWidth']);
+  };
+
+  const handleFitToOnePageClick = () => {
+    if (onFitToOnePage) {
+      void onFitToOnePage();
+      return;
+    }
+    emitUpdate(
+      {
+        pageMargins: AUTO_FIT_MIN_PAGE_MARGINS,
+        sectionSpacing: AUTO_FIT_MIN_SECTION_SPACING,
+        lineHeight: AUTO_FIT_MIN_LINE_HEIGHT,
+        fontScale: AUTO_FIT_MIN_FONT_SCALE,
+      },
+      ['pageMargins', 'sectionSpacing', 'lineHeight', 'fontScale']
+    );
   };
 
   const handleReset = () => {
@@ -380,7 +414,7 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
                 type="range"
                 min={0.85}
                 max={1.15}
-                step={0.05}
+                step={0.01}
                 value={resolvedFontScale}
                 onChange={(e) => handleFontScaleChange(Number(e.target.value))}
                 data-testid="font-scale-input"
@@ -405,7 +439,7 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
                 type="range"
                 min={1.25}
                 max={1.8}
-                step={0.05}
+                step={0.01}
                 value={resolvedLineHeight}
                 onChange={(e) => handleLineHeightChange(Number(e.target.value))}
                 data-testid="line-height-input"
@@ -448,12 +482,50 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
           aria-labelledby="theme-heading-spacing"
           className="space-y-3"
         >
-          <h4
-            id="theme-heading-spacing"
-            className="text-[11px] font-bold uppercase tracking-widest text-blue-400 border-b border-gray-800 pb-1"
-          >
-            Spacing
-          </h4>
+          <div className="flex items-center justify-between border-b border-gray-800 pb-1">
+            <h4
+              id="theme-heading-spacing"
+              className="text-[11px] font-bold uppercase tracking-widest text-blue-400"
+            >
+              Spacing
+            </h4>
+            {typeof pageCount === 'number' && (
+              <span className="text-[11px] font-mono text-gray-400">
+                {pageCount === 1 ? '1 A4 page' : `${pageCount} A4 pages`}
+              </span>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-gray-800 bg-gray-800/60 p-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white">
+                  One-Page Auto-Fit
+                </p>
+                <p className="text-[11px] text-gray-400 leading-snug">
+                  Tunes margins, spacing, line height, and font scale within readable bounds.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleFitToOnePageClick}
+                disabled={isAutoFitting}
+                data-testid="panel-fit-to-one-page-btn"
+                className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium shadow-sm transition-colors"
+              >
+                <ArrowsPointingInIcon className="h-3.5 w-3.5 shrink-0" />
+                <span>{isAutoFitting ? 'Fitting…' : 'Fit to 1 page'}</span>
+              </button>
+            </div>
+            {autoFitNotice && (
+              <p
+                data-testid="panel-autofit-notice"
+                className="text-[11px] text-amber-300 bg-amber-950/60 border border-amber-800/70 rounded px-2 py-1.5 leading-snug"
+              >
+                {autoFitNotice}
+              </p>
+            )}
+          </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-300 mb-1.5">

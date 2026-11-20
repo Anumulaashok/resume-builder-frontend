@@ -18,6 +18,12 @@ import { defaultResume } from "../constants/editorConstants";
 import { getThemeStyles } from "../constants/themeConstants";
 import { getTemplate } from "./templates/registry";
 import { A4_HEIGHT_PX, A4_WIDTH_PX } from "./ResumePreview";
+import {
+  A4PageCountBadge,
+  A4PageGuidesOverlay,
+  computePageCount,
+  useA4SheetHeight,
+} from "./common/A4PageGuides";
 import { Skeleton } from "./ui/skeleton";
 import { formatRelativeTime, formatSnapshotTimestamp } from "../utils/date";
 import { normalizeResume } from "../utils/resumeNormalizer";
@@ -100,7 +106,6 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
   const [restoring, setRestoring] = useState(false);
 
   const [fitScale, setFitScale] = useState<number>(0.55);
-  const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
@@ -265,30 +270,13 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
     return () => observer.disconnect();
   }, [isOpen, activeSnapshot]);
 
-  // Sync rendered A4 page height so scaled container matches height
-  useEffect(() => {
-    if (!isOpen || !activeSnapshot) return;
-    const pageEl = previewPageRef.current;
-    if (!pageEl) return;
-
-    const syncHeight = () => {
-      const h = Math.max(A4_HEIGHT_PX, pageEl.offsetHeight || 0);
-      setPageHeight(h);
-    };
-
-    syncHeight();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(() => {
-      syncHeight();
-    });
-
-    observer.observe(pageEl);
-    return () => observer.disconnect();
-  }, [isOpen, activeSnapshot, currentResume.templateId]);
+  // Sync rendered A4 page height (after font readiness) so scaled container and A4 guides match height
+  const pageHeight = useA4SheetHeight(
+    previewPageRef,
+    [activeSnapshot, currentResume.templateId, snapshotLoading],
+    Boolean(isOpen && activeSnapshot && !snapshotLoading && !snapshotError)
+  );
+  const pageCount = computePageCount(pageHeight);
 
   const selectedSummaryItem = useMemo(
     () => versions.find((v) => v.index === selectedIndex) || null,
@@ -576,6 +564,9 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                     >
                       Template: {activeTemplate.name}
                     </span>
+                    {previewResume && !snapshotLoading && !snapshotError && (
+                      <A4PageCountBadge pageCount={pageCount} />
+                    )}
                   </div>
                   {selectedSummaryItem && (
                     <p className="text-xs text-neutral-500 truncate mt-0.5">
@@ -660,7 +651,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                       ref={previewPageRef}
                       data-testid="version-history-preview-page"
                       data-template-id={activeTemplate.id}
-                      className="bg-white shadow-card ring-1 ring-neutral-900/5 rounded-[2px] origin-top-left select-text"
+                      className="relative bg-white shadow-card ring-1 ring-neutral-900/5 rounded-[2px] origin-top-left select-text"
                       style={{
                         width: `${A4_WIDTH_PX}px`,
                         minHeight: `${A4_HEIGHT_PX}px`,
@@ -673,6 +664,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                         resume={previewResume}
                         readOnly={true}
                       />
+                      <A4PageGuidesOverlay pageHeight={pageHeight} />
                     </div>
                   </div>
                 ) : null}

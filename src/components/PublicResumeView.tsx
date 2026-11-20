@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { resumeService } from "../services/resume.service";
 import { IResume } from "../types/resume";
 import { A4_WIDTH_PX, A4_HEIGHT_PX } from "./ResumePreview";
+import {
+  A4PageCountBadge,
+  A4PageGuidesOverlay,
+  computePageCount,
+  useA4SheetHeight,
+} from "./common/A4PageGuides";
 import { getTemplate } from "./templates/registry";
 import { getThemeStyles } from "../constants/themeConstants";
 import { Container } from "./ui/container";
@@ -103,8 +109,9 @@ function resolveErrorPresentation(error: string | null): ErrorPresentation {
 
 const TopBar: React.FC<{
   onPrint?: () => void;
+  pageCount?: number;
   showSkeletonAction?: boolean;
-}> = ({ onPrint, showSkeletonAction = false }) => (
+}> = ({ onPrint, pageCount, showSkeletonAction = false }) => (
   <header
     data-testid="public-resume-topbar"
     className="sticky top-0 z-20 shrink-0 bg-white/95 backdrop-blur-sm border-b border-neutral-200/80 shadow-header print:hidden"
@@ -126,21 +133,27 @@ const TopBar: React.FC<{
           </span>
         </a>
 
-        {onPrint && (
-          <button
-            type="button"
-            onClick={onPrint}
-            data-testid="public-resume-print-btn"
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-control bg-primary-600 hover:bg-primary-700 text-white text-xs sm:text-sm font-medium shadow-sm transition-colors focus-ring shrink-0"
-          >
-            <PrinterIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>Print / Download</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {typeof pageCount === "number" && (
+            <A4PageCountBadge pageCount={pageCount} />
+          )}
 
-        {showSkeletonAction && (
-          <Skeleton className="h-9 w-28 sm:w-36 rounded-control shrink-0" />
-        )}
+          {onPrint && (
+            <button
+              type="button"
+              onClick={onPrint}
+              data-testid="public-resume-print-btn"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-control bg-primary-600 hover:bg-primary-700 text-white text-xs sm:text-sm font-medium shadow-sm transition-colors focus-ring shrink-0"
+            >
+              <PrinterIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>Print / Download</span>
+            </button>
+          )}
+
+          {showSkeletonAction && (
+            <Skeleton className="h-9 w-28 sm:w-36 rounded-control shrink-0" />
+          )}
+        </div>
       </div>
     </Container>
   </header>
@@ -157,7 +170,6 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fitScale, setFitScale] = useState<number>(1);
-  const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -246,30 +258,13 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
     return () => observer.disconnect();
   }, [hasResume]);
 
-  // Track unscaled page height so the scaled wrapper reserves exact vertical scroll space
-  useEffect(() => {
-    if (!hasResume) return;
-    const pageEl = pageRef.current;
-    if (!pageEl) return;
-
-    const syncHeight = () => {
-      const h = Math.max(A4_HEIGHT_PX, pageEl.offsetHeight || 0);
-      setPageHeight(h);
-    };
-
-    syncHeight();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(() => {
-      syncHeight();
-    });
-
-    observer.observe(pageEl);
-    return () => observer.disconnect();
-  }, [hasResume, normalizedTemplateId, resume]);
+  // Track unscaled page height (waiting for browser font readiness) so the scaled wrapper reserves exact vertical scroll space
+  const pageHeight = useA4SheetHeight(
+    pageRef,
+    [normalizedTemplateId, resume],
+    hasResume
+  );
+  const pageCount = computePageCount(pageHeight);
 
   const handlePrint = () => {
     window.print();
@@ -389,7 +384,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
       className="min-h-screen bg-neutral-100 flex flex-col print:!bg-white print:!block print:!min-h-0"
       data-testid="public-resume-view"
     >
-      <TopBar onPrint={handlePrint} />
+      <TopBar onPrint={handlePrint} pageCount={pageCount} />
 
       {/* Centred Neutral Canvas with Fit-to-Width Scaling */}
       <main
@@ -409,7 +404,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
           <div
             ref={pageRef}
             data-testid="resume-preview-page"
-            className="bg-white shadow-card ring-1 ring-neutral-900/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
+            className="relative bg-white shadow-card ring-1 ring-neutral-900/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
             style={{
               width: `${A4_WIDTH_PX}px`,
               minHeight: `${A4_HEIGHT_PX}px`,
@@ -420,6 +415,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
             <div className="min-h-full" style={themeStyles}>
               <ActiveTemplateComponent resume={resume} readOnly={true} />
             </div>
+            <A4PageGuidesOverlay pageHeight={pageHeight} />
           </div>
         </div>
       </main>
