@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowsRightLeftIcon,
+  CheckBadgeIcon,
   CheckCircleIcon,
   CheckIcon,
   ChevronDownIcon,
@@ -8,11 +10,13 @@ import {
   ExclamationTriangleIcon,
   LightBulbIcon,
   PlusIcon,
+  ShieldExclamationIcon,
   SparklesIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../../services/resume.service';
+import { careerProfileService } from '../../services/careerProfile.service';
 import { ISection, SectionType } from '../../types/resume';
 import { JobMatchResult } from '../../types/jobMatch';
 import { Container } from '../ui/container';
@@ -352,6 +356,9 @@ export default function JobMatch({
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<JobMatchResult | null>(null);
   const [addingSkill, setAddingSkill] = useState<string | null>(null);
+  const [confirmingUnconfirmedSkill, setConfirmingUnconfirmedSkill] = useState<string | null>(null);
+  const [hasConfirmedExperience, setHasConfirmedExperience] = useState<boolean>(false);
+  const [alsoSaveToCareerProfile, setAlsoSaveToCareerProfile] = useState<boolean>(true);
   const [checkedSuggestions, setCheckedSuggestions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -405,10 +412,17 @@ export default function JobMatch({
     }
   };
 
-  const handleAddSkill = async (skill: string) => {
+  const handleAddSkill = async (skill: string, saveConfirmedToProfile = false) => {
     if (!selectedResume) return;
     setAddingSkill(skill);
     try {
+      if (saveConfirmedToProfile) {
+        try {
+          await careerProfileService.confirmSkill(skill);
+        } catch {
+          // Proceed with adding to resume even if profile sync fails
+        }
+      }
       const updated = addSkillToResume(selectedResume, skill);
       await resumeService.updateResume(selectedId, {
         title: updated.title,
@@ -420,6 +434,8 @@ export default function JobMatch({
       setResumes((prev) =>
         prev.map((r) => (resumeIdOf(r) === selectedId ? { ...r, content: updated.content } : r))
       );
+      setConfirmingUnconfirmedSkill(null);
+      setHasConfirmedExperience(false);
       toast.success(`Added ${skill} to your Skills section`);
       setResult(await resumeService.analyzeJobMatch(selectedId, jobDescription, jobTitle.trim()));
     } catch (error) {
@@ -740,6 +756,194 @@ export default function JobMatch({
                       <CheckCircleIcon className="w-5 h-5 text-emerald-600 shrink-0" aria-hidden="true" />
                       <span>Every key skill in this job description is on your resume.</span>
                     </div>
+                  ) : result.hasCareerProfile ? (
+                    <div className="space-y-4">
+                      {/* 1. Verified in Career Profile (1-click add) */}
+                      {(result.profileVerifiedSkills?.length ?? 0) > 0 && (
+                        <div
+                          data-testid="jm-verified-profile-section"
+                          className="rounded-control border border-primary-200 bg-primary-50/50 p-3 space-y-2"
+                        >
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-primary-900">
+                            <CheckBadgeIcon className="w-4 h-4 text-primary-600 shrink-0" aria-hidden="true" />
+                            <span>Verified in Career Profile (1-click add)</span>
+                          </div>
+                          <p className="text-[11px] text-primary-800">
+                            Already verified in your Career Profile, just omitted from this resume:
+                          </p>
+                          <ul className="flex flex-wrap gap-2" aria-label="Verified profile skills">
+                            {(result.profileVerifiedSkills || []).map((k) => (
+                              <li
+                                key={k.keyword}
+                                data-testid="verified-profile-skill-chip"
+                                className="inline-flex flex-wrap items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-semibold bg-white text-primary-900 ring-1 ring-inset ring-primary-200"
+                              >
+                                <span>{k.keyword}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleAddSkill(k.keyword)}
+                                  disabled={addingSkill !== null}
+                                  aria-label={`Add verified skill: ${k.keyword}`}
+                                  className="inline-flex items-center gap-1 rounded-full bg-primary-600 px-2.5 py-0.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+                                >
+                                  <PlusIcon className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
+                                  <span>
+                                    {addingSkill === k.keyword ? 'Adding…' : 'Add verified skill'}
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 2. Transferable Experience Context */}
+                      {(result.transferableSkills?.length ?? 0) > 0 && (
+                        <div
+                          data-testid="jm-transferable-section"
+                          className="rounded-control border border-accent-200 bg-accent-50/40 p-3 space-y-2"
+                        >
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-accent-900">
+                            <ArrowsRightLeftIcon className="w-4 h-4 text-accent-600 shrink-0" aria-hidden="true" />
+                            <span>Transferable Experience Context</span>
+                          </div>
+                          <div className="space-y-2">
+                            {(result.transferableSkills || []).map((t) => (
+                              <div
+                                key={t.keyword}
+                                data-testid="transferable-skill-card"
+                                className="rounded-control bg-white border border-accent-200/80 p-2.5 text-xs space-y-1"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-1">
+                                  <span className="font-semibold text-neutral-900">
+                                    Job asks for: {t.keyword}
+                                  </span>
+                                  <span className="text-[11px] font-medium text-accent-700">
+                                    Your verified match: {t.relatedProfileSkills.join(', ')}
+                                  </span>
+                                </div>
+                                <p className="text-neutral-600 text-[11px] leading-relaxed">
+                                  {t.guidance}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. Unconfirmed Skills (Require explicit confirmation) */}
+                      {((result.unconfirmedSkills?.length ?? 0) > 0 ||
+                        (result.transferableSkills?.length ?? 0) > 0) && (
+                        <div
+                          data-testid="jm-unconfirmed-section"
+                          className="rounded-control border border-amber-200 bg-amber-50/50 p-3 space-y-2.5"
+                        >
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+                            <ShieldExclamationIcon className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+                            <span>Unconfirmed Skills (Confirmation Required)</span>
+                          </div>
+                          <p className="text-[11px] text-amber-800">
+                            Not found in your Career Profile. Confirm hands-on experience before adding:
+                          </p>
+                          <ul className="flex flex-wrap gap-2" aria-label="Unconfirmed skills">
+                            {[
+                              ...(result.unconfirmedSkills || []),
+                              ...(result.transferableSkills || []).map((t) => ({
+                                keyword: t.keyword,
+                                occurrences: t.occurrences,
+                                requiresConfirmation: true as const,
+                              })),
+                            ].map((k) => (
+                              <li
+                                key={k.keyword}
+                                data-testid="unconfirmed-skill-chip"
+                                className="inline-flex flex-wrap items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-semibold bg-white text-amber-900 ring-1 ring-inset ring-amber-300"
+                              >
+                                <span>{k.keyword}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmingUnconfirmedSkill(k.keyword);
+                                    setHasConfirmedExperience(false);
+                                    setAlsoSaveToCareerProfile(true);
+                                  }}
+                                  disabled={addingSkill !== null}
+                                  aria-label={`Confirm before adding: ${k.keyword}`}
+                                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 hover:bg-amber-200 disabled:opacity-50"
+                                >
+                                  <PlusIcon className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
+                                  <span>Confirm &amp; add</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+
+                          {confirmingUnconfirmedSkill && (
+                            <div
+                              role="region"
+                              aria-label={`Confirm experience with ${confirmingUnconfirmedSkill}`}
+                              data-testid="confirm-skill-prompt"
+                              className="mt-2 p-3 rounded-control bg-white border border-amber-300 space-y-2.5 text-xs"
+                            >
+                              <p className="font-semibold text-neutral-900">
+                                Confirm experience with {confirmingUnconfirmedSkill}
+                              </p>
+                              <label className="flex items-start gap-2 text-neutral-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  data-testid="confirm-skill-experience-checkbox"
+                                  checked={hasConfirmedExperience}
+                                  onChange={(e) => setHasConfirmedExperience(e.target.checked)}
+                                  className="mt-0.5 rounded border-neutral-300 text-primary-600"
+                                />
+                                <span>
+                                  I confirm I have real experience with{' '}
+                                  <strong>{confirmingUnconfirmedSkill}</strong> and want it on my resume.
+                                </span>
+                              </label>
+                              <label className="flex items-start gap-2 text-neutral-600 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  data-testid="confirm-skill-save-profile-checkbox"
+                                  checked={alsoSaveToCareerProfile}
+                                  onChange={(e) => setAlsoSaveToCareerProfile(e.target.checked)}
+                                  className="mt-0.5 rounded border-neutral-300 text-primary-600"
+                                />
+                                <span>Also add to my Career Profile as a verified skill</span>
+                              </label>
+                              <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmingUnconfirmedSkill(null);
+                                    setHasConfirmedExperience(false);
+                                  }}
+                                  className="px-2.5 py-1 rounded border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid="confirm-add-unconfirmed-skill-btn"
+                                  disabled={!hasConfirmedExperience || addingSkill !== null}
+                                  onClick={() =>
+                                    void handleAddSkill(
+                                      confirmingUnconfirmedSkill,
+                                      alsoSaveToCareerProfile
+                                    )
+                                  }
+                                  className="px-3 py-1 rounded bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:opacity-50"
+                                >
+                                  {addingSkill === confirmingUnconfirmedSkill
+                                    ? 'Adding…'
+                                    : `Add ${confirmingUnconfirmedSkill}`}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <p className="text-xs text-neutral-500 mb-3">
@@ -760,7 +964,7 @@ export default function JobMatch({
                             )}
                             <button
                               type="button"
-                              onClick={() => handleAddSkill(k.keyword)}
+                              onClick={() => void handleAddSkill(k.keyword)}
                               disabled={addingSkill !== null}
                               aria-label={
                                 addingSkill === k.keyword

@@ -7,10 +7,12 @@ import {
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentIcon,
   CheckIcon,
+  IdentificationIcon,
   SparklesIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { portfolioService } from '../../services/portfolio.service';
+import { careerProfileService } from '../../services/careerProfile.service';
 import { IPortfolio } from '../../types/portfolio';
 import { Skeleton } from '../ui/skeleton';
 
@@ -62,7 +64,25 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({
 }) => {
   const [portfolios, setPortfolios] = useState<IPortfolio[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seedingFromProfile, setSeedingFromProfile] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleSeedFromCareerProfile = async () => {
+    setSeedingFromProfile(true);
+    try {
+      const created = await careerProfileService.seedPortfolio();
+      toast.success('Portfolio seeded from Career Profile');
+      onEditPortfolio(created);
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Save your Career Profile first before seeding a portfolio';
+      toast.error(message);
+    } finally {
+      setSeedingFromProfile(false);
+    }
+  };
 
   const fetchPortfolios = async () => {
     try {
@@ -122,6 +142,16 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({
 
         {!loading && portfolios.length > 0 && (
           <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              data-testid="seed-portfolio-from-profile-btn"
+              disabled={seedingFromProfile}
+              onClick={() => void handleSeedFromCareerProfile()}
+              className="inline-flex items-center justify-center h-10 px-4 border border-neutral-300 rounded-control shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 transition-colors focus-ring disabled:opacity-50"
+            >
+              <IdentificationIcon className="h-4 w-4 mr-2 text-primary-600" aria-hidden="true" />
+              {seedingFromProfile ? 'Seeding…' : 'Seed from Career Profile'}
+            </button>
             <button
               type="button"
               onClick={onNewPortfolio}
@@ -205,6 +235,16 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({
               >
                 <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                 Build My First Portfolio
+              </button>
+              <button
+                type="button"
+                data-testid="seed-portfolio-from-profile-btn"
+                disabled={seedingFromProfile}
+                onClick={() => void handleSeedFromCareerProfile()}
+                className="inline-flex items-center justify-center h-10 px-4 border border-neutral-300 rounded-control shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 transition-colors focus-ring disabled:opacity-50"
+              >
+                <IdentificationIcon className="h-4 w-4 mr-2 text-primary-600" aria-hidden="true" />
+                {seedingFromProfile ? 'Seeding…' : 'Seed from Career Profile'}
               </button>
             </div>
           </div>

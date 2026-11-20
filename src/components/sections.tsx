@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { SparklesIcon, ArrowUturnLeftIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { EducationItem, SectionType } from "../types/resume";
 import { formatResumeDate } from "../utils/date";
+import { resumeService } from "../services/resume.service";
+import { BulletRewriteAction } from "../types/careerProfile";
 import EducationForm from "./Education-form";
 
 export interface ContntProps {
@@ -478,6 +480,66 @@ const GenericSectionItemForm: React.FC<{
     return base;
   });
 
+  const [showInlineAssistant, setShowInlineAssistant] = useState(false);
+  const [inlineRewriting, setInlineRewriting] = useState(false);
+  const [inlineMetric, setInlineMetric] = useState("");
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [descriptionHistory, setDescriptionHistory] = useState<string[]>([]);
+
+  const supportsBulletAssistant =
+    type === SectionType.WORK || type === SectionType.PROJECTS;
+
+  const runInlineBulletTransform = async (
+    action: BulletRewriteAction,
+    withMetric = false
+  ) => {
+    const rawDesc = String(formState.description || "").trim();
+    if (!rawDesc) return;
+    const lines = rawDesc
+      .split("\n")
+      .map((l) => l.replace(/^\s*(?:[-*•●▪◦]|\d+[.)])\s*/, "").trim())
+      .filter(Boolean);
+    if (lines.length === 0) return;
+    const firstBullet = lines[0];
+
+    setInlineRewriting(true);
+    setInlineError(null);
+    try {
+      const res = await resumeService.rewriteBullet({
+        bullet: firstBullet,
+        action,
+        sectionType: type,
+        itemId: formState.id,
+        company: formState.company || formState.name,
+        role: formState.position,
+        projectName: type === SectionType.PROJECTS ? formState.name : undefined,
+        ...(withMetric && inlineMetric.trim()
+          ? {
+              metricCategory: "Measurable impact",
+              userMetric: inlineMetric.trim(),
+            }
+          : {}),
+      });
+      setDescriptionHistory((prev) => [...prev, String(formState.description || "")]);
+      const nextLines = [res.rewrittenBullet, ...lines.slice(1)];
+      const formatted =
+        nextLines.length > 1
+          ? nextLines.map((l) => `• ${l}`).join("\n")
+          : nextLines[0];
+      setFormState((prev) => ({
+        ...prev,
+        description: formatted,
+        source_fact_ids: res.provenance.source_fact_ids,
+      }));
+    } catch (err: any) {
+      setInlineError(
+        err?.response?.data?.message || err?.message || "Failed to refine bullet"
+      );
+    } finally {
+      setInlineRewriting(false);
+    }
+  };
+
   const updateField = (field: FieldDescriptor, value: any) => {
     setFormState((prev) => {
       const next = { ...prev, [field.key]: value };
@@ -533,13 +595,27 @@ const GenericSectionItemForm: React.FC<{
 
         if (field.type === "textarea") {
           return (
-            <div key={field.key}>
-              <label
-                htmlFor={inputId}
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                {field.label}
-              </label>
+            <div key={field.key} className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor={inputId}
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  {field.label}
+                </label>
+                {supportsBulletAssistant && field.key === "description" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineAssistant((prev) => !prev)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-800"
+                  >
+                    <SparklesIcon className="h-3.5 w-3.5" />
+                    <span>
+                      {showInlineAssistant ? "Hide AI Assistant" : "Grounded AI Refine"}
+                    </span>
+                  </button>
+                )}
+              </div>
               <textarea
                 id={inputId}
                 rows={4}
@@ -548,6 +624,93 @@ const GenericSectionItemForm: React.FC<{
                 onChange={(e) => updateField(field, e.target.value)}
                 className="w-full px-3 py-2 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+              {supportsBulletAssistant &&
+                field.key === "description" &&
+                showInlineAssistant && (
+                  <div className="p-3 rounded-lg border border-blue-200 bg-blue-50/50 space-y-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <span className="font-semibold text-gray-800">
+                        Grounded Bullet Actions (no fabricated claims)
+                      </span>
+                      {descriptionHistory.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const prevDesc =
+                              descriptionHistory[descriptionHistory.length - 1];
+                            setDescriptionHistory((prev) => prev.slice(0, -1));
+                            setFormState((curr) => ({
+                              ...curr,
+                              description: prevDesc,
+                            }));
+                          }}
+                          className="inline-flex items-center gap-1 text-blue-700 font-semibold hover:underline"
+                        >
+                          <ArrowUturnLeftIcon className="h-3 w-3" />
+                          Undo
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        disabled={inlineRewriting}
+                        onClick={() => void runInlineBulletTransform("rewrite")}
+                        className="px-2.5 py-1 rounded bg-white border border-gray-300 font-medium text-gray-800 hover:bg-neutral-50 disabled:opacity-50"
+                      >
+                        Rewrite
+                      </button>
+                      <button
+                        type="button"
+                        disabled={inlineRewriting}
+                        onClick={() => void runInlineBulletTransform("shorten")}
+                        className="px-2.5 py-1 rounded bg-white border border-gray-300 font-medium text-gray-800 hover:bg-neutral-50 disabled:opacity-50"
+                      >
+                        Shorten
+                      </button>
+                      <button
+                        type="button"
+                        disabled={inlineRewriting}
+                        onClick={() => void runInlineBulletTransform("improve")}
+                        className="px-2.5 py-1 rounded bg-white border border-gray-300 font-medium text-gray-800 hover:bg-neutral-50 disabled:opacity-50"
+                      >
+                        Improve Impact
+                      </button>
+                      <button
+                        type="button"
+                        disabled={inlineRewriting}
+                        onClick={() => void runInlineBulletTransform("ats")}
+                        className="px-2.5 py-1 rounded bg-white border border-gray-300 font-medium text-gray-800 hover:bg-neutral-50 disabled:opacity-50"
+                      >
+                        ATS Optimize
+                      </button>
+                    </div>
+                    {!/\d/.test(String(formState.description || "")) && (
+                      <div className="flex gap-1.5 pt-1">
+                        <input
+                          type="text"
+                          value={inlineMetric}
+                          onChange={(e) => setInlineMetric(e.target.value)}
+                          placeholder="Real metric (e.g. 35% faster, 50K users)"
+                          className="flex-1 px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
+                        />
+                        <button
+                          type="button"
+                          disabled={!inlineMetric.trim() || inlineRewriting}
+                          onClick={() =>
+                            void runInlineBulletTransform("improve", true)
+                          }
+                          className="px-2.5 py-1 rounded bg-blue-600 text-white font-semibold disabled:opacity-50"
+                        >
+                          Add Metric
+                        </button>
+                      </div>
+                    )}
+                    {inlineError && (
+                      <p className="text-red-700 font-medium">{inlineError}</p>
+                    )}
+                  </div>
+                )}
             </div>
           );
         }
