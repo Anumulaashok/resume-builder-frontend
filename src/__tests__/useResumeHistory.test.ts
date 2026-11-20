@@ -186,4 +186,88 @@ describe('useResumeHistory & historyReducer', () => {
     expect(result.current.resume).toBe(latestResume);
     expect(result.current.canRedo).toBe(false);
   });
+
+  it('replaces history with a single entry at index 0 on RESET and isolates Undo/Redo from prior _id states', () => {
+    const originalResume: IResume = {
+      ...createMockResume('Original Resume'),
+      _id: 'res-original-1',
+      id: 'res-original-1',
+    };
+
+    // Direct reducer check
+    let state: HistoryState = { history: [originalResume], index: 0 };
+    state = historyReducer(state, {
+      type: 'PUSH',
+      payload: (prev) => ({ ...prev, title: 'Original Edited 1' }),
+    });
+    state = historyReducer(state, {
+      type: 'PUSH',
+      payload: (prev) => ({ ...prev, title: 'Original Edited 2' }),
+    });
+    state = historyReducer(state, { type: 'UNDO' });
+    expect(state.history).toHaveLength(3);
+    expect(state.index).toBe(1);
+
+    const clonedResume: IResume = {
+      ...createMockResume('Original Edited 1 (Copy)'),
+      _id: 'res-clone-2',
+      id: 'res-clone-2',
+    };
+    const resetState = historyReducer(state, {
+      type: 'RESET',
+      payload: clonedResume,
+    });
+    expect(resetState.history).toEqual([clonedResume]);
+    expect(resetState.index).toBe(0);
+
+    // Hook-level check
+    const { result } = renderHook(() => useResumeHistory(originalResume));
+
+    act(() => {
+      result.current.setResume((prev) => ({ ...prev, title: 'Edit Before Clone 1' }));
+      result.current.setResume((prev) => ({ ...prev, title: 'Edit Before Clone 2' }));
+    });
+    act(() => {
+      result.current.undo();
+    });
+
+    expect(result.current.canUndo).toBe(true);
+    expect(result.current.canRedo).toBe(true);
+    expect(result.current.resume._id).toBe('res-original-1');
+
+    act(() => {
+      result.current.resetResume(clonedResume);
+    });
+
+    expect(result.current.resume).toBe(clonedResume);
+    expect(result.current.resume._id).toBe('res-clone-2');
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
+
+    // Attempting undo or redo after resetResume must not restore res-original-1
+    act(() => {
+      result.current.undo();
+      result.current.redo();
+    });
+
+    expect(result.current.resume._id).toBe('res-clone-2');
+    expect(result.current.resume.title).toBe('Original Edited 1 (Copy)');
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
+
+    // New edits after resetResume push cleanly onto the cloned baseline
+    act(() => {
+      result.current.setResume((prev) => ({ ...prev, title: 'Cloned Edited' }));
+    });
+    expect(result.current.canUndo).toBe(true);
+    expect(result.current.resume._id).toBe('res-clone-2');
+
+    act(() => {
+      result.current.undo();
+      result.current.undo();
+    });
+    expect(result.current.resume._id).toBe('res-clone-2');
+    expect(result.current.resume.title).toBe('Original Edited 1 (Copy)');
+    expect(result.current.canUndo).toBe(false);
+  });
 });
