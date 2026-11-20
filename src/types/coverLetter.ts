@@ -38,12 +38,6 @@ export const createDefaultCoverLetter = (
 ): ICoverLetter => ({
   title: 'Untitled Cover Letter',
   resumeId: null,
-  recipient: {
-    name: '',
-    company: '',
-    address: '',
-    ...(overrides.recipient || {}),
-  },
   jobTitle: '',
   jobDescription: '',
   date: getTodayIsoDate(),
@@ -52,4 +46,10 @@ export const createDefaultCoverLetter = (
   closing: 'Sincerely,',
   templateId: 'modern',
   ...overrides,
+  recipient: {
+    name: '',
+    company: '',
+    address: '',
+    ...(overrides.recipient || {}),
+  },
 });

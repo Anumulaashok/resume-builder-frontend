@@ -517,4 +517,120 @@ describe('<JobTracker />', () => {
       )
     ).not.toBeInTheDocument();
   });
+
+  it('displays target company, target role, and ATS score badges on ResumeList cards and shares active job state across JobTracker, JobMatch, ResumeEditor, and CoverLettersWorkspace', async () => {
+    const resumesWithBadges = [
+      ...mockResumes,
+      {
+        id: '507f1f77bcf86cd799439099',
+        _id: '507f1f77bcf86cd799439099',
+        title: 'Stripe — Senior Frontend Engineer',
+        targetCompany: 'Stripe',
+        targetRole: 'Senior Frontend Engineer',
+        atsScore: 88,
+        parentResumeId: '507f1f77bcf86cd799439011',
+        content: {
+          basics: { name: 'Jane Doe', email: 'jane@example.com' },
+          sections: [],
+          sectionOrder: [],
+        },
+      },
+    ];
+    let currentResumes = [...resumesWithBadges];
+    (resumeService.getResumes as jest.Mock).mockImplementation(async () => currentResumes);
+    (resumeService.analyzeJobMatch as jest.Mock).mockResolvedValue({
+      score: 76,
+      label: 'Strong match',
+      breakdown: { skills: 80, experience: 70, title: 100 },
+      matchedKeywords: [{ keyword: 'React', occurrences: 2 }],
+      missingKeywords: [{ keyword: 'GraphQL', occurrences: 2 }],
+      relatedExperience: [],
+      suggestions: ['Add GraphQL to your Skills section if you have experience with it.'],
+      totals: { matched: 1, required: 2 },
+    });
+    (resumeService.createResume as jest.Mock).mockImplementation(async (payload: any) => {
+      const created = {
+        ...payload,
+        id: 'branched-vercel-resume',
+        _id: 'branched-vercel-resume',
+      };
+      currentResumes = [created, ...currentResumes];
+      return created;
+    });
+    (applicationService.updateApplication as jest.Mock).mockImplementation(
+      async (id: string, payload: any) => ({
+        id,
+        _id: id,
+        ...payload,
+      })
+    );
+    (coverLetterService.createCoverLetter as jest.Mock).mockImplementation(async (payload: any) => ({
+      id: 'cl-tailored-1',
+      _id: 'cl-tailored-1',
+      ...payload,
+    }));
+
+    render(<HomePage />);
+
+    // 1. ResumeList cards display ATS score, target company, and target role badges
+    expect(await screen.findByText('My Resumes')).toBeInTheDocument();
+    expect(screen.getByTestId('resume-card-ats-badge')).toHaveTextContent('ATS 88%');
+    expect(screen.getByTestId('resume-card-company-badge')).toHaveTextContent('Stripe');
+    expect(screen.getByTestId('resume-card-role-badge')).toHaveTextContent('Senior Frontend Engineer');
+
+    // 2. Navigate to Job Tracker -> open Stripe drawer -> click Check match
+    fireEvent.click(screen.getByRole('button', { name: /^job tracker$/i }));
+    await screen.findByText('Stripe');
+    fireEvent.click(screen.getByRole('button', { name: /open details for stripe/i }));
+
+    const drawer = screen.getByTestId('application-detail-drawer');
+    fireEvent.click(within(drawer).getByTestId('drawer-check-match-btn'));
+
+    // 3. Job Match receives company, jobTitle, jobDescription, and resumeId
+    expect(await screen.findByRole('heading', { level: 1, name: /job match/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^company$/i)).toHaveValue('Stripe');
+    });
+    expect(screen.getByLabelText(/job title/i)).toHaveValue('Senior Frontend Engineer');
+
+    // Run analysis and add missing skill -> branches resume & updates application
+    fireEvent.click(screen.getByRole('button', { name: /analyze match/i }));
+    await screen.findByText('Strong match');
+    fireEvent.click(screen.getByRole('button', { name: /add to skills/i }));
+
+    await waitFor(() => {
+      expect(resumeService.createResume).toHaveBeenCalledTimes(1);
+      expect(applicationService.updateApplication).toHaveBeenCalledWith('app-1', {
+        resumeId: 'branched-vercel-resume',
+      });
+    });
+
+    // 4. Open branched resume in ResumeEditor -> job context banner is displayed
+    fireEvent.click(screen.getByTestId('jm-open-in-editor-btn'));
+    const editorBanner = await screen.findByTestId('editor-active-job-banner');
+    expect(editorBanner).toHaveTextContent('Stripe');
+    expect(editorBanner).toHaveTextContent('Senior Frontend Engineer');
+
+    // 5. Switch to Cover Letters via banner CTA -> active job banner is displayed & Draft tailored cover letter prefills branched resumeId, company, role, and JD
+    fireEvent.click(within(editorBanner).getByRole('button', { name: /cover letter/i }));
+    const clBanner = await screen.findByTestId('cover-letters-active-job-banner');
+    expect(clBanner).toHaveTextContent('Stripe');
+    expect(clBanner).toHaveTextContent('Senior Frontend Engineer');
+
+    fireEvent.click(screen.getByTestId('draft-active-job-cover-letter-btn'));
+    await waitFor(() => {
+      expect(coverLetterService.createCoverLetter).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resumeId: 'branched-vercel-resume',
+          title: 'Stripe — Senior Frontend Engineer Cover Letter',
+          jobTitle: 'Senior Frontend Engineer',
+          jobDescription:
+            'Build Stripe checkout experiences with React, TypeScript, and GraphQL.',
+          recipient: expect.objectContaining({
+            company: 'Stripe',
+          }),
+        })
+      );
+    });
+  });
 });

@@ -840,3 +840,130 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(printSpy).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("ResumeEditor toolbar Clone and active job banner", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  it("cancels pending debouncedAutoSave on Clone, creates a new resume with stripped IDs and sharing, and binds subsequent saves to the new resume ID without mutating the source resume", async () => {
+    (resumeService.createResume as jest.Mock).mockImplementationOnce(async (payload: any) => ({
+      ...payload,
+      _id: "cloned-res-999",
+      id: "cloned-res-999",
+    }));
+    (resumeService.updateResume as jest.Mock).mockResolvedValue({
+      _id: "cloned-res-999",
+      id: "cloned-res-999",
+    });
+
+    const sourceResume = buildSampleResume({
+      _id: "res-101",
+      id: "res-101",
+      userId: "user-42",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+      sharing: {
+        enabled: true,
+        shareToken: "tok-secret",
+        slug: "jordan-lee",
+      },
+    } as any);
+
+    const onResumeCloned = jest.fn();
+    render(
+      <ResumeEditor
+        initialResume={sourceResume}
+        onBack={jest.fn()}
+        onResumeCloned={onResumeCloned}
+      />
+    );
+
+    // Make an edit so debouncedAutoSave is armed for res-101
+    const summaryTextarea = screen.getByLabelText("Professional Summary");
+    fireEvent.change(summaryTextarea, {
+      target: { value: "Tailored summary before clicking Clone." },
+    });
+
+    // Click Clone inside the toolbar overflow menu before the 1500ms debounce fires
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("clone-resume-menu-item"));
+    });
+
+    // Advance past the original debounce window -> source resume res-101 is NEVER updated
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    expect(resumeService.updateResume).not.toHaveBeenCalled();
+    expect(resumeService.createResume).toHaveBeenCalledTimes(1);
+
+    const clonePayload = (resumeService.createResume as jest.Mock).mock.calls[0][0];
+    expect(clonePayload.title).toBe("Staff Frontend Resume (Copy)");
+    expect(clonePayload._id).toBeUndefined();
+    expect(clonePayload.id).toBeUndefined();
+    expect(clonePayload.userId).toBeUndefined();
+    expect(clonePayload.createdAt).toBeUndefined();
+    expect(clonePayload.updatedAt).toBeUndefined();
+    expect(clonePayload.sharing).toBeUndefined();
+    expect(clonePayload.summary).toBe("Tailored summary before clicking Clone.");
+
+    expect(
+      within(screen.getByTestId("resume-title-heading")).getByRole("heading", { level: 1 })
+    ).toHaveTextContent("Staff Frontend Resume (Copy)");
+    expect(onResumeCloned).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _id: "cloned-res-999",
+        title: "Staff Frontend Resume (Copy)",
+      })
+    );
+
+    // Subsequent edits autosave against cloned-res-999, never res-101
+    fireEvent.change(summaryTextarea, {
+      target: { value: "Further tailored edit on the cloned copy." },
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(resumeService.updateResume).toHaveBeenCalledTimes(1);
+    expect(resumeService.updateResume).toHaveBeenCalledWith(
+      "cloned-res-999",
+      expect.objectContaining({
+        _id: "cloned-res-999",
+        summary: "Further tailored edit on the cloned copy.",
+      })
+    );
+  });
+
+  it("renders the contextual active job banner with company, role, and ATS score when tailoring", () => {
+    render(
+      <ResumeEditor
+        initialResume={buildSampleResume({
+          _id: "res-branched",
+          parentResumeId: "res-101",
+          targetCompany: "Stripe",
+          targetRole: "Staff Frontend Engineer",
+          atsScore: 84,
+        })}
+        onBack={jest.fn()}
+        onOpenJobMatch={jest.fn()}
+        onOpenCoverLetters={jest.fn()}
+      />
+    );
+
+    const banner = screen.getByTestId("editor-active-job-banner");
+    expect(banner).toHaveTextContent("Stripe");
+    expect(banner).toHaveTextContent("Staff Frontend Engineer");
+    expect(banner).toHaveTextContent("ATS 84%");
+    expect(within(banner).getByRole("button", { name: /job match/i })).toBeInTheDocument();
+    expect(within(banner).getByRole("button", { name: /cover letter/i })).toBeInTheDocument();
+  });
+});

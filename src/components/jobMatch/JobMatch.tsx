@@ -1,20 +1,26 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowRightIcon,
+  BriefcaseIcon,
   CheckCircleIcon,
   CheckIcon,
   ChevronDownIcon,
   ClipboardDocumentCheckIcon,
+  DocumentDuplicateIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
   ExclamationTriangleIcon,
   LightBulbIcon,
+  PencilSquareIcon,
   PlusIcon,
   SparklesIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { applicationService } from '../../services/application.service';
 import { Resume, resumeService } from '../../services/resume.service';
 import { ISection, SectionType } from '../../types/resume';
-import { JobMatchResult } from '../../types/jobMatch';
+import { ActiveJobContext, JobMatchResult } from '../../types/jobMatch';
 import { Container } from '../ui/container';
 import { Skeleton } from '../ui/skeleton';
 
@@ -54,23 +60,71 @@ const scoreTone = (score: number) => {
   };
 };
 
-export const addSkillToResume = (resume: Resume, skill: string): Resume => {
-  const sections = resume.content.sections || [];
-  const skillsSection = sections.find((s) => s.type === SectionType.SKILLS);
-  const newItem = { id: `skill-item-${Date.now()}`, name: skill };
+const hasSkillInSection = (section: ISection, normalizedTarget: string): boolean => {
+  return (section.content || []).some((rawItem) => {
+    const item = rawItem as Record<string, unknown>;
+    if (typeof item?.name === 'string' && item.name.trim().toLowerCase() === normalizedTarget) {
+      return true;
+    }
+    const listCandidates = [
+      item?.subSkills,
+      item?.technologies,
+      item?.keywords,
+      item?.items,
+      item?.skills,
+    ];
+    return listCandidates.some(
+      (list) =>
+        Array.isArray(list) &&
+        list.some(
+          (entry) =>
+            typeof entry === 'string' && entry.trim().toLowerCase() === normalizedTarget
+        )
+    );
+  });
+};
 
-  if (skillsSection) {
+export const addSkillToResume = (resume: Resume, skill: string): Resume => {
+  const trimmedSkill = skill.trim();
+  if (!trimmedSkill) {
+    return resume;
+  }
+  const normalizedTarget = trimmedSkill.toLowerCase();
+  const sections = resume.content.sections || [];
+  const existingSkillSection = sections.find(
+    (s) => s.type === SectionType.SKILLS || s.type === SectionType.TECK_SKILLS
+  );
+
+  if (existingSkillSection) {
+    if (hasSkillInSection(existingSkillSection, normalizedTarget)) {
+      return resume;
+    }
+    const newItem =
+      existingSkillSection.type === SectionType.TECK_SKILLS
+        ? {
+            id: `skill-item-${Date.now()}`,
+            name: trimmedSkill,
+            technologies: [trimmedSkill],
+          }
+        : {
+            id: `skill-item-${Date.now()}`,
+            name: trimmedSkill,
+          };
+
     return {
       ...resume,
       content: {
         ...resume.content,
         sections: sections.map((s) =>
-          s.id === skillsSection.id ? { ...s, content: [...(s.content || []), newItem] } : s
+          s.id === existingSkillSection.id
+            ? { ...s, content: [...(s.content || []), newItem] }
+            : s
         ) as ISection[],
       },
     };
   }
 
+  const newItem = { id: `skill-item-${Date.now()}`, name: trimmedSkill };
   const newSection = {
     id: `skills-${Date.now()}`,
     type: SectionType.SKILLS,
@@ -86,6 +140,67 @@ export const addSkillToResume = (resume: Resume, skill: string): Resume => {
       sectionOrder: [...(resume.content.sectionOrder || []), newSection.id],
     },
   };
+};
+
+const stripSourceResumeMetadata = (source: ResumeWithId) => {
+  const {
+    _id: _mongoId,
+    id: _id,
+    userId: _userId,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    sharing: _sharing,
+    history: _history,
+    ...rest
+  } = source as ResumeWithId & {
+    userId?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    history?: unknown;
+  };
+  return rest;
+};
+
+const buildTailoredResumeTitle = (
+  source: ResumeWithId,
+  company: string,
+  jobTitle: string
+): string => {
+  const rawBase =
+    (source.title || source.content?.basics?.name || 'Untitled Resume')
+      .replace(/\s+—\s+.*$/, '')
+      .trim() || 'Untitled Resume';
+  const suffix = [company.trim(), jobTitle.trim()].filter(Boolean).join(' · ') || 'Tailored';
+  return `${rawBase} — ${suffix}`;
+};
+
+const shouldBranchBeforeModifying = (
+  resume: ResumeWithId,
+  currentCompany: string,
+  currentRole: string,
+  sessionBranchedIds: Set<string>
+): boolean => {
+  const id = resumeIdOf(resume);
+  if (resume.sharing?.isPublic) {
+    return true;
+  }
+  if (id && sessionBranchedIds.has(id)) {
+    return false;
+  }
+  if (!resume.parentResumeId) {
+    return true;
+  }
+  const normCompany = currentCompany.trim().toLowerCase();
+  const normRole = currentRole.trim().toLowerCase();
+  const existingCompany = (resume.targetCompany || '').trim().toLowerCase();
+  const existingRole = (resume.targetRole || '').trim().toLowerCase();
+  if (normCompany && existingCompany && normCompany !== existingCompany) {
+    return true;
+  }
+  if (normRole && existingRole && normRole !== existingRole) {
+    return true;
+  }
+  return false;
 };
 
 function PageHeader() {
@@ -337,53 +452,110 @@ export interface JobMatchProps {
   initialResumeId?: string;
   initialJobDescription?: string;
   initialJobTitle?: string;
+  initialCompany?: string;
+  initialApplicationId?: string;
+  activeJob?: ActiveJobContext | null;
+  onJobContextChange?: (context: ActiveJobContext) => void;
+  onOpenInEditor?: (resume: Resume, context: ActiveJobContext) => void;
+  onOpenCoverLetters?: (context: ActiveJobContext) => void;
 }
 
 export default function JobMatch({
   initialResumeId,
   initialJobDescription,
   initialJobTitle,
+  initialCompany,
+  initialApplicationId,
+  activeJob,
+  onJobContextChange,
+  onOpenInEditor,
+  onOpenCoverLetters,
 }: JobMatchProps = {}) {
+  const resolvedInitialResumeId = activeJob?.resumeId ?? initialResumeId ?? '';
+  const resolvedInitialJobTitle = activeJob?.jobTitle ?? initialJobTitle ?? '';
+  const resolvedInitialCompany = activeJob?.company ?? initialCompany ?? '';
+  const resolvedInitialJd = activeJob?.jobDescription ?? initialJobDescription ?? '';
+  const resolvedApplicationId = activeJob?.applicationId ?? initialApplicationId;
+
   const [resumes, setResumes] = useState<ResumeWithId[]>([]);
   const [loadingResumes, setLoadingResumes] = useState(true);
-  const [selectedId, setSelectedId] = useState(initialResumeId || '');
-  const [jobTitle, setJobTitle] = useState(initialJobTitle || '');
-  const [jobDescription, setJobDescription] = useState(initialJobDescription || '');
+  const [selectedId, setSelectedId] = useState(resolvedInitialResumeId);
+  const [company, setCompany] = useState(resolvedInitialCompany);
+  const [jobTitle, setJobTitle] = useState(resolvedInitialJobTitle);
+  const [jobDescription, setJobDescription] = useState(resolvedInitialJd);
+  const [applicationId, setApplicationId] = useState<string | undefined>(
+    resolvedApplicationId
+  );
   const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<JobMatchResult | null>(null);
+  const [branchingToEditor, setBranchingToEditor] = useState(false);
+  const [result, setResult] = useState<JobMatchResult | null>(
+    activeJob?.matchResult ?? null
+  );
   const [addingSkill, setAddingSkill] = useState<string | null>(null);
   const [checkedSuggestions, setCheckedSuggestions] = useState<Record<string, boolean>>({});
+  const sessionBranchedIdsRef = useRef<Set<string>>(new Set());
+  const onJobContextChangeRef = useRef(onJobContextChange);
+  onJobContextChangeRef.current = onJobContextChange;
+
+  const syncSharedJobContext = (overrides: Partial<ActiveJobContext> = {}) => {
+    onJobContextChangeRef.current?.({
+      applicationId,
+      resumeId: selectedId || undefined,
+      baseResumeId: activeJob?.baseResumeId,
+      company: company.trim() || undefined,
+      jobTitle: jobTitle.trim() || undefined,
+      jobDescription,
+      atsScore: result?.score ?? activeJob?.atsScore ?? null,
+      matchResult: result,
+      ...overrides,
+    });
+  };
 
   useEffect(() => {
+    const targetInitialId = activeJob?.resumeId ?? initialResumeId;
     resumeService
       .getResumes()
       .then((list) => {
         const typedList = list as ResumeWithId[];
         setResumes(typedList);
         if (typedList.length) {
-          const matchingInitial = initialResumeId
-            ? typedList.find((r) => resumeIdOf(r) === initialResumeId)
+          const matchingInitial = targetInitialId
+            ? typedList.find((r) => resumeIdOf(r) === targetInitialId)
             : undefined;
-          setSelectedId(resumeIdOf(matchingInitial || typedList[0]));
+          const chosenId = resumeIdOf(matchingInitial || typedList[0]);
+          setSelectedId(chosenId);
         }
       })
       .catch((error: Error) => toast.error(error.message))
       .finally(() => setLoadingResumes(false));
-  }, [initialResumeId]);
+  }, [initialResumeId, activeJob?.resumeId]);
 
   useEffect(() => {
-    if (initialJobDescription !== undefined) {
+    if (initialJobDescription !== undefined && activeJob?.jobDescription === undefined) {
       setJobDescription(initialJobDescription);
       setResult(null);
       setCheckedSuggestions({});
     }
-  }, [initialJobDescription]);
+  }, [initialJobDescription, activeJob?.jobDescription]);
 
   useEffect(() => {
-    if (initialJobTitle !== undefined) {
+    if (initialJobTitle !== undefined && activeJob?.jobTitle === undefined) {
       setJobTitle(initialJobTitle);
     }
-  }, [initialJobTitle]);
+  }, [initialJobTitle, activeJob?.jobTitle]);
+
+  useEffect(() => {
+    if (initialCompany !== undefined && activeJob?.company === undefined) {
+      setCompany(initialCompany);
+    }
+  }, [initialCompany, activeJob?.company]);
+
+  useEffect(() => {
+    const nextAppId = activeJob?.applicationId ?? initialApplicationId;
+    if (nextAppId !== undefined) {
+      setApplicationId(nextAppId);
+    }
+  }, [initialApplicationId, activeJob?.applicationId]);
 
   const selectedResume = useMemo(
     () => resumes.find((r) => resumeIdOf(r) === selectedId),
@@ -397,7 +569,22 @@ export default function JobMatch({
     setAnalyzing(true);
     setCheckedSuggestions({});
     try {
-      setResult(await resumeService.analyzeJobMatch(selectedId, jobDescription, jobTitle.trim()));
+      const nextResult = await resumeService.analyzeJobMatch(
+        selectedId,
+        jobDescription,
+        jobTitle.trim()
+      );
+      setResult(nextResult);
+      setResumes((prev) =>
+        prev.map((r) =>
+          resumeIdOf(r) === selectedId ? { ...r, atsScore: nextResult.score } : r
+        )
+      );
+      syncSharedJobContext({
+        resumeId: selectedId,
+        atsScore: nextResult.score,
+        matchResult: nextResult,
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to analyze job match');
     } finally {
@@ -405,28 +592,200 @@ export default function JobMatch({
     }
   };
 
+  const createBranchedResumeCopy = async (
+    sourceResume: ResumeWithId,
+    nextContent: Resume['content']
+  ): Promise<ResumeWithId> => {
+    const sourceId = resumeIdOf(sourceResume);
+    const cleanSource = stripSourceResumeMetadata(sourceResume);
+    const tailoredTitle = buildTailoredResumeTitle(sourceResume, company, jobTitle);
+    const safeBasics = {
+      ...nextContent.basics,
+      name: nextContent.basics?.name?.trim() || 'Your Name',
+      email: nextContent.basics?.email?.trim() || 'you@example.com',
+    };
+
+    const created = await resumeService.createResume({
+      ...cleanSource,
+      title: tailoredTitle,
+      targetRole: jobTitle.trim() || undefined,
+      targetCompany: company.trim() || undefined,
+      jobDescription: jobDescription || undefined,
+      atsScore: result?.score ?? sourceResume.atsScore ?? undefined,
+      parentResumeId: sourceId || undefined,
+      content: {
+        ...nextContent,
+        basics: safeBasics,
+      },
+    });
+
+    const createdId = resumeIdOf(created as ResumeWithId);
+    const hydrated: ResumeWithId = {
+      ...cleanSource,
+      ...created,
+      id: created?.id || createdId,
+      ...(createdId ? { _id: created?._id || createdId } : {}),
+      title: created?.title || tailoredTitle,
+      targetRole: created?.targetRole ?? (jobTitle.trim() || undefined),
+      targetCompany: created?.targetCompany ?? (company.trim() || undefined),
+      jobDescription: created?.jobDescription ?? (jobDescription || undefined),
+      atsScore: created?.atsScore ?? result?.score ?? sourceResume.atsScore,
+      parentResumeId: created?.parentResumeId ?? (sourceId || null),
+      sharing: undefined,
+      content: created?.content || nextContent,
+    };
+
+    if (createdId) {
+      sessionBranchedIdsRef.current.add(createdId);
+      setResumes((prev) => [...prev, hydrated]);
+      setSelectedId(createdId);
+
+      if (applicationId) {
+        try {
+          await applicationService.updateApplication(applicationId, {
+            resumeId: createdId,
+          });
+        } catch {
+          // Do not fail tailoring if background application relinking fails
+        }
+      }
+    }
+
+    return hydrated;
+  };
+
   const handleAddSkill = async (skill: string) => {
     if (!selectedResume) return;
     setAddingSkill(skill);
     try {
       const updated = addSkillToResume(selectedResume, skill);
-      await resumeService.updateResume(selectedId, {
-        title: updated.title,
-        summary: updated.summary,
-        templateId: updated.templateId,
-        themeConfig: updated.themeConfig,
-        content: updated.content,
-      });
-      setResumes((prev) =>
-        prev.map((r) => (resumeIdOf(r) === selectedId ? { ...r, content: updated.content } : r))
+      const needsBranch = shouldBranchBeforeModifying(
+        selectedResume,
+        company,
+        jobTitle,
+        sessionBranchedIdsRef.current
       );
-      toast.success(`Added ${skill} to your Skills section`);
-      setResult(await resumeService.analyzeJobMatch(selectedId, jobDescription, jobTitle.trim()));
+
+      let targetId = selectedId;
+      let baseId = activeJob?.baseResumeId;
+
+      if (needsBranch) {
+        baseId = resumeIdOf(selectedResume);
+        const branched = await createBranchedResumeCopy(selectedResume, updated.content);
+        targetId = resumeIdOf(branched) || selectedId;
+        toast.success(`Branched "${branched.title}" and added ${skill}`);
+      } else {
+        await resumeService.updateResume(selectedId, {
+          title: updated.title,
+          summary: updated.summary,
+          templateId: updated.templateId,
+          themeConfig: updated.themeConfig,
+          targetRole: jobTitle.trim() || updated.targetRole,
+          targetCompany: company.trim() || updated.targetCompany,
+          jobDescription: jobDescription || updated.jobDescription,
+          atsScore: result?.score ?? updated.atsScore,
+          parentResumeId: updated.parentResumeId,
+          content: updated.content,
+        });
+        setResumes((prev) =>
+          prev.map((r) =>
+            resumeIdOf(r) === selectedId
+              ? {
+                  ...r,
+                  content: updated.content,
+                  targetRole: jobTitle.trim() || updated.targetRole,
+                  targetCompany: company.trim() || updated.targetCompany,
+                  jobDescription: jobDescription || updated.jobDescription,
+                }
+              : r
+          )
+        );
+        toast.success(`Added ${skill} to your Skills section`);
+      }
+
+      const refreshedResult = await resumeService.analyzeJobMatch(
+        targetId,
+        jobDescription,
+        jobTitle.trim()
+      );
+      setResult(refreshedResult);
+      setResumes((prev) =>
+        prev.map((r) =>
+          resumeIdOf(r) === targetId ? { ...r, atsScore: refreshedResult.score } : r
+        )
+      );
+      syncSharedJobContext({
+        resumeId: targetId,
+        baseResumeId: baseId,
+        atsScore: refreshedResult.score,
+        matchResult: refreshedResult,
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : `Failed to add ${skill}`);
     } finally {
       setAddingSkill(null);
     }
+  };
+
+  const handleOpenTailoredInEditor = async () => {
+    if (!selectedResume || !onOpenInEditor) return;
+    setBranchingToEditor(true);
+    try {
+      let targetResume: ResumeWithId = selectedResume;
+      let baseId = activeJob?.baseResumeId;
+
+      if (
+        shouldBranchBeforeModifying(
+          selectedResume,
+          company,
+          jobTitle,
+          sessionBranchedIdsRef.current
+        )
+      ) {
+        baseId = resumeIdOf(selectedResume);
+        targetResume = await createBranchedResumeCopy(
+          selectedResume,
+          selectedResume.content
+        );
+        toast.success(`Created tailored branch "${targetResume.title}"`);
+      }
+
+      const targetId = resumeIdOf(targetResume) || selectedId;
+      const nextContext: ActiveJobContext = {
+        applicationId,
+        resumeId: targetId,
+        baseResumeId: baseId,
+        company: company.trim() || targetResume.targetCompany || undefined,
+        jobTitle: jobTitle.trim() || targetResume.targetRole || undefined,
+        jobDescription: jobDescription || targetResume.jobDescription || '',
+        atsScore: result?.score ?? targetResume.atsScore ?? null,
+        matchResult: result,
+      };
+      onJobContextChangeRef.current?.(nextContext);
+      onOpenInEditor(targetResume, nextContext);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to open tailored resume'
+      );
+    } finally {
+      setBranchingToEditor(false);
+    }
+  };
+
+  const handleOpenCoverLetterWithContext = () => {
+    if (!onOpenCoverLetters) return;
+    const nextContext: ActiveJobContext = {
+      applicationId,
+      resumeId: selectedId || undefined,
+      baseResumeId: activeJob?.baseResumeId,
+      company: company.trim() || selectedResume?.targetCompany || undefined,
+      jobTitle: jobTitle.trim() || selectedResume?.targetRole || undefined,
+      jobDescription,
+      atsScore: result?.score ?? selectedResume?.atsScore ?? null,
+      matchResult: result,
+    };
+    onJobContextChangeRef.current?.(nextContext);
+    onOpenCoverLetters(nextContext);
   };
 
   const toggleSuggestion = (suggestion: string) => {
@@ -506,9 +865,15 @@ export default function JobMatch({
                   id="jm-resume"
                   value={selectedId}
                   onChange={(e) => {
-                    setSelectedId(e.target.value);
+                    const nextId = e.target.value;
+                    setSelectedId(nextId);
                     setResult(null);
                     setCheckedSuggestions({});
+                    syncSharedJobContext({
+                      resumeId: nextId,
+                      matchResult: null,
+                      atsScore: null,
+                    });
                   }}
                   disabled={loadingResumes}
                   className="w-full min-w-0 h-10 pl-3 pr-9 appearance-none rounded-control border border-neutral-300 bg-white text-sm text-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500 transition-colors focus:border-primary-500 focus-ring"
@@ -525,26 +890,69 @@ export default function JobMatch({
                   aria-hidden="true"
                 />
               </div>
+              {selectedResume && (
+                <p
+                  data-testid="jm-branch-status-hint"
+                  className="mt-1.5 text-xs text-neutral-500 flex items-center gap-1.5"
+                >
+                  <DocumentDuplicateIcon className="h-3.5 w-3.5 shrink-0 text-primary-600" aria-hidden="true" />
+                  <span>
+                    {selectedResume.parentResumeId && !selectedResume.sharing?.isPublic
+                      ? 'Tailored branch active — edits stay isolated from your base resume.'
+                      : 'Base resume protected — adding skills branches a tailored copy automatically.'}
+                  </span>
+                </p>
+              )}
             </div>
 
-            <div>
-              <div className="flex flex-wrap justify-between items-baseline gap-1 mb-1.5">
-                <label htmlFor="jm-title" className="text-sm font-medium text-neutral-800">
-                  Job title
-                </label>
-                <span id="jm-title-optional" className="text-xs text-neutral-500">
-                  Optional
-                </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <div className="flex flex-wrap justify-between items-baseline gap-1 mb-1.5">
+                  <label htmlFor="jm-company" className="text-sm font-medium text-neutral-800">
+                    Company
+                  </label>
+                  <span id="jm-company-optional" className="text-xs text-neutral-500">
+                    Optional
+                  </span>
+                </div>
+                <input
+                  id="jm-company"
+                  type="text"
+                  value={company}
+                  aria-describedby="jm-company-optional"
+                  onChange={(e) => {
+                    const nextCompany = e.target.value;
+                    setCompany(nextCompany);
+                    syncSharedJobContext({ company: nextCompany.trim() || undefined });
+                  }}
+                  placeholder="e.g. Stripe"
+                  className="w-full min-w-0 h-10 px-3 rounded-control border border-neutral-300 bg-white text-sm text-neutral-900 placeholder-neutral-400 transition-colors focus:border-primary-500 focus-ring"
+                />
               </div>
-              <input
-                id="jm-title"
-                type="text"
-                value={jobTitle}
-                aria-describedby="jm-title-optional"
-                onChange={(e) => setJobTitle(e.target.value)}
-                placeholder="e.g. Senior Frontend Engineer"
-                className="w-full min-w-0 h-10 px-3 rounded-control border border-neutral-300 bg-white text-sm text-neutral-900 placeholder-neutral-400 transition-colors focus:border-primary-500 focus-ring"
-              />
+
+              <div>
+                <div className="flex flex-wrap justify-between items-baseline gap-1 mb-1.5">
+                  <label htmlFor="jm-title" className="text-sm font-medium text-neutral-800">
+                    Job title
+                  </label>
+                  <span id="jm-title-optional" className="text-xs text-neutral-500">
+                    Optional
+                  </span>
+                </div>
+                <input
+                  id="jm-title"
+                  type="text"
+                  value={jobTitle}
+                  aria-describedby="jm-title-optional"
+                  onChange={(e) => {
+                    const nextTitle = e.target.value;
+                    setJobTitle(nextTitle);
+                    syncSharedJobContext({ jobTitle: nextTitle.trim() || undefined });
+                  }}
+                  placeholder="e.g. Senior Frontend Engineer"
+                  className="w-full min-w-0 h-10 px-3 rounded-control border border-neutral-300 bg-white text-sm text-neutral-900 placeholder-neutral-400 transition-colors focus:border-primary-500 focus-ring"
+                />
+              </div>
             </div>
 
             <div>
@@ -555,7 +963,15 @@ export default function JobMatch({
                 {jobDescription && (
                   <button
                     type="button"
-                    onClick={() => setJobDescription('')}
+                    onClick={() => {
+                      setJobDescription('');
+                      setResult(null);
+                      syncSharedJobContext({
+                        jobDescription: '',
+                        matchResult: null,
+                        atsScore: null,
+                      });
+                    }}
                     aria-label="Clear job description"
                     className="inline-flex items-center gap-1 rounded-control px-2 py-0.5 text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors focus-ring"
                   >
@@ -569,7 +985,11 @@ export default function JobMatch({
                 value={jobDescription}
                 maxLength={MAX_JD_LENGTH}
                 aria-describedby="jm-jd-hint"
-                onChange={(e) => setJobDescription(e.target.value)}
+                onChange={(e) => {
+                  const nextJd = e.target.value;
+                  setJobDescription(nextJd);
+                  syncSharedJobContext({ jobDescription: nextJd });
+                }}
                 placeholder="Paste the full job description, responsibilities, and qualifications here…"
                 className="w-full min-w-0 h-56 sm:h-64 p-3 rounded-control border border-neutral-300 bg-white text-sm text-neutral-900 placeholder-neutral-400 leading-relaxed resize-y transition-colors focus:border-primary-500 focus-ring"
               />
@@ -668,6 +1088,47 @@ export default function JobMatch({
                     />
                   </div>
                 </div>
+
+                {(onOpenInEditor || onOpenCoverLetters) && selectedResume && (
+                  <div className="mt-5 pt-4 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-neutral-600">
+                      {selectedResume.parentResumeId && !selectedResume.sharing?.isPublic
+                        ? 'Editing tailored resume copy for this role.'
+                        : 'Opening in editor will create a dedicated tailored copy first.'}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {onOpenInEditor && (
+                        <button
+                          type="button"
+                          data-testid="jm-open-in-editor-btn"
+                          onClick={handleOpenTailoredInEditor}
+                          disabled={branchingToEditor}
+                          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-control bg-primary-600 text-white text-xs sm:text-sm font-semibold shadow-sm hover:bg-primary-700 disabled:opacity-50 transition-colors focus-ring"
+                        >
+                          <PencilSquareIcon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                          <span>
+                            {branchingToEditor
+                              ? 'Preparing copy…'
+                              : selectedResume.parentResumeId && !selectedResume.sharing?.isPublic
+                              ? 'Open tailored resume'
+                              : 'Tailor in Resume Editor'}
+                          </span>
+                        </button>
+                      )}
+                      {onOpenCoverLetters && (
+                        <button
+                          type="button"
+                          data-testid="jm-draft-cover-letter-btn"
+                          onClick={handleOpenCoverLetterWithContext}
+                          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-control border border-neutral-300 bg-white text-neutral-800 text-xs sm:text-sm font-semibold hover:bg-neutral-50 transition-colors focus-ring"
+                        >
+                          <EnvelopeIcon className="w-4 h-4 shrink-0 text-neutral-500" aria-hidden="true" />
+                          <span>Draft Cover Letter</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </section>
 
               {/* Matched vs Missing Keyword Chips */}
@@ -779,6 +1240,66 @@ export default function JobMatch({
                   )}
                 </section>
               </div>
+
+              {/* Related Experience (Transferable Adjacent Tools) Card */}
+              {Array.isArray(result.relatedExperience) && result.relatedExperience.length > 0 && (
+                <section
+                  aria-labelledby="jm-related-heading"
+                  data-testid="related-experience-section"
+                  className="bg-white rounded-card border border-primary-200/80 shadow-card p-4 sm:p-6"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <h2
+                      id="jm-related-heading"
+                      className="text-base font-semibold text-neutral-900 flex items-center gap-2"
+                    >
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-50 text-primary-600 ring-1 ring-inset ring-primary-200/80">
+                        <BriefcaseIcon className="w-3.5 h-3.5 stroke-[2.2]" aria-hidden="true" />
+                      </span>
+                      <span>Related experience</span>
+                    </h2>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200 tabular-nums">
+                      {result.relatedExperience.length} transferable
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-600 mb-4 leading-relaxed">
+                    You have verified adjacent tools on your resume. Highlight concrete impact with these tools inside your Work Experience bullets rather than adding skills you haven&apos;t used.
+                  </p>
+                  <ul className="space-y-3" aria-label="Related experience items">
+                    {result.relatedExperience.map((item) => (
+                      <li
+                        key={item.keyword}
+                        data-testid="related-experience-item"
+                        className="rounded-control border border-primary-100 bg-primary-50/40 p-3.5 space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200">
+                            Job asks for: {item.keyword}
+                          </span>
+                          <ArrowRightIcon
+                            className="w-3.5 h-3.5 text-neutral-400 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-neutral-600 font-medium">Your resume has:</span>
+                            {(item.relatedSkills || []).map((adj) => (
+                              <span
+                                key={adj}
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200"
+                              >
+                                {adj}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-xs sm:text-sm text-neutral-700 leading-relaxed">
+                          {item.guidance}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
 
               {/* Suggestions Checklist Card */}
               <section

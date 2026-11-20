@@ -266,7 +266,7 @@ describe("Version History service, drawer, preview, restore & Undo toast", () =>
       ).toBeInTheDocument();
     });
 
-    it("lists versions with relative times, renders read-only preview with resume's current template, confirms restore, reloads editor, and supports Undo toast", async () => {
+    it("lists versions with relative times, renders read-only preview with snapshot's saved templateId, confirms restore, reloads editor, and supports Undo toast", async () => {
       const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
@@ -420,14 +420,14 @@ describe("Version History service, drawer, preview, restore & Undo toast", () =>
         within(drawer).getByText("1 section · 42 words (+14 words)")
       ).toBeInTheDocument();
 
-      // Wait for auto-selected newest snapshot preview to render with current template ("executive")
+      // Wait for auto-selected newest snapshot preview to render with its saved templateId ("classic") rather than currentResume ("executive")
       const previewPage = await within(drawer).findByTestId(
         "version-history-preview-page"
       );
-      expect(previewPage).toHaveAttribute("data-template-id", "executive");
+      expect(previewPage).toHaveAttribute("data-template-id", "classic");
       expect(
         within(drawer).getByTestId("version-preview-template-badge")
-      ).toHaveTextContent(/Executive/i);
+      ).toHaveTextContent(/Classic/i);
       expect(within(previewPage).getByText("Jordan Midday")).toBeInTheDocument();
 
       // Keyboard navigation (ArrowDown moves selection to older version index 0)
@@ -543,6 +543,7 @@ describe("Version History service, drawer, preview, restore & Undo toast", () =>
       );
       expect(hydratedPreview.summary).toBe(topLevelSummary);
       expect(hydratedPreview.content.basics.summary).toBe(topLevelSummary);
+      expect(hydratedPreview.templateId).toBe("modern");
 
       // 1. GET /api/resumes/res-vh-top/history
       mockedAxios.get.mockResolvedValueOnce({
@@ -637,7 +638,11 @@ describe("Version History service, drawer, preview, restore & Undo toast", () =>
         "version-history-preview-page"
       );
 
-      // Read-only preview renders the Professional Summary even though snapshot stored content only
+      // Read-only preview renders the Professional Summary and falls back to currentResume.templateId ("executive") when snapshot omits templateId
+      expect(previewPage).toHaveAttribute("data-template-id", "executive");
+      expect(
+        within(drawer).getByTestId("version-preview-template-badge")
+      ).toHaveTextContent(/Executive/i);
       expect(within(previewPage).getByText("Jordan Snapshot")).toBeInTheDocument();
       expect(within(previewPage).getByText(topLevelSummary)).toBeInTheDocument();
 
