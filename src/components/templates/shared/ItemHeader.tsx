@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { dateFields } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
 import {
-  buildSyncedFieldPatch,
   formatItemLocation,
   formatLinkLabel,
   normalizeHref,
@@ -99,17 +98,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
       ? (val: string) => ctx.updateSectionItem(sectionId, itemId, subtitleField, val)
       : undefined);
 
-  const resolvedUrlField =
-    urlField ||
-    (item?.url !== undefined
-      ? 'url'
-      : item?.website !== undefined
-      ? 'website'
-      : item?.link !== undefined
-      ? 'link'
-      : item?.liveUrl !== undefined
-      ? 'liveUrl'
-      : 'url');
+  const resolvedUrlField = urlField || 'url';
 
   const canEditUrl = Boolean(!isReadOnly && (onUrlChange || (sectionId && itemId)));
 
@@ -122,13 +111,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
       return;
     }
     if (sectionId && itemId) {
-      const patch = buildSyncedFieldPatch(item, resolvedUrlField, nextUrl, [
-        'url',
-        'website',
-        'link',
-        'liveUrl',
-      ]);
-      ctx.updateSectionItemPatch(sectionId, itemId, patch);
+      ctx.updateSectionItem(sectionId, itemId, resolvedUrlField, nextUrl);
     }
   };
 
@@ -276,7 +259,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
                   textClassName={
                     tone === 'classic'
                       ? 'text-[1em] font-semibold text-slate-700'
-                      : 'text-[1em] font-medium'
+                      : 'text-[1em] font-medium text-slate-700'
                   }
                   style={
                     tone === 'classic'
@@ -289,7 +272,7 @@ export const ItemHeader: React.FC<ItemHeaderProps> = ({
                   className={
                     tone === 'classic'
                       ? 'font-semibold text-slate-700'
-                      : 'font-medium'
+                      : 'font-medium text-slate-700'
                   }
                   style={
                     tone === 'classic'

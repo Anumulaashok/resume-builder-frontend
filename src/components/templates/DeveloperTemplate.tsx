@@ -12,6 +12,7 @@ import {
   extractHighlights,
   extractKeywords,
   getOrderedSections,
+  readCanonicalField,
   resolveSectionKind,
 } from './templateHelpers';
 import {
@@ -67,13 +68,22 @@ const DeveloperProjectsSection: React.FC<{ section: ISection }> = ({ section }) 
       {enabledItems.length > 0 && (
         <div>
           {enabledItems.map((item: any, idx: number) => {
-            const titleKey = item.name !== undefined ? 'name' : 'title';
-            const titleVal = item.name || item.title || '';
-            const roleVal = item.position || item.role || '';
-            const companyVal = item.company || item.organization || item.entity || '';
-            const descVal = item.description ?? item.summary ?? '';
-            const itemUrl =
-              item.url || item.website || item.link || item.liveUrl || '';
+            const titleVal = readCanonicalField(item, 'name', 'title');
+            const roleVal = readCanonicalField(item, 'position', 'role');
+            const companyVal = readCanonicalField(
+              item,
+              'company',
+              'organization',
+              'entity'
+            );
+            const descVal = readCanonicalField(item, 'description', 'summary');
+            const itemUrl = readCanonicalField(
+              item,
+              'url',
+              'website',
+              'link',
+              'liveUrl'
+            );
             const highlights = extractHighlights(item);
             const keywords = extractKeywords(item);
             const isLast = idx === enabledItems.length - 1;
@@ -108,7 +118,7 @@ const DeveloperProjectsSection: React.FC<{ section: ISection }> = ({ section }) 
                   titlePlaceholder="Project Name"
                   sectionId={section.id}
                   itemId={item.id}
-                  titleField={titleKey}
+                  titleField="name"
                   subtitle={roleVal}
                   extraSubtitle={projectExtraMeta}
                   url={itemUrl}

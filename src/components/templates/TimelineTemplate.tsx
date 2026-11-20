@@ -6,6 +6,7 @@ import {
   extractHighlights,
   extractKeywords,
   getOrderedSections,
+  readCanonicalField,
   resolveSectionKind,
 } from './templateHelpers';
 import {
@@ -62,34 +63,32 @@ const TimelineSection: React.FC<{
             const isLast = idx === enabledItems.length - 1;
             const highlights = extractHighlights(item);
             const keywords = extractKeywords(item);
-            const itemUrl =
-              item.url || item.website || item.link || item.liveUrl || '';
+            const itemUrl = readCanonicalField(
+              item,
+              'url',
+              'website',
+              'link',
+              'liveUrl'
+            );
 
             let entryContent: React.ReactNode = null;
 
             if (kind === 'work') {
-              const positionKey =
-                item.position !== undefined
-                  ? 'position'
-                  : item.role !== undefined
-                  ? 'role'
-                  : 'position';
-              const positionVal =
-                item.position || item.role || item.jobTitle || item.title || '';
-              const companyKey = item.company !== undefined ? 'company' : 'name';
-              const companyVal =
-                item.company ||
-                item.name ||
-                item.organization ||
-                item.employer ||
-                '';
-              const descKey =
-                item.description !== undefined
-                  ? 'description'
-                  : item.summary !== undefined
-                  ? 'summary'
-                  : 'description';
-              const descVal = item.description ?? item.summary ?? '';
+              const positionVal = readCanonicalField(
+                item,
+                'position',
+                'role',
+                'jobTitle',
+                'title'
+              );
+              const companyVal = readCanonicalField(
+                item,
+                'company',
+                'name',
+                'organization',
+                'employer'
+              );
+              const descVal = readCanonicalField(item, 'description', 'summary');
 
               entryContent = (
                 <>
@@ -98,10 +97,10 @@ const TimelineSection: React.FC<{
                     titlePlaceholder="Position"
                     sectionId={section.id}
                     itemId={item.id}
-                    titleField={positionKey}
+                    titleField="position"
                     subtitle={companyVal}
                     subtitlePlaceholder="Company"
-                    subtitleField={companyKey}
+                    subtitleField="company"
                     showSubtitleWhenEmptyInEdit
                     url={itemUrl}
                     urlPlacement="subtitle"
@@ -113,7 +112,7 @@ const TimelineSection: React.FC<{
                     value={descVal}
                     sectionId={section.id}
                     itemId={item.id}
-                    field={descKey}
+                    field="description"
                     readOnly={isReadOnly}
                     placeholder="Describe key responsibilities and achievements..."
                     showWhenEmptyInEdit
@@ -127,32 +126,34 @@ const TimelineSection: React.FC<{
               );
             } else {
               const degreeVal =
-                item.degree ||
-                [item.studyType, item.area].filter(Boolean).join(' in ') ||
-                '';
-              const institutionKey =
-                item.institution !== undefined
-                  ? 'institution'
-                  : item.school !== undefined
-                  ? 'school'
-                  : item.name !== undefined
-                  ? 'name'
-                  : null;
-              const institutionVal =
-                item.institution || item.school || item.name || '';
+                item.degree !== undefined
+                  ? String(item.degree)
+                  : [item.studyType, item.area].filter(Boolean).join(' in ') || '';
+              const institutionVal = readCanonicalField(
+                item,
+                'institution',
+                'school',
+                'name'
+              );
               const fieldVal =
-                item.field || (item.degree && item.area ? item.area : '') || '';
-              const gpaVal = item.gpa || item.score || '';
-              const descVal = item.description ?? item.summary ?? '';
+                item.field !== undefined
+                  ? String(item.field)
+                  : item.degree && item.area
+                  ? String(item.area)
+                  : '';
+              const gpaVal = readCanonicalField(item, 'gpa', 'score');
+              const descVal = readCanonicalField(item, 'description', 'summary');
+              const showInstitutionSlot = Boolean(institutionVal || !isReadOnly);
+              const showFieldSlot = Boolean(fieldVal || !isReadOnly);
 
               const extraEducationMeta = (
                 <>
-                  {institutionVal && fieldVal && (
+                  {showInstitutionSlot && showFieldSlot && (
                     <span className="text-slate-400" aria-hidden="true">
                       ·
                     </span>
                   )}
-                  {(fieldVal || (!institutionVal && !isReadOnly)) && (
+                  {showFieldSlot && (
                     <InlineEdit
                       value={fieldVal}
                       onChange={
@@ -167,7 +168,7 @@ const TimelineSection: React.FC<{
                               )
                       }
                       readOnly={isReadOnly}
-                      placeholder="Institution / Field of Study"
+                      placeholder="Field of Study"
                       textClassName={
                         institutionVal
                           ? 'text-[0.96em] text-slate-600'
@@ -192,9 +193,11 @@ const TimelineSection: React.FC<{
                     itemId={item.id}
                     titleField="degree"
                     subtitle={institutionVal}
-                    subtitleField={institutionKey}
+                    subtitlePlaceholder="Institution"
+                    subtitleField="institution"
+                    showSubtitleWhenEmptyInEdit
                     extraSubtitle={
-                      institutionVal && !fieldVal && !gpaVal && isReadOnly
+                      !fieldVal && !gpaVal && isReadOnly
                         ? undefined
                         : extraEducationMeta
                     }

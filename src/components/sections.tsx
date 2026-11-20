@@ -1,9 +1,17 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { EducationItem, SectionType } from "../types/resume";
+import { dateFields, SectionType } from "../types/resume";
 import { formatResumeDate } from "../utils/date";
-import EducationForm from "./Education-form";
+import { normalizeSectionItem } from "../utils/resumeNormalizer";
+import { Input } from "./ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 export interface ContntProps {
   type: SectionType;
@@ -16,16 +24,216 @@ interface SectionEditorProps {
   onSave: (type: SectionType, item: any) => void;
 }
 
-interface FieldDescriptor {
+export interface FieldDescriptor {
   key: string;
-  syncKey?: string;
   label: string;
   placeholder?: string;
-  type?: "text" | "textarea" | "checkbox" | "tags";
+  type?: "text" | "textarea" | "checkbox" | "tags" | "month-year";
   dateObjectFallback?: boolean;
+  halfWidth?: boolean;
 }
 
-const SECTION_META: Record<
+export const MONTHS = [
+  { value: "Jan", label: "January" },
+  { value: "Feb", label: "February" },
+  { value: "Mar", label: "March" },
+  { value: "Apr", label: "April" },
+  { value: "May", label: "May" },
+  { value: "Jun", label: "June" },
+  { value: "Jul", label: "July" },
+  { value: "Aug", label: "August" },
+  { value: "Sep", label: "September" },
+  { value: "Oct", label: "October" },
+  { value: "Nov", label: "November" },
+  { value: "Dec", label: "December" },
+];
+
+const MONTH_TOKEN_MAP: Record<string, string> = {
+  "1": "Jan",
+  "01": "Jan",
+  jan: "Jan",
+  january: "Jan",
+  "2": "Feb",
+  "02": "Feb",
+  feb: "Feb",
+  february: "Feb",
+  "3": "Mar",
+  "03": "Mar",
+  mar: "Mar",
+  march: "Mar",
+  "4": "Apr",
+  "04": "Apr",
+  apr: "Apr",
+  april: "Apr",
+  "5": "May",
+  "05": "May",
+  may: "May",
+  "6": "Jun",
+  "06": "Jun",
+  jun: "Jun",
+  june: "Jun",
+  "7": "Jul",
+  "07": "Jul",
+  jul: "Jul",
+  july: "Jul",
+  "8": "Aug",
+  "08": "Aug",
+  aug: "Aug",
+  august: "Aug",
+  "9": "Sep",
+  "09": "Sep",
+  sep: "Sep",
+  sept: "Sep",
+  september: "Sep",
+  "10": "Oct",
+  oct: "Oct",
+  october: "Oct",
+  "11": "Nov",
+  nov: "Nov",
+  november: "Nov",
+  "12": "Dec",
+  dec: "Dec",
+  december: "Dec",
+};
+
+function normalizeMonthToken(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const cleaned = raw.trim().replace(/\.$/, "").toLowerCase();
+  if (!cleaned) return "";
+  return MONTH_TOKEN_MAP[cleaned] || raw.trim();
+}
+
+export function parseMonthYearDateValue(
+  raw: unknown
+): dateFields | string {
+  if (!raw) {
+    return { month: "", year: "" };
+  }
+
+  if (typeof raw === "object") {
+    const obj = raw as Partial<dateFields>;
+    return {
+      month: normalizeMonthToken(obj.month),
+      year: typeof obj.year === "string" ? obj.year.trim() : "",
+    };
+  }
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return { month: "", year: "" };
+    }
+
+    if (/^\d{4}$/.test(trimmed)) {
+      return { month: "", year: trimmed };
+    }
+
+    const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})(?:[-/]\d{1,2})?$/);
+    if (isoMatch) {
+      const month = MONTH_TOKEN_MAP[isoMatch[2]];
+      if (month) {
+        return { month, year: isoMatch[1] };
+      }
+    }
+
+    const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+      const month = MONTH_TOKEN_MAP[slashMatch[1]];
+      if (month) {
+        return { month, year: slashMatch[2] };
+      }
+    }
+
+    const namedMatch = trimmed.match(/^([A-Za-z]+)\.?\s*,?\s*(\d{4})$/);
+    if (namedMatch) {
+      const month = MONTH_TOKEN_MAP[namedMatch[1].toLowerCase()];
+      if (month) {
+        return { month, year: namedMatch[2] };
+      }
+    }
+
+    const yearFirstNamed = trimmed.match(/^(\d{4})\s+([A-Za-z]+)\.?$/);
+    if (yearFirstNamed) {
+      const month = MONTH_TOKEN_MAP[yearFirstNamed[2].toLowerCase()];
+      if (month) {
+        return { month, year: yearFirstNamed[1] };
+      }
+    }
+
+    const monthOnly = MONTH_TOKEN_MAP[trimmed.replace(/\.$/, "").toLowerCase()];
+    if (monthOnly) {
+      return { month: monthOnly, year: "" };
+    }
+
+    // Preserve non-standard string dates (e.g., "Present", "Spring 2020") without erasing them
+    return trimmed;
+  }
+
+  return { month: "", year: "" };
+}
+
+const MonthYearSelector: React.FC<{
+  selectedMonth?: string;
+  selectedYear?: string;
+  disabled?: boolean;
+  onMonthChange: (value: string) => void;
+  onYearChange: (value: string) => void;
+}> = ({
+  selectedMonth,
+  selectedYear,
+  disabled = false,
+  onMonthChange,
+  onYearChange,
+}) => {
+  const currentYear = new Date().getFullYear();
+  const baseYears = Array.from({ length: 45 }, (_, i) =>
+    (currentYear + 5 - i).toString()
+  );
+  const years =
+    selectedYear && !baseYears.includes(selectedYear)
+      ? [...baseYears, selectedYear].sort((a, b) => Number(b) - Number(a))
+      : baseYears;
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <Select
+        value={selectedMonth || ""}
+        onChange={onMonthChange}
+        disabled={disabled}
+      >
+        <SelectTrigger className="border-gray-300 text-gray-900">
+          <SelectValue placeholder="Month" />
+        </SelectTrigger>
+        <SelectContent className="max-h-56 overflow-y-auto border-gray-200">
+          {MONTHS.map((month) => (
+            <SelectItem key={month.value} value={month.value}>
+              {month.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={selectedYear || ""}
+        onChange={onYearChange}
+        disabled={disabled}
+      >
+        <SelectTrigger className="border-gray-300 text-gray-900">
+          <SelectValue placeholder="Year" />
+        </SelectTrigger>
+        <SelectContent className="max-h-56 overflow-y-auto border-gray-200">
+          {years.map((year) => (
+            <SelectItem key={year} value={year}>
+              {year}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
+
+export const SECTION_META: Record<
   SectionType,
   { title: string; fields: FieldDescriptor[] }
 > = {
@@ -33,8 +241,7 @@ const SECTION_META: Record<
     title: "Professional Experience",
     fields: [
       {
-        key: "name",
-        syncKey: "company",
+        key: "company",
         label: "Company",
         placeholder: "e.g. Acme Corp",
       },
@@ -53,12 +260,14 @@ const SECTION_META: Record<
         label: "Start Date",
         placeholder: "e.g. Jan 2021",
         dateObjectFallback: true,
+        halfWidth: true,
       },
       {
         key: "endDate",
         label: "End Date",
         placeholder: "e.g. Dec 2023",
         dateObjectFallback: true,
+        halfWidth: true,
       },
       { key: "current", label: "Currently working here", type: "checkbox" },
       {
@@ -71,7 +280,63 @@ const SECTION_META: Record<
   },
   [SectionType.EDUCATION]: {
     title: "Education",
-    fields: [],
+    fields: [
+      {
+        key: "degree",
+        label: "Degree / Qualification",
+        placeholder: "e.g. B.S. in Computer Science",
+        halfWidth: true,
+      },
+      {
+        key: "institution",
+        label: "School / Institution",
+        placeholder: "e.g. Massachusetts Institute of Technology",
+        halfWidth: true,
+      },
+      {
+        key: "field",
+        label: "Field of Study",
+        placeholder: "e.g. Computer Science",
+        halfWidth: true,
+      },
+      {
+        key: "gpa",
+        label: "GPA / Score",
+        placeholder: "e.g. 3.9 / 4.0",
+        halfWidth: true,
+      },
+      {
+        key: "location",
+        label: "Location",
+        placeholder: "e.g. Cambridge, MA",
+        halfWidth: true,
+      },
+      {
+        key: "url",
+        label: "Institution / Credential URL",
+        placeholder: "https://...",
+        halfWidth: true,
+      },
+      {
+        key: "startDate",
+        label: "Start Date",
+        type: "month-year",
+        halfWidth: true,
+      },
+      {
+        key: "endDate",
+        label: "End Date",
+        type: "month-year",
+        halfWidth: true,
+      },
+      { key: "current", label: "Currently studying here", type: "checkbox" },
+      {
+        key: "description",
+        label: "Description",
+        placeholder: "Relevant coursework, honors, thesis, or activities...",
+        type: "textarea",
+      },
+    ],
   },
   [SectionType.SKILLS]: {
     title: "Skill",
@@ -148,12 +413,19 @@ const SECTION_META: Record<
         label: "Start Date",
         placeholder: "e.g. Mar 2023",
         dateObjectFallback: true,
+        halfWidth: true,
       },
       {
         key: "endDate",
         label: "End Date",
         placeholder: "e.g. Aug 2023",
         dateObjectFallback: true,
+        halfWidth: true,
+      },
+      {
+        key: "current",
+        label: "Currently working on this",
+        type: "checkbox",
       },
       {
         key: "technologies",
@@ -174,13 +446,11 @@ const SECTION_META: Record<
     fields: [
       {
         key: "name",
-        syncKey: "language",
         label: "Language",
         placeholder: "e.g. English, Spanish",
       },
       {
         key: "level",
-        syncKey: "fluency",
         label: "Fluency",
         placeholder: "e.g. Native, Professional Working Proficiency",
       },
@@ -233,7 +503,6 @@ const SECTION_META: Record<
     fields: [
       {
         key: "name",
-        syncKey: "course",
         label: "Course Name",
         placeholder: "e.g. Machine Learning Specialization",
       },
@@ -261,13 +530,11 @@ const SECTION_META: Record<
     fields: [
       {
         key: "name",
-        syncKey: "title",
         label: "Award Title",
         placeholder: "e.g. Engineering Excellence Award",
       },
       {
         key: "issuer",
-        syncKey: "awarder",
         label: "Awarded By",
         placeholder: "e.g. Acme Corp",
       },
@@ -290,9 +557,13 @@ const SECTION_META: Record<
     fields: [
       {
         key: "name",
-        syncKey: "title",
         label: "Achievement Title",
         placeholder: "e.g. Reduced API P99 latency by 45%",
+      },
+      {
+        key: "issuer",
+        label: "Organization / Issuer",
+        placeholder: "e.g. Acme Corp",
       },
       {
         key: "date",
@@ -313,7 +584,6 @@ const SECTION_META: Record<
     fields: [
       {
         key: "name",
-        syncKey: "organization",
         label: "Organization Name",
         placeholder: "e.g. Women Who Code",
       },
@@ -327,12 +597,14 @@ const SECTION_META: Record<
         label: "Start Date",
         placeholder: "e.g. Jan 2022",
         dateObjectFallback: true,
+        halfWidth: true,
       },
       {
         key: "endDate",
         label: "End Date",
-        placeholder: "e.g. Present",
+        placeholder: "e.g. Dec 2023",
         dateObjectFallback: true,
+        halfWidth: true,
       },
       { key: "current", label: "Currently active", type: "checkbox" },
       {
@@ -395,13 +667,11 @@ const SECTION_META: Record<
       },
       {
         key: "contact",
-        syncKey: "email",
         label: "Contact Info (Email / Phone)",
         placeholder: "e.g. jordan@example.com",
       },
       {
         key: "description",
-        syncKey: "reference",
         label: "Reference Note",
         placeholder: "Optional relationship or endorsement...",
         type: "textarea",
@@ -413,7 +683,6 @@ const SECTION_META: Record<
     fields: [
       {
         key: "title",
-        syncKey: "name",
         label: "Title",
         placeholder: "Enter item title",
       },
@@ -432,12 +701,19 @@ const SECTION_META: Record<
         label: "Start Date",
         placeholder: "e.g. 2023",
         dateObjectFallback: true,
+        halfWidth: true,
       },
       {
         key: "endDate",
         label: "End Date",
         placeholder: "e.g. 2024",
         dateObjectFallback: true,
+        halfWidth: true,
+      },
+      {
+        key: "current",
+        label: "Currently ongoing",
+        type: "checkbox",
       },
       {
         key: "description",
@@ -449,21 +725,23 @@ const SECTION_META: Record<
   },
 };
 
-const GenericSectionItemForm: React.FC<{
+export const GenericSectionItemForm: React.FC<{
   type: SectionType;
-  initialItem: any;
+  initialItem?: any;
   onSave: (item: any) => void;
   onCancel: () => void;
 }> = ({ type, initialItem, onSave, onCancel }) => {
   const meta = SECTION_META[type] || SECTION_META[SectionType.CUSTOM];
 
   const [formState, setFormState] = useState<Record<string, any>>(() => {
-    const base = { ...(initialItem || { id: Date.now().toString() }) };
+    const normalized = normalizeSectionItem(
+      type,
+      initialItem ? { ...initialItem } : { id: Date.now().toString() }
+    );
+    const base: Record<string, any> = { ...normalized };
     meta.fields.forEach((field) => {
-      if (field.syncKey) {
-        const resolved = base[field.key] || base[field.syncKey] || "";
-        base[field.key] = resolved;
-        base[field.syncKey] = resolved;
+      if (field.type === "month-year") {
+        base[field.key] = parseMonthYearDateValue(base[field.key]);
       } else if (field.dateObjectFallback) {
         base[field.key] = formatResumeDate(base[field.key]);
       } else if (field.type === "tags") {
@@ -479,18 +757,39 @@ const GenericSectionItemForm: React.FC<{
   });
 
   const updateField = (field: FieldDescriptor, value: any) => {
+    setFormState((prev) => ({
+      ...prev,
+      [field.key]: value,
+    }));
+  };
+
+  const updateMonthYearField = (
+    field: FieldDescriptor,
+    part: "month" | "year",
+    value: string
+  ) => {
     setFormState((prev) => {
-      const next = { ...prev, [field.key]: value };
-      if (field.syncKey) {
-        next[field.syncKey] = value;
-      }
-      return next;
+      const currentVal = prev[field.key];
+      const baseDate =
+        currentVal && typeof currentVal === "object"
+          ? {
+              month: typeof currentVal.month === "string" ? currentVal.month : "",
+              year: typeof currentVal.year === "string" ? currentVal.year : "",
+            }
+          : { month: "", year: "" };
+      return {
+        ...prev,
+        [field.key]: {
+          ...baseDate,
+          [part]: value,
+        },
+      };
     });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const prepared = { ...formState };
+    const prepared: Record<string, any> = { ...formState };
     meta.fields.forEach((field) => {
       if (field.type === "tags") {
         const raw = prepared[field.key];
@@ -503,80 +802,130 @@ const GenericSectionItemForm: React.FC<{
             : Array.isArray(raw)
             ? raw
             : [];
+      } else if (field.type === "month-year") {
+        prepared[field.key] = parseMonthYearDateValue(prepared[field.key]);
       }
     });
-    onSave(prepared);
+    const canonicalItem = normalizeSectionItem(type, prepared, {
+      explicitKeys: meta.fields.map((f) => f.key),
+    });
+    onSave(canonicalItem);
   };
+
+  const renderFieldNode = (field: FieldDescriptor) => {
+    const inputId = `section-item-${field.key}`;
+    if (field.type === "checkbox") {
+      return (
+        <label
+          key={field.key}
+          htmlFor={inputId}
+          className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
+        >
+          <input
+            id={inputId}
+            type="checkbox"
+            checked={Boolean(formState[field.key])}
+            onChange={(e) => updateField(field, e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          {field.label}
+        </label>
+      );
+    }
+
+    if (field.type === "textarea") {
+      return (
+        <div key={field.key}>
+          <label
+            htmlFor={inputId}
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            {field.label}
+          </label>
+          <textarea
+            id={inputId}
+            rows={4}
+            value={formState[field.key] ?? ""}
+            placeholder={field.placeholder}
+            onChange={(e) => updateField(field, e.target.value)}
+            className="w-full px-3 py-2 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      );
+    }
+
+    const isEndDateDisabled =
+      field.key === "endDate" && Boolean(formState.current);
+
+    if (field.type === "month-year") {
+      const dateVal = formState[field.key];
+      const selectedMonth =
+        dateVal && typeof dateVal === "object" ? dateVal.month : "";
+      const selectedYear =
+        dateVal && typeof dateVal === "object" ? dateVal.year : "";
+
+      return (
+        <div key={field.key}>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {field.label}
+          </label>
+          <MonthYearSelector
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            disabled={isEndDateDisabled}
+            onMonthChange={(val) => updateMonthYearField(field, "month", val)}
+            onYearChange={(val) => updateMonthYearField(field, "year", val)}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div key={field.key}>
+        <label
+          htmlFor={inputId}
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          {field.label}
+        </label>
+        <Input
+          id={inputId}
+          type="text"
+          disabled={isEndDateDisabled}
+          value={
+            isEndDateDisabled ? "Present" : String(formState[field.key] ?? "")
+          }
+          placeholder={field.placeholder}
+          onChange={(e) => updateField(field, e.target.value)}
+          className="bg-white text-gray-900 placeholder-gray-400 border-gray-300 disabled:bg-neutral-100 disabled:text-gray-500"
+        />
+      </div>
+    );
+  };
+
+  const renderedRows: React.ReactNode[] = [];
+  for (let i = 0; i < meta.fields.length; i += 1) {
+    const field = meta.fields[i];
+    const nextField = meta.fields[i + 1];
+    if (field.halfWidth && nextField?.halfWidth) {
+      renderedRows.push(
+        <div
+          key={`${field.key}-${nextField.key}`}
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
+          {renderFieldNode(field)}
+          {renderFieldNode(nextField)}
+        </div>
+      );
+      i += 1;
+    } else {
+      renderedRows.push(renderFieldNode(field));
+    }
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-gray-900">
-      {meta.fields.map((field) => {
-        const inputId = `section-item-${field.key}`;
-        if (field.type === "checkbox") {
-          return (
-            <label
-              key={field.key}
-              htmlFor={inputId}
-              className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
-            >
-              <input
-                id={inputId}
-                type="checkbox"
-                checked={Boolean(formState[field.key])}
-                onChange={(e) => updateField(field, e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              {field.label}
-            </label>
-          );
-        }
-
-        if (field.type === "textarea") {
-          return (
-            <div key={field.key}>
-              <label
-                htmlFor={inputId}
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                {field.label}
-              </label>
-              <textarea
-                id={inputId}
-                rows={4}
-                value={formState[field.key] ?? ""}
-                placeholder={field.placeholder}
-                onChange={(e) => updateField(field, e.target.value)}
-                className="w-full px-3 py-2 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          );
-        }
-
-        const isEndDateDisabled =
-          field.key === "endDate" && Boolean(formState.current);
-
-        return (
-          <div key={field.key}>
-            <label
-              htmlFor={inputId}
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              {field.label}
-            </label>
-            <input
-              id={inputId}
-              type="text"
-              disabled={isEndDateDisabled}
-              value={
-                isEndDateDisabled ? "Present" : String(formState[field.key] ?? "")
-              }
-              placeholder={field.placeholder}
-              onChange={(e) => updateField(field, e.target.value)}
-              className="w-full px-3 py-2 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-neutral-100 disabled:text-gray-500"
-            />
-          </div>
-        );
-      })}
+      {renderedRows}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
         <button
@@ -604,20 +953,6 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
 }) => {
   if (!content) {
     return null;
-  }
-
-  if (content.type === SectionType.EDUCATION) {
-    return (
-      <DialogBox title="Education" onClose={onClose} hideFooter>
-        <EducationForm
-          initialContent={content.item as EducationItem}
-          onSave={(newContent) => {
-            onSave(content.type, newContent);
-          }}
-          onCancel={onClose}
-        />
-      </DialogBox>
-    );
   }
 
   const meta = SECTION_META[content.type];

@@ -7,6 +7,7 @@ import {
   extractHighlights,
   extractKeywords,
   getOrderedSections,
+  readCanonicalField,
   resolveSectionKind,
 } from './templateHelpers';
 import {
@@ -86,38 +87,36 @@ const StartupMetricSection: React.FC<{
           {enabledItems.map((item: any, idx: number) => {
             const highlights = extractHighlights(item);
             const keywords = extractKeywords(item);
-            const itemUrl =
-              item.url || item.website || item.link || item.liveUrl || '';
+            const itemUrl = readCanonicalField(
+              item,
+              'url',
+              'website',
+              'link',
+              'liveUrl'
+            );
             const isLast = idx === enabledItems.length - 1;
             const itemStyle: React.CSSProperties | undefined = isLast
               ? undefined
               : { marginBottom: 'var(--theme-item-spacing, 0.75rem)' };
 
-            const descKey =
-              item.description !== undefined
-                ? 'description'
-                : item.summary !== undefined
-                ? 'summary'
-                : 'description';
-            const descVal = item.description ?? item.summary ?? '';
+            const descVal = readCanonicalField(item, 'description', 'summary');
             const metrics = extractImpactMetrics([descVal, ...highlights]);
 
             if (kind === 'work') {
-              const positionKey =
-                item.position !== undefined
-                  ? 'position'
-                  : item.role !== undefined
-                  ? 'role'
-                  : 'position';
-              const positionVal =
-                item.position || item.role || item.jobTitle || item.title || '';
-              const companyKey = item.company !== undefined ? 'company' : 'name';
-              const companyVal =
-                item.company ||
-                item.name ||
-                item.organization ||
-                item.employer ||
-                '';
+              const positionVal = readCanonicalField(
+                item,
+                'position',
+                'role',
+                'jobTitle',
+                'title'
+              );
+              const companyVal = readCanonicalField(
+                item,
+                'company',
+                'name',
+                'organization',
+                'employer'
+              );
 
               return (
                 <div
@@ -131,10 +130,10 @@ const StartupMetricSection: React.FC<{
                     titlePlaceholder="Position"
                     sectionId={section.id}
                     itemId={item.id}
-                    titleField={positionKey}
+                    titleField="position"
                     subtitle={companyVal}
                     subtitlePlaceholder="Company"
-                    subtitleField={companyKey}
+                    subtitleField="company"
                     showSubtitleWhenEmptyInEdit
                     url={itemUrl}
                     urlPlacement="subtitle"
@@ -170,7 +169,7 @@ const StartupMetricSection: React.FC<{
                     value={descVal}
                     sectionId={section.id}
                     itemId={item.id}
-                    field={descKey}
+                    field="description"
                     readOnly={readOnly}
                     placeholder="Describe velocity, ownership, and measurable outcomes..."
                     showWhenEmptyInEdit
@@ -185,11 +184,14 @@ const StartupMetricSection: React.FC<{
             }
 
             if (kind === 'projects') {
-              const titleKey = item.name !== undefined ? 'name' : 'title';
-              const titleVal = item.name || item.title || '';
-              const roleVal = item.position || item.role || '';
-              const companyVal =
-                item.company || item.organization || item.entity || '';
+              const titleVal = readCanonicalField(item, 'name', 'title');
+              const roleVal = readCanonicalField(item, 'position', 'role');
+              const companyVal = readCanonicalField(
+                item,
+                'company',
+                'organization',
+                'entity'
+              );
               const projectExtraMeta = companyVal ? (
                 <>
                   {roleVal && (
@@ -213,7 +215,7 @@ const StartupMetricSection: React.FC<{
                     titlePlaceholder="Project Name"
                     sectionId={section.id}
                     itemId={item.id}
-                    titleField={titleKey}
+                    titleField="name"
                     subtitle={roleVal}
                     extraSubtitle={projectExtraMeta}
                     url={itemUrl}
@@ -265,8 +267,13 @@ const StartupMetricSection: React.FC<{
             }
 
             // 'achievements'
-            const nameKey = item.name !== undefined ? 'name' : 'title';
-            const nameVal = item.name || item.title || '';
+            const nameVal = readCanonicalField(item, 'name', 'title');
+            const issuerVal = readCanonicalField(
+              item,
+              'issuer',
+              'organization',
+              'awarder'
+            );
             return (
               <div
                 key={item.id || idx}
@@ -279,7 +286,9 @@ const StartupMetricSection: React.FC<{
                   titlePlaceholder="Achievement"
                   sectionId={section.id}
                   itemId={item.id}
-                  titleField={nameKey}
+                  titleField="name"
+                  subtitle={issuerVal}
+                  subtitleField="issuer"
                   url={itemUrl}
                   urlPlacement="title"
                   item={item}

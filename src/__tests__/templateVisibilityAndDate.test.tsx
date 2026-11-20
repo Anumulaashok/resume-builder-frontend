@@ -98,7 +98,7 @@ describe.each([
     expect(screen.queryByText(/Present/)).not.toBeInTheDocument();
   });
 
-  it('formats date objects, string dates, and shows Present when current is true or endDate is empty', () => {
+  it('formats date objects, string dates, and shows Present only when current is true or endDate equals Present', () => {
     const resume = buildBaseResume({
       sections: [
         {
@@ -147,7 +147,8 @@ describe.each([
 
     expect(screen.getByText('2022-03 - Present')).toBeInTheDocument();
     expect(screen.getByText('2019-01 - 2022-02')).toBeInTheDocument();
-    expect(screen.getByText('Sep 2023 - Present')).toBeInTheDocument();
+    expect(screen.getByText('Sep 2023')).toBeInTheDocument();
+    expect(screen.queryByText('Sep 2023 - Present')).not.toBeInTheDocument();
   });
 
   it('keeps sections and items visible when enabled is true or undefined, and hides them when enabled is false', () => {

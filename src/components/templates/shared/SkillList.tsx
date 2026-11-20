@@ -5,6 +5,7 @@ import {
   extractKeywords,
   formatSkillLevel,
   parseSkillLevelInput,
+  readCanonicalField,
 } from '../templateHelpers';
 import { SkillStyleVariant, useTemplateContext } from './TemplateContext';
 
@@ -226,7 +227,7 @@ export const SkillList: React.FC<SkillListProps> = ({
     textClassName: string,
     style?: React.CSSProperties
   ) => {
-    const label = item.name || item.category || item.title || '';
+    const label = readCanonicalField(item, 'name', 'category', 'title');
     const mergedStyle: React.CSSProperties = {
       overflowWrap: 'anywhere',
       ...style,
@@ -267,7 +268,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         }`}
       >
         {enabledItems.map((item: any, idx: number) => {
-          const label = item.name || item.category || item.title || '';
+          const label = readCanonicalField(item, 'name', 'category', 'title');
           const keywords = extractKeywords(item);
           const pct = resolveProficiencyPercent(item);
           if (!label && !canEdit && !keywords.length) return null;
@@ -331,7 +332,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         }`}
       >
         {enabledItems.map((item: any, idx: number) => {
-          const label = item.name || item.category || item.title || '';
+          const label = readCanonicalField(item, 'name', 'category', 'title');
           const keywords = extractKeywords(item);
           const filledDots = Math.max(1, Math.min(5, Math.round(resolveProficiencyPercent(item) / 20)));
           if (!label && !canEdit && !keywords.length) return null;
@@ -409,7 +410,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         className={`grid min-w-0 max-w-full ${columnsGridClass}`}
       >
         {enabledItems.map((item: any, idx: number) => {
-          const label = item.name || item.category || item.title || '';
+          const label = readCanonicalField(item, 'name', 'category', 'title');
           const keywords = extractKeywords(item);
           if (!label && !canEdit && !keywords.length) return null;
 
@@ -480,7 +481,7 @@ export const SkillList: React.FC<SkillListProps> = ({
           style={{ overflowWrap: 'anywhere' }}
         >
           {enabledItems.map((item: any, idx: number) => {
-            const label = item.name || item.title || '';
+            const label = readCanonicalField(item, 'name', 'category', 'title');
             const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
             if (!canEdit && !label) return null;
             return (
@@ -509,7 +510,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         className="space-y-2 min-w-0 max-w-full"
       >
         {enabledItems.map((item: any, idx: number) => {
-          const groupName = item.name || item.category || item.title || '';
+          const groupName = readCanonicalField(item, 'name', 'category', 'title');
           const keywords = extractKeywords(item);
           const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
 
@@ -577,7 +578,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         className="flex flex-wrap gap-1.5 min-w-0 max-w-full"
       >
         {enabledItems.map((item: any, idx: number) => {
-          const label = item.name || item.title || '';
+          const label = readCanonicalField(item, 'name', 'category', 'title');
           const levelLabel = formatSkillLevel(item.level);
           if (!canEdit) {
             if (!label) return null;
@@ -623,7 +624,7 @@ export const SkillList: React.FC<SkillListProps> = ({
       className="space-y-2.5 min-w-0 max-w-full"
     >
       {enabledItems.map((item: any, idx: number) => {
-        const groupName = item.name || item.category || item.title || '';
+        const groupName = readCanonicalField(item, 'name', 'category', 'title');
         const keywords = extractKeywords(item);
         const levelNode = renderEditableLevel(item, 'text-xs text-slate-500');
 
