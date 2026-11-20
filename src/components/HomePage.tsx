@@ -60,6 +60,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [resumeCount, setResumeCount] = useState<number | null>(null);
+  const [pendingAiDraftId, setPendingAiDraftId] = useState<string | null>(null);
 
   const handleResumesLoad = useCallback((resumes: Resume[]) => {
     setResumeCount(resumes.length);
@@ -83,6 +84,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
       });
       toast.success('Resume generated successfully!');
       setShowPromptModal(false);
+      setPendingAiDraftId(resume.id || resume._id || '__pending_ai_draft__');
       setSelectedResume(resume);
       setActiveView('editor');
     } catch (error) {
@@ -93,11 +95,13 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   };
 
   const handleEditResume = (resume: Resume) => {
+    setPendingAiDraftId(null);
     setSelectedResume(resume);
     setActiveView('editor');
   };
 
   const handleNewResume = () => {
+    setPendingAiDraftId(null);
     setSelectedResume(null);
     setActiveView('editor');
   };
@@ -193,11 +197,17 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
           {activeView === 'editor' && (
             <ResumeEditor
               initialResume={selectedResume || undefined}
+              isPendingAiDraft={Boolean(pendingAiDraftId)}
+              onAiDraftResolved={() => setPendingAiDraftId(null)}
               onSave={() => {
+                setPendingAiDraftId(null);
                 toast.success('Resume saved successfully!');
                 setActiveView('list');
               }}
-              onBack={() => setActiveView('list')}
+              onBack={() => {
+                setPendingAiDraftId(null);
+                setActiveView('list');
+              }}
             />
           )}
         </>

@@ -51,3 +51,28 @@ export const removeToken = (): void => {
 export const isAuthenticated = (): boolean => {
     return !!getToken();
 };
+
+export const getUserIdFromToken = (rawToken?: string | null): string | null => {
+    const token = rawToken ?? getToken();
+    if (!token || typeof token !== 'string') {
+        return null;
+    }
+    const parts = token.split('.');
+    if (parts.length < 2) {
+        return null;
+    }
+    try {
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+        const decoded = JSON.parse(atob(padded));
+        if (decoded && typeof decoded === 'object') {
+            const candidate = decoded.id ?? decoded.userId ?? decoded._id ?? decoded.sub;
+            if (typeof candidate === 'string' && candidate.trim() && !candidate.includes('@')) {
+                return candidate.trim();
+            }
+        }
+        return null;
+    } catch {
+        return null;
+    }
+};

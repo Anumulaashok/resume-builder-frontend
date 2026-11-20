@@ -15,6 +15,7 @@ import {
   IJobApplication,
   UpsertApplicationPayload,
 } from '../../types/application';
+import { captureClientEvent } from '../../services/telemetry';
 import { ResumeWithMeta } from '../../services/resume.service';
 import { ICoverLetter } from '../../types/coverLetter';
 
@@ -223,6 +224,13 @@ export const ApplicationDrawer: React.FC<ApplicationDrawerProps> = ({
       }
     }
 
+    captureClientEvent('resume_tailored', {
+      resume_id: resumeId,
+      application_id: application?.id || application?._id || null,
+      source: 'application_drawer',
+      action: 'check_match',
+    });
+
     onCheckMatch({
       resumeId,
       jobDescription,
@@ -232,7 +240,7 @@ export const ApplicationDrawer: React.FC<ApplicationDrawerProps> = ({
 
   const handleStatusChange = (nextStatus: ApplicationStatus) => {
     setStatus(nextStatus);
-    if (nextStatus === 'applied' && !appliedAt) {
+    if (nextStatus !== 'wishlist' && !appliedAt) {
       setAppliedAt(todayDateInputValue());
     }
   };

@@ -81,9 +81,12 @@ import {
 } from "../utils/authEventBus";
 import { getStoredUser } from "../utils/token";
 import { downloadResumeAsJson } from "../utils/importers";
+import { captureClientEvent } from "../services/telemetry";
 
 interface ResumeEditorProps {
   initialResume?: IResume;
+  isPendingAiDraft?: boolean;
+  onAiDraftResolved?: () => void;
   onSave?: (resume: IResume) => void;
   onBack: () => void;
 }
@@ -674,6 +677,8 @@ const SortableItem: React.FC<SortableItemProps> = ({
 
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
   initialResume,
+  isPendingAiDraft,
+  onAiDraftResolved,
   onSave,
   onBack,
 }) => {
@@ -707,6 +712,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingTxt, setIsExportingTxt] = useState(false);
+  const [pendingAiReview, setPendingAiReview] = useState<boolean>(
+    Boolean(isPendingAiDraft)
+  );
+  const [resolvingAiDraft, setResolvingAiDraft] = useState(false);
   const [addContent, setAddContent] = useState<{
     type: SectionType;
     item: any;
@@ -747,9 +756,17 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const isExportingRef = useRef(false);
   const isExportingTxtRef = useRef(false);
+  const pendingAiReviewRef = useRef<boolean>(pendingAiReview);
+  pendingAiReviewRef.current = pendingAiReview;
+  const editorOpenedAtRef = useRef<number>(Date.now());
   const exportCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+
+  useEffect(() => {
+    setPendingAiReview(Boolean(isPendingAiDraft));
+    pendingAiReviewRef.current = Boolean(isPendingAiDraft);
+  }, [isPendingAiDraft]);
 
   const effectiveResumeId = resume._id || resume.id || persistedId;
 
@@ -1225,6 +1242,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       return;
     }
 
+    if (pendingAiReviewRef.current) {
+      debouncedAutoSave.cancel();
+      return;
+    }
+
     if (sessionExpiredRef.current) {
       debouncedAutoSave.cancel();
       pendingRetryAfterAuthRef.current = true;
@@ -1257,7 +1279,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         clearTimeout(exportCooldownTimerRef.current);
         exportCooldownTimerRef.current = null;
       }
-      if (!sessionExpiredRef.current) {
+      if (!sessionExpiredRef.current && !pendingAiReviewRef.current) {
         debouncedAutoSave.flush();
       } else {
         debouncedAutoSave.cancel();
@@ -1268,7 +1290,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       const dirtyBeforeFlush = hasUnsavedChanges();
-      if (!sessionExpiredRef.current) {
+      if (!sessionExpiredRef.current && !pendingAiReviewRef.current) {
         debouncedAutoSave.flush();
       }
       if (dirtyBeforeFlush || hasUnsavedChanges()) {
@@ -1293,6 +1315,101 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     void enqueueSave(latestResumeRef.current, "retry");
   };
 
+  const buildConfirmedAiResume = (draft: IResume): IResume => {
+    const trimmedTitle = (draft.title || "").trim();
+    const resolvedTitle =
+      !trimmedTitle || trimmedTitle === "AI Draft"
+        ? draft.content?.basics?.label?.trim() || "AI Generated Resume"
+        : trimmedTitle;
+    return {
+      ...draft,
+      title: resolvedTitle,
+      confirmAiDraft: true,
+    } as IResume;
+  };
+
+  const handleAcceptAiDraft = async () => {
+    if (resolvingAiDraft) return;
+    debouncedAutoSave.cancel();
+    setResolvingAiDraft(true);
+    try {
+      const confirmedResume = buildConfirmedAiResume(latestResumeRef.current);
+      setResume(confirmedResume);
+      latestResumeRef.current = confirmedResume;
+      pendingAiReviewRef.current = false;
+      setPendingAiReview(false);
+      onAiDraftResolved?.();
+
+      const result = await enqueueSave(confirmedResume, "manual");
+      if (!result.ok) {
+        throw result.error || new Error("Failed to save AI draft");
+      }
+
+      const activeId =
+        confirmedResume._id ||
+        confirmedResume.id ||
+        persistedIdRef.current ||
+        extractCreatedResumeId(result.data);
+
+      captureClientEvent("ai_rewrite_accepted", {
+        resume_id: activeId || null,
+        template_id: confirmedResume.templateId || "modern",
+        section_count: Array.isArray(confirmedResume.content?.sections)
+          ? confirmedResume.content.sections.length
+          : 0,
+      });
+
+      toast.success("AI draft accepted and saved");
+    } catch (error) {
+      pendingAiReviewRef.current = true;
+      setPendingAiReview(true);
+      if (!isUnauthorizedError(error) && !sessionExpiredRef.current) {
+        toast.error("Failed to accept AI draft");
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setResolvingAiDraft(false);
+      }
+    }
+  };
+
+  const handleDiscardAiDraft = async () => {
+    if (resolvingAiDraft) return;
+    debouncedAutoSave.cancel();
+    setResolvingAiDraft(true);
+
+    const activeId =
+      latestResumeRef.current._id ||
+      latestResumeRef.current.id ||
+      persistedIdRef.current;
+
+    captureClientEvent("ai_rewrite_rejected", {
+      resume_id: activeId || null,
+      template_id: latestResumeRef.current.templateId || "modern",
+      section_count: Array.isArray(latestResumeRef.current.content?.sections)
+        ? latestResumeRef.current.content.sections.length
+        : 0,
+    });
+
+    pendingAiReviewRef.current = false;
+    setPendingAiReview(false);
+    onAiDraftResolved?.();
+
+    try {
+      if (activeId && typeof resumeService.deleteResume === "function") {
+        await Promise.resolve(resumeService.deleteResume(activeId)).catch(
+          () => undefined
+        );
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setResolvingAiDraft(false);
+      }
+      toast.success("AI draft discarded");
+      onBack();
+    }
+  };
+
   const handleSave = async () => {
     debouncedAutoSave.cancel();
     if (sessionExpiredRef.current) {
@@ -1300,15 +1417,44 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       handleReopenReauth();
       return;
     }
+    const wasPendingAi = pendingAiReviewRef.current;
     setLoading(true);
     try {
-      const result = await enqueueSave(latestResumeRef.current, "manual");
+      const targetPayload = wasPendingAi
+        ? buildConfirmedAiResume(latestResumeRef.current)
+        : latestResumeRef.current;
+      if (wasPendingAi) {
+        setResume(targetPayload);
+        latestResumeRef.current = targetPayload;
+        pendingAiReviewRef.current = false;
+        setPendingAiReview(false);
+        onAiDraftResolved?.();
+      }
+      const result = await enqueueSave(targetPayload, "manual");
       if (!result.ok) {
         throw result.error;
+      }
+      if (wasPendingAi) {
+        const activeId =
+          targetPayload._id ||
+          targetPayload.id ||
+          persistedIdRef.current ||
+          extractCreatedResumeId(result.data);
+        captureClientEvent("ai_rewrite_accepted", {
+          resume_id: activeId || null,
+          template_id: targetPayload.templateId || "modern",
+          section_count: Array.isArray(targetPayload.content?.sections)
+            ? targetPayload.content.sections.length
+            : 0,
+        });
       }
       toast.success("Resume saved successfully!");
       onSave?.(result.data);
     } catch (error) {
+      if (wasPendingAi) {
+        pendingAiReviewRef.current = true;
+        setPendingAiReview(true);
+      }
       if (!isUnauthorizedError(error) && !sessionExpiredRef.current) {
         toast.error("Failed to save resume");
       }
@@ -1343,6 +1489,32 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     setShowShareModal(true);
   };
 
+  const emitExportTelemetry = useCallback((format: "pdf" | "json") => {
+    const target = latestResumeRef.current;
+    const resumeId = target._id || target.id || persistedIdRef.current || null;
+    const templateId =
+      target.templateId || (target as unknown as { template?: string }).template || "modern";
+    const createdAtRaw = (target as unknown as { createdAt?: string }).createdAt;
+    const createdAtMs = createdAtRaw ? new Date(createdAtRaw).getTime() : NaN;
+    const baselineMs = Number.isFinite(createdAtMs)
+      ? createdAtMs
+      : editorOpenedAtRef.current;
+    const durationMs = Math.max(0, Date.now() - baselineMs);
+
+    captureClientEvent("resume_exported", {
+      resume_id: resumeId,
+      template_id: templateId,
+      format,
+    });
+    captureClientEvent("time_to_export", {
+      resume_id: resumeId,
+      template_id: templateId,
+      format,
+      duration_ms: durationMs,
+      duration_seconds: Math.round(durationMs / 1000),
+    });
+  }, []);
+
   const handleExport = useCallback(() => {
     if (isExportingRef.current || loading) {
       return;
@@ -1357,6 +1529,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         setActiveView("preview");
       }
     });
+
+    emitExportTelemetry("pdf");
 
     try {
       if (typeof window !== "undefined" && typeof window.print === "function") {
@@ -1374,17 +1548,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         }
       }, EXPORT_COOLDOWN_MS);
     }
-  }, [activeView, isDesktop, loading]);
+  }, [activeView, emitExportTelemetry, isDesktop, loading]);
 
   const handleExportJson = useCallback(() => {
     setShowOverflowMenu(false);
     try {
       downloadResumeAsJson(latestResumeRef.current);
+      emitExportTelemetry("json");
       toast.success("Resume exported as JSON");
     } catch {
       toast.error("Failed to export JSON Resume");
     }
-  }, []);
+  }, [emitExportTelemetry]);
 
   const handleExportTxt = useCallback(async () => {
     if (isExportingTxtRef.current || loading) {
@@ -2083,6 +2258,47 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             </div>
           </div>
         </div>
+        {pendingAiReview && (
+          <div
+            role="region"
+            aria-label="AI draft review"
+            data-testid="ai-draft-review-banner"
+            className="mt-2.5 rounded-lg border border-accent-200 bg-accent-50/90 px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5"
+          >
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-semibold text-accent-900">
+                Review AI-generated draft before saving
+              </p>
+              <p className="text-xs text-accent-800">
+                Verify employers, credentials, and metrics match your real background, then accept to save or discard this temporary draft.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                data-testid="discard-ai-draft-btn"
+                disabled={resolvingAiDraft}
+                onClick={() => {
+                  void handleDiscardAiDraft();
+                }}
+                className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-xs font-semibold text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-50 transition-colors"
+              >
+                Discard AI Draft
+              </button>
+              <button
+                type="button"
+                data-testid="accept-ai-draft-btn"
+                disabled={resolvingAiDraft}
+                onClick={() => {
+                  void handleAcceptAiDraft();
+                }}
+                className="px-3 py-1.5 rounded-lg border border-transparent bg-accent-600 text-xs font-semibold text-white hover:bg-accent-700 disabled:opacity-50 shadow-sm transition-colors"
+              >
+                Accept AI Draft
+              </button>
+            </div>
+          </div>
+        )}
     </div>
   );
 

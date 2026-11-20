@@ -14,6 +14,8 @@ import {
   ResumeWithMeta,
   resumeService,
 } from "../services/resume.service";
+import { applicationService } from "../services/application.service";
+import { IResumeAttributionItem } from "../types/application";
 import toast from "react-hot-toast";
 import ShareModal from "./ShareModal";
 import ImportResumeModal from "./ImportResumeModal";
@@ -73,6 +75,9 @@ export default function ResumeList({
   const [loading, setLoading] = useState(true);
   const [sharingResume, setSharingResume] = useState<ResumeWithMeta | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [attributionByResumeId, setAttributionByResumeId] = useState<
+    Record<string, IResumeAttributionItem>
+  >({});
   const onResumesLoadRef = useRef(onResumesLoad);
 
   const handleOpenImport = () => {
@@ -93,6 +98,27 @@ export default function ResumeList({
       const next = data || [];
       setResumes(next);
       onResumesLoadRef.current?.(next);
+
+      if (
+        next.length > 0 &&
+        typeof applicationService?.getAttributionSummary === "function"
+      ) {
+        Promise.resolve(applicationService.getAttributionSummary())
+          .then((summary) => {
+            if (summary && Array.isArray(summary.byResume)) {
+              const map: Record<string, IResumeAttributionItem> = {};
+              for (const entry of summary.byResume) {
+                if (entry?.resumeId) {
+                  map[entry.resumeId] = entry;
+                }
+              }
+              setAttributionByResumeId(map);
+            }
+          })
+          .catch(() => {
+            // Attribution summary is non-blocking so resume list always renders
+          });
+      }
     } catch (error) {
       toast.error("Failed to load resumes");
       setResumes([]);
@@ -336,6 +362,37 @@ export default function ResumeList({
                 <p className="mt-1 text-xs text-neutral-500">
                   {templateName} template · Last updated: {updatedLabel}
                 </p>
+                {(() => {
+                  const metrics = resumeId
+                    ? attributionByResumeId[resumeId]
+                    : undefined;
+                  const linkedCount = metrics?.totalApplications ?? 0;
+                  const submittedCount = metrics?.submittedCount ?? 0;
+                  const interviewRate = metrics?.interviewRate ?? 0;
+
+                  return (
+                    <div
+                      data-testid="resume-card-attribution"
+                      className="mt-3 flex flex-wrap items-center gap-2"
+                    >
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-neutral-100 text-neutral-700 ring-1 ring-inset ring-neutral-200/80">
+                        {linkedCount === 1
+                          ? "1 linked app"
+                          : `${linkedCount} linked apps`}
+                        {submittedCount > 0 ? ` · ${submittedCount} submitted` : ""}
+                      </span>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ring-1 ring-inset ${
+                          submittedCount > 0 && interviewRate > 0
+                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200/80"
+                            : "bg-primary-50/70 text-primary-700 ring-primary-200/70"
+                        }`}
+                      >
+                        {interviewRate}% interview rate
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-2 pt-3 border-t border-neutral-100">
