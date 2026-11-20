@@ -20,6 +20,7 @@ import {
   Description,
   ItemHeader,
   KeywordList,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -195,18 +196,7 @@ const DeveloperTemplateContent: React.FC = () => {
         lineHeight: 'var(--theme-line-height, 1.48)',
       }}
     >
-      <table role="presentation" className="w-full border-collapse">
-        <thead aria-hidden="true" className="hidden print:table-header-group">
-          <tr>
-            <td
-              className="p-0"
-              style={{ height: 'var(--theme-page-margin, 1.75cm)' }}
-            />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="p-0 align-top">
+      <PrintMarginTable fallbackMargin="1.75cm">
               <header
                 className="pb-4 border-b-2"
                 style={{
@@ -217,7 +207,7 @@ const DeveloperTemplateContent: React.FC = () => {
                       : undefined,
                 }}
               >
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="flex flex-row items-start justify-between gap-3">
                   <div className="min-w-0">
                     <InlineEdit
                       value={basics.name || ''}
@@ -267,7 +257,7 @@ const DeveloperTemplateContent: React.FC = () => {
                   {prominentLinks.length > 0 && (
                     <div
                       data-testid="developer-prominent-links"
-                      className="flex flex-wrap sm:justify-end gap-1.5 shrink-0"
+                      className="flex flex-wrap justify-end gap-1.5 shrink-0"
                     >
                       {prominentLinks.map((link) => (
                         <a
@@ -359,18 +349,7 @@ const DeveloperTemplateContent: React.FC = () => {
                   </div>
                 );
               })}
-            </td>
-          </tr>
-        </tbody>
-        <tfoot aria-hidden="true" className="hidden print:table-footer-group">
-          <tr>
-            <td
-              className="p-0"
-              style={{ height: 'var(--theme-page-margin, 1.75cm)' }}
-            />
-          </tr>
-        </tfoot>
-      </table>
+      </PrintMarginTable>
     </div>
   );
 };

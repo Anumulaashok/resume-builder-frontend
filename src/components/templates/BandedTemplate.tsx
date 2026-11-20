@@ -5,6 +5,7 @@ import { extractExtraBasicsLinks } from './templateHelpers';
 import {
   ContactRow,
   Description,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -46,7 +47,7 @@ const BandedTemplateContent: React.FC = () => {
   return (
     <div
       data-testid="banded-template"
-      className="bg-white min-h-[1123px] print:min-h-0"
+      className="bg-white min-h-[1123px] print:min-h-0 print:!pb-0"
       style={{
         fontFamily: 'var(--theme-body-font, inherit)',
         color: 'var(--theme-text-color, #334155)',
@@ -57,63 +58,65 @@ const BandedTemplateContent: React.FC = () => {
         printColorAdjust: 'exact',
       }}
     >
-      {showHeader && (
-        <header
-          className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b-2"
-          style={{
-            paddingLeft: 'var(--theme-page-margin, 1.75cm)',
-            paddingRight: 'var(--theme-page-margin, 1.75cm)',
-            paddingTop: 'var(--theme-page-margin, 1.75cm)',
-            paddingBottom: 'calc(var(--theme-section-spacing, 1.5rem) * 0.75)',
-            borderColor: 'var(--theme-accent, var(--theme-primary, #0f766e))',
-          }}
-        >
-          <div className="min-w-0">
-            <InlineEdit
-              value={basics.name || ''}
-              onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-              readOnly={readOnly}
-              textClassName="text-3xl font-bold tracking-tight leading-tight"
-              style={{
-                fontFamily: 'var(--theme-heading-font)',
-                color: 'var(--theme-heading-color, #0f172a)',
-              }}
-              placeholder="Your Name"
-            />
-            <InlineEdit
-              value={basics.label || ''}
-              onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-              readOnly={readOnly}
-              textClassName="text-base mt-1 block font-medium"
-              style={{
-                color: 'var(--theme-accent, var(--theme-primary, #0f766e))',
-              }}
-              placeholder="Professional Title"
-            />
-          </div>
-          <ContactRow variant="stacked-right" />
-        </header>
-      )}
-
-      <div
-        data-testid="banded-sections"
-        className="[&>section]:!mb-0 [&>section]:px-[var(--theme-page-margin,1.75cm)] [&>section]:py-[calc(var(--theme-section-spacing,1.5rem)*0.6)] [&>section]:border-b [&>section]:border-slate-200/70 [&>section:last-child]:border-b-0 [&>section:nth-child(odd)]:bg-slate-50/90 [&>section:nth-child(even)]:bg-white [&>section]:grid [&>section]:grid-cols-1 sm:[&>section]:grid-cols-[11rem_minmax(0,1fr)] print:[&>section]:grid-cols-[11rem_minmax(0,1fr)] [&>section]:gap-x-6 [&>section]:gap-y-2 [&>section]:items-start sm:[&>section>*:first-child]:col-start-1 print:[&>section>*:first-child]:col-start-1 sm:[&>section>*:first-child]:!mb-0 print:[&>section>*:first-child]:!mb-0 sm:[&>section>*:first-child]:pt-0.5 print:[&>section>*:first-child]:pt-0.5 [&>section>[data-heading-variant='side-label']>span:first-child]:shrink [&>section>[data-heading-variant='side-label']>span:first-child]:min-w-0 [&>section>[data-heading-variant='side-label']]:leading-snug sm:[&>section>*:not(:first-child)]:col-start-2 print:[&>section>*:not(:first-child)]:col-start-2 sm:[&>section>*:not(:first-child)]:min-w-0 print:[&>section>*:not(:first-child)]:min-w-0"
-      >
-        {showSummary && (
-          <section data-section-id="summary">
-            <SectionHeading title="Summary" />
-            <Description
-              value={summaryValue}
-              onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
-              readOnly={readOnly}
-              placeholder="A concise summary of your professional background..."
-              textClassName="text-[0.96em] text-slate-600 block whitespace-pre-wrap break-words"
-            />
-          </section>
+      <PrintMarginTable fallbackMargin="1.75cm">
+        {showHeader && (
+          <header
+            className="flex flex-row justify-between items-end gap-3 border-b-2 print:!pt-0"
+            style={{
+              paddingLeft: 'var(--theme-page-margin, 1.75cm)',
+              paddingRight: 'var(--theme-page-margin, 1.75cm)',
+              paddingTop: 'var(--theme-page-margin, 1.75cm)',
+              paddingBottom: 'calc(var(--theme-section-spacing, 1.5rem) * 0.75)',
+              borderColor: 'var(--theme-accent, var(--theme-primary, #0f766e))',
+            }}
+          >
+            <div className="min-w-0">
+              <InlineEdit
+                value={basics.name || ''}
+                onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+                readOnly={readOnly}
+                textClassName="text-3xl font-bold tracking-tight leading-tight"
+                style={{
+                  fontFamily: 'var(--theme-heading-font)',
+                  color: 'var(--theme-heading-color, #0f172a)',
+                }}
+                placeholder="Your Name"
+              />
+              <InlineEdit
+                value={basics.label || ''}
+                onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+                readOnly={readOnly}
+                textClassName="text-base mt-1 block font-medium"
+                style={{
+                  color: 'var(--theme-accent, var(--theme-primary, #0f766e))',
+                }}
+                placeholder="Professional Title"
+              />
+            </div>
+            <ContactRow variant="stacked-right" />
+          </header>
         )}
 
-        <SectionRenderer tone="modern" />
-      </div>
+        <div
+          data-testid="banded-sections"
+          className="[&>section]:!mb-0 [&>section]:px-[var(--theme-page-margin,1.75cm)] [&>section]:py-[calc(var(--theme-section-spacing,1.5rem)*0.6)] [&>section]:border-b [&>section]:border-slate-200/70 [&>section:last-child]:border-b-0 [&>section:nth-child(odd)]:bg-slate-50/90 [&>section:nth-child(even)]:bg-white [&>section]:grid [&>section]:grid-cols-[11rem_minmax(0,1fr)] [&>section]:gap-x-6 [&>section]:gap-y-2 [&>section]:items-start [&>section>*:first-child]:col-start-1 [&>section>*:first-child]:!mb-0 [&>section>*:first-child]:pt-0.5 [&>section>[data-heading-variant='side-label']>span:first-child]:shrink [&>section>[data-heading-variant='side-label']>span:first-child]:min-w-0 [&>section>[data-heading-variant='side-label']]:leading-snug [&>section>*:not(:first-child)]:col-start-2 [&>section>*:not(:first-child)]:min-w-0"
+        >
+          {showSummary && (
+            <section data-section-id="summary">
+              <SectionHeading title="Summary" />
+              <Description
+                value={summaryValue}
+                onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+                readOnly={readOnly}
+                placeholder="A concise summary of your professional background..."
+                textClassName="text-[0.96em] text-slate-600 block whitespace-pre-wrap break-words"
+              />
+            </section>
+          )}
+
+          <SectionRenderer tone="modern" />
+        </div>
+      </PrintMarginTable>
     </div>
   );
 };

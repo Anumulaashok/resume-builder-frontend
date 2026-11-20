@@ -104,7 +104,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           className={`grid min-w-0 ${
             narrow
               ? 'grid-cols-1 gap-y-1.5'
-              : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5'
+              : 'grid-cols-2 gap-x-6 gap-y-1.5'
           }`}
         >
           {enabledItems.map((item: any, idx: number) => {

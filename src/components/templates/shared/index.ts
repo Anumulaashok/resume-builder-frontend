@@ -42,3 +42,6 @@ export type { ContactRowProps } from './ContactRow';
 
 export { SectionRenderer } from './SectionRenderer';
 export type { SectionRendererProps } from './SectionRenderer';
+
+export { PrintMarginTable } from './PrintMarginTable';
+export type { PrintMarginTableProps } from './PrintMarginTable';
