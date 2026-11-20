@@ -10,6 +10,10 @@ import {
 import axiosInstance from "../services/axios";
 import { JobMatchResult } from "../types/jobMatch";
 import {
+  BulletRewriteRequest,
+  BulletRewriteResponse,
+} from "../types/careerProfile";
+import {
   buildFallbackExportFilename,
   parseContentDispositionFilename,
 } from "../utils/download";
@@ -75,7 +79,8 @@ function unwrapResumeResponse(
 class ResumeService {
   async generateFromPrompt(
     prompt: string,
-    basics: { name: string; email: string }
+    basics: { name: string; email: string },
+    options?: { targetRole?: string; jobDescription?: string }
   ): Promise<ResumeWithMeta> {
     const createResponse = await axiosInstance.post<AIGenerateResponse>(
       "/api/resumes",
@@ -98,12 +103,18 @@ class ResumeService {
       throw new Error("Failed to retrieve ID for AI draft resume");
     }
 
+    const generatePayload: Record<string, string> = { prompt };
+    if (options?.targetRole?.trim()) {
+      generatePayload.targetRole = options.targetRole.trim();
+    }
+    if (options?.jobDescription?.trim()) {
+      generatePayload.jobDescription = options.jobDescription.trim();
+    }
+
     try {
       const response = await axiosInstance.post<AIGenerateResponse>(
         `/api/resumes/${resumeId}/generate`,
-        {
-          prompt,
-        }
+        generatePayload
       );
       const generatedResume = response.data?.data;
       if (!generatedResume) {
@@ -154,6 +165,20 @@ class ResumeService {
       `/api/resumes/${id}/job-match`,
       { jobDescription, jobTitle: jobTitle || undefined }
     );
+    return response.data.data;
+  }
+
+  async rewriteBullet(
+    payload: BulletRewriteRequest,
+    resumeId?: string
+  ): Promise<BulletRewriteResponse> {
+    const endpoint = resumeId
+      ? `/api/resumes/${encodeURIComponent(resumeId)}/bullets/rewrite`
+      : "/api/resumes/bullets/rewrite";
+    const response = await axiosInstance.post<{
+      success: boolean;
+      data: BulletRewriteResponse;
+    }>(endpoint, payload);
     return response.data.data;
   }
 

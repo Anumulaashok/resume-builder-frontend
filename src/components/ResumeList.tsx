@@ -8,6 +8,7 @@ import {
   SparklesIcon,
   ShareIcon,
   ArrowUpTrayIcon,
+  IdentificationIcon,
 } from "@heroicons/react/24/outline";
 import {
   Resume,
@@ -24,6 +25,7 @@ interface ResumeListProps {
   onNewResume?: () => void;
   onImportResume?: () => void;
   onAIGenerate?: () => void;
+  onOpenCareerProfile?: () => void;
   onResumesLoad?: (resumes: ResumeWithMeta[]) => void;
 }
 
@@ -67,6 +69,7 @@ export default function ResumeList({
   onNewResume,
   onImportResume,
   onAIGenerate,
+  onOpenCareerProfile,
   onResumesLoad,
 }: ResumeListProps) {
   const [resumes, setResumes] = useState<ResumeWithMeta[]>([]);
@@ -248,6 +251,17 @@ export default function ResumeList({
               <SparklesIcon className="h-4 w-4 mr-2" aria-hidden="true" />
               AI Generate
             </button>
+            {onOpenCareerProfile && (
+              <button
+                type="button"
+                data-testid="empty-state-career-profile-btn"
+                onClick={onOpenCareerProfile}
+                className="inline-flex items-center justify-center h-10 px-4 border border-primary-200 rounded-control shadow-sm text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors focus-ring"
+              >
+                <IdentificationIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+                Career Profile
+              </button>
+            )}
           </div>
         </div>
         {!onImportResume && showImportModal && (
@@ -296,9 +310,16 @@ export default function ResumeList({
               className="bg-gradient-to-br from-primary-50/80 via-neutral-50 to-accent-50/70 border-b border-neutral-200/80 px-4 pt-3.5 pb-0"
             >
               <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/95 text-primary-700 ring-1 ring-inset ring-primary-200/80 shadow-sm">
-                  {templateName}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/95 text-primary-700 ring-1 ring-inset ring-primary-200/80 shadow-sm">
+                    {templateName}
+                  </span>
+                  {resume.provenance?.seededFromCareerProfile && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/80">
+                      Grounded
+                    </span>
+                  )}
+                </div>
                 <span className="text-xs text-neutral-500 truncate">
                   Updated {updatedLabel}
                 </span>

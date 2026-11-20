@@ -59,6 +59,20 @@ export interface ResumeProfile {
   url?: string;
 }
 
+export interface ResumeProvenanceClaim {
+  targetPath: string;
+  text: string;
+  source_fact_ids: string[];
+  userEnteredMetric?: string;
+}
+
+export interface ResumeProvenance {
+  seededFromCareerProfile?: boolean;
+  careerProfileUpdatedAt?: string | null;
+  targetRole?: string;
+  claims?: ResumeProvenanceClaim[];
+}
+
 export interface IResume {
   _id?: string;
   id?: string;
@@ -67,6 +81,7 @@ export interface IResume {
   templateId?: string;
   themeConfig?: ThemeConfig;
   sharing?: ISharing;
+  provenance?: ResumeProvenance;
   content: {
     basics: {
       name?: string;
@@ -115,6 +130,7 @@ export interface IResumeHistorySnapshot {
 export interface BaseSection {
   id: string;
   enabled?: boolean;
+  source_fact_ids?: string[];
 }
 
 export interface dateFields {

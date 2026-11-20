@@ -1,5 +1,37 @@
 import { defaultResume } from "../constants/editorConstants";
-import { IResume } from "../types/resume";
+import { IResume, ISection, SectionType } from "../types/resume";
+
+const SECTION_TYPE_ALIAS_MAP: Record<string, SectionType> = {
+  work: SectionType.WORK,
+  experience: SectionType.WORK,
+  workitem: SectionType.WORK,
+  education: SectionType.EDUCATION,
+  educationitem: SectionType.EDUCATION,
+  skills: SectionType.SKILLS,
+  skill: SectionType.SKILLS,
+  skillitem: SectionType.SKILLS,
+  projects: SectionType.PROJECTS,
+  project: SectionType.PROJECTS,
+  projectitem: SectionType.PROJECTS,
+  certificates: SectionType.CERTIFICATES,
+  certifications: SectionType.CERTIFICATES,
+  certificateitem: SectionType.CERTIFICATES,
+  awards: SectionType.AWARDS,
+  awarditem: SectionType.AWARDS,
+  achievements: SectionType.ACHIVEMENTS,
+  achievementitem: SectionType.ACHIVEMENTS,
+  languages: SectionType.LANGUAGES,
+  languageitem: SectionType.LANGUAGES,
+};
+
+function normalizeSectionType(section: ISection): ISection {
+  const rawType = String(section?.type || "").trim();
+  const mapped = SECTION_TYPE_ALIAS_MAP[rawType.toLowerCase()];
+  if (mapped && mapped !== section.type) {
+    return { ...section, type: mapped };
+  }
+  return section;
+}
 
 const omittedSummaryResumes = new WeakSet<object>();
 
@@ -30,7 +62,7 @@ export function normalizeResume(input?: IResume): IResume {
       : rawBasicsSummary ?? rawTopSummary ?? "";
 
   const sections = Array.isArray(source.content?.sections)
-    ? source.content.sections
+    ? source.content.sections.map(normalizeSectionType)
     : [];
   const rawOrder = Array.isArray(source.content?.sectionOrder)
     ? source.content.sectionOrder

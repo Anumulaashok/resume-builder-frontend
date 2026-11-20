@@ -5,6 +5,7 @@ import {
   CheckCircleIcon,
   ClipboardDocumentListIcon,
   DocumentArrowUpIcon,
+  DocumentTextIcon,
   ExclamationCircleIcon,
   PlusIcon,
   TrashIcon,
@@ -13,6 +14,12 @@ import {
 import toast from 'react-hot-toast';
 import { IResume, ISection, SectionType } from '../types/resume';
 import { ResumeWithMeta, resumeService } from '../services/resume.service';
+import { careerProfileService } from '../services/careerProfile.service';
+import {
+  ExtractedResumeStagingResponse,
+  ICareerProfile,
+} from '../types/careerProfile';
+import ImportStagingReview from './careerProfile/ImportStagingReview';
 import { getStoredUser } from '../utils/token';
 import {
   hasRecognizedJsonResumeFields,
@@ -27,13 +34,14 @@ export interface ImportResumeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImported: (createdResume: ResumeWithMeta) => void;
+  initialMode?: 'json' | 'text' | 'file';
   user?: {
     name?: string;
     email?: string;
   } | null;
 }
 
-type ImportMode = 'json' | 'text';
+type ImportMode = 'json' | 'text' | 'file';
 type TextStep = 'paste' | 'review';
 
 const FOCUSABLE_SELECTOR =
@@ -232,9 +240,10 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   isOpen,
   onClose,
   onImported,
+  initialMode = 'json',
   user,
 }) => {
-  const [mode, setMode] = useState<ImportMode>('json');
+  const [mode, setMode] = useState<ImportMode>(initialMode);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -242,6 +251,10 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   const [selectedFileName, setSelectedFileName] = useState<string>('');
   const [jsonMappedResume, setJsonMappedResume] = useState<IResume | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // PDF / DOCX / TXT Staging state
+  const [extractingDocFile, setExtractingDocFile] = useState<boolean>(false);
+  const [docStaging, setDocStaging] = useState<ExtractedResumeStagingResponse | null>(null);
 
   // Paste Text state
   const [rawText, setRawText] = useState<string>('');
@@ -252,6 +265,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
   const onCloseRef = useRef(onClose);
   const submittingRef = useRef(submitting);
 
@@ -271,11 +285,14 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
       setSelectedFileName('');
       setJsonMappedResume(null);
       setIsDragOver(false);
+      setExtractingDocFile(false);
+      setDocStaging(null);
       setRawText('');
       setTextStep('paste');
       setReviewResume(null);
       return;
     }
+    setMode(initialMode);
 
     const previousActive = document.activeElement as HTMLElement | null;
     closeButtonRef.current?.focus();
@@ -323,9 +340,84 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
         previousActive.focus();
       }
     };
-  }, [isOpen]);
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
+
+  const handleSelectDocFile = async (file: File | null | undefined) => {
+    if (!file) return;
+    setErrorMessage(null);
+    const lowerName = file.name.toLowerCase();
+    if (
+      !lowerName.endsWith('.pdf') &&
+      !lowerName.endsWith('.docx') &&
+      !lowerName.endsWith('.txt')
+    ) {
+      setErrorMessage(
+        'Unsupported file format. Only PDF (.pdf), Word (.docx), and plain text (.txt) files up to 5 MB are accepted.'
+      );
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage(
+        'Resume file exceeds the 5 MB limit. Please upload a PDF, DOCX, or TXT file up to 5 MB.'
+      );
+      return;
+    }
+
+    setExtractingDocFile(true);
+    try {
+      const staged = await careerProfileService.extractImportFile(file);
+      setDocStaging(staged);
+    } catch (err: unknown) {
+      const maybeAxios = err as {
+        response?: { data?: { message?: string; error?: string } };
+        message?: string;
+      };
+      setDocStaging(null);
+      setErrorMessage(
+        maybeAxios?.response?.data?.message ||
+          maybeAxios?.response?.data?.error ||
+          (err instanceof Error ? err.message : 'Failed to extract resume file.')
+      );
+    } finally {
+      setExtractingDocFile(false);
+      if (docFileInputRef.current) {
+        docFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleApproveDocStaging = async (
+    approvedProfile: Partial<ICareerProfile>,
+    approveMode: 'merge' | 'replace',
+    createResumeAfter?: boolean
+  ) => {
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await careerProfileService.approveImport(approvedProfile, approveMode);
+      toast.success('Approved facts saved to Career Profile');
+      if (createResumeAfter) {
+        const seeded = await careerProfileService.seedResume();
+        onImported(seeded);
+      } else {
+        setDocStaging(null);
+        onClose();
+      }
+    } catch (err: unknown) {
+      const maybeAxios = err as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      setErrorMessage(
+        maybeAxios?.response?.data?.message ||
+          (err instanceof Error ? err.message : 'Failed to save approved Career Profile.')
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleSelectFile = async (file: File | null | undefined) => {
     if (!file) return;
@@ -1108,7 +1200,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                 id="import-resume-modal-desc"
                 className="text-xs text-neutral-500 truncate"
               >
-                Upload a JSON Resume v1 file or paste text from LinkedIn or an existing CV
+                Upload a JSON Resume, import a PDF/DOCX/TXT into your Career Profile, or paste text
               </p>
             </div>
           </div>
@@ -1130,7 +1222,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
           <div
             role="tablist"
             aria-label="Import source options"
-            className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+            className="grid grid-cols-1 sm:grid-cols-3 gap-2.5"
           >
             <button
               type="button"
@@ -1192,6 +1284,38 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                 </p>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   Parse LinkedIn profile text or an old resume with review
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              id="import-tab-file"
+              aria-selected={mode === 'file'}
+              aria-controls="import-panel-file"
+              onClick={() => {
+                setMode('file');
+                setErrorMessage(null);
+              }}
+              className={`flex items-start gap-3 p-3 rounded-card border text-left transition-all focus-ring ${
+                mode === 'file'
+                  ? 'border-primary-600 bg-white ring-1 ring-primary-600 shadow-sm'
+                  : 'border-neutral-200 bg-white/70 hover:border-neutral-300 hover:bg-white'
+              }`}
+            >
+              <DocumentTextIcon
+                className={`h-5 w-5 mt-0.5 shrink-0 ${
+                  mode === 'file' ? 'text-primary-600' : 'text-neutral-400'
+                }`}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-neutral-900">
+                  Upload PDF / DOCX / TXT
+                </p>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Stage &amp; approve facts into your Career Profile (max 5 MB)
                 </p>
               </div>
             </button>
@@ -1680,9 +1804,66 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
               )}
             </div>
           )}
+
+          {/* Option C: Upload PDF / DOCX / TXT into Staged Career Profile */}
+          {mode === 'file' && (
+            <div
+              id="import-panel-file"
+              role="tabpanel"
+              aria-labelledby="import-tab-file"
+              className="space-y-4"
+            >
+              {!docStaging ? (
+                <div className="rounded-panel border-2 border-dashed border-neutral-300 bg-neutral-50/60 hover:border-primary-400 px-6 py-8 text-center transition-colors">
+                  <DocumentTextIcon
+                    className="h-10 w-10 text-primary-600 mx-auto mb-3"
+                    aria-hidden="true"
+                  />
+                  <p className="text-sm font-semibold text-neutral-900">
+                    Upload a PDF, DOCX, or TXT resume (up to 5 MB)
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto">
+                    Parsed strictly in memory. Every extracted role, skill, project, and degree is staged for your review before saving to your Career Profile.
+                  </p>
+                  <div className="mt-4">
+                    <input
+                      ref={docFileInputRef}
+                      id="doc-resume-file-input"
+                      data-testid="doc-resume-file-input"
+                      type="file"
+                      accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      onChange={(e) => {
+                        const chosen = e.target.files?.[0];
+                        void handleSelectDocFile(chosen);
+                      }}
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor="doc-resume-file-input"
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-control bg-white border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50 shadow-sm cursor-pointer transition-colors"
+                    >
+                      {extractingDocFile ? 'Extracting…' : 'Choose PDF / DOCX / TXT File'}
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <ImportStagingReview
+                  staging={docStaging}
+                  submitting={submitting}
+                  allowCreateResumeOption
+                  onApprove={handleApproveDocStaging}
+                  onCancel={() => {
+                    setDocStaging(null);
+                    setErrorMessage(null);
+                  }}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}
+        {!(mode === 'file' && docStaging) && (
         <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 px-5 sm:px-6 py-4 border-t border-neutral-200 bg-neutral-50 shrink-0">
           <button
             type="button"
@@ -1729,6 +1910,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
             </button>
           )}
         </div>
+        )}
       </div>
     </div>
   );

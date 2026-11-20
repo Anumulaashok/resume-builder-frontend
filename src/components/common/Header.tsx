@@ -5,12 +5,19 @@ import {
   DocumentTextIcon,
   EnvelopeIcon,
   GlobeAltIcon,
+  IdentificationIcon,
   SparklesIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { Container } from '../ui/container';
 
-export type AppTab = 'resumes' | 'cover-letters' | 'job-match' | 'job-tracker' | 'portfolios';
+export type AppTab =
+  | 'resumes'
+  | 'career-profile'
+  | 'cover-letters'
+  | 'job-match'
+  | 'job-tracker'
+  | 'portfolios';
 
 export const SM_MEDIA_QUERY = '(min-width: 640px)';
 
@@ -62,6 +69,7 @@ const NAV_TABS: ReadonlyArray<{
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }> = [
   { id: 'resumes', label: 'Resumes', Icon: DocumentTextIcon },
+  { id: 'career-profile', label: 'Career Profile', Icon: IdentificationIcon },
   { id: 'cover-letters', label: 'Cover Letters', Icon: EnvelopeIcon },
   { id: 'job-match', label: 'Job Match', Icon: SparklesIcon },
   { id: 'job-tracker', label: 'Job Tracker', Icon: BriefcaseIcon },

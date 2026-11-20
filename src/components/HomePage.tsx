@@ -1,9 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { ArrowUpTrayIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowUpTrayIcon,
+  IdentificationIcon,
+  PlusIcon,
+  SparklesIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
 import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
+import CareerProfileWorkspace from './careerProfile/CareerProfileWorkspace';
 import CoverLettersWorkspace from './coverLetters/CoverLettersWorkspace';
 import ImportResumeModal from './ImportResumeModal';
 import JobMatch from './jobMatch/JobMatch';
@@ -41,7 +48,11 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const tabParam = urlParams?.get('tab');
   const initialTab: AppTab =
-    tabParam === 'cover-letters' || tabParam === 'portfolios' || tabParam === 'job-match' || tabParam === 'job-tracker'
+    tabParam === 'career-profile' ||
+    tabParam === 'cover-letters' ||
+    tabParam === 'portfolios' ||
+    tabParam === 'job-match' ||
+    tabParam === 'job-tracker'
       ? tabParam
       : 'resumes';
   const initialView = urlParams?.get('view') === 'editor' ? 'editor' : 'list';
@@ -57,8 +68,11 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
 
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [aiTargetRole, setAiTargetRole] = useState('');
+  const [aiJobDescription, setAiJobDescription] = useState('');
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importModalInitialMode, setImportModalInitialMode] = useState<'json' | 'text' | 'file'>('json');
   const [resumeCount, setResumeCount] = useState<number | null>(null);
 
   const handleResumesLoad = useCallback((resumes: Resume[]) => {
@@ -77,16 +91,35 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
     }
     setLoading(true);
     try {
-      const resume = await resumeService.generateFromPrompt(prompt, {
-        name: user?.name?.trim() || 'Your Name',
-        email: user?.email?.trim() || 'you@example.com',
-      });
+      const hasOptions = Boolean(aiTargetRole.trim() || aiJobDescription.trim());
+      const resume = hasOptions
+        ? await resumeService.generateFromPrompt(
+            prompt,
+            {
+              name: user?.name?.trim() || 'Your Name',
+              email: user?.email?.trim() || 'you@example.com',
+            },
+            {
+              targetRole: aiTargetRole.trim() || undefined,
+              jobDescription: aiJobDescription.trim() || undefined,
+            }
+          )
+        : await resumeService.generateFromPrompt(prompt, {
+            name: user?.name?.trim() || 'Your Name',
+            email: user?.email?.trim() || 'you@example.com',
+          });
       toast.success('Resume generated successfully!');
       setShowPromptModal(false);
+      setAiTargetRole('');
+      setAiJobDescription('');
       setSelectedResume(resume);
       setActiveView('editor');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to generate resume');
+      const maybeAxios = error as { response?: { data?: { message?: string } } };
+      toast.error(
+        maybeAxios?.response?.data?.message ||
+          (error instanceof Error ? error.message : 'Failed to generate resume')
+      );
     } finally {
       setLoading(false);
     }
@@ -162,11 +195,23 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
                     <button
                       type="button"
                       data-testid="import-resume-btn"
-                      onClick={() => setShowImportModal(true)}
+                      onClick={() => {
+                        setImportModalInitialMode('json');
+                        setShowImportModal(true);
+                      }}
                       className="inline-flex items-center justify-center h-10 px-4 border border-neutral-300 rounded-control shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 hover:text-neutral-900 transition-colors focus-ring"
                     >
                       <ArrowUpTrayIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       Import
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="open-career-profile-cta"
+                      onClick={() => setActiveTab('career-profile')}
+                      className="inline-flex items-center justify-center h-10 px-4 border border-primary-200 rounded-control shadow-sm text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors focus-ring"
+                    >
+                      <IdentificationIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+                      Career Profile
                     </button>
                     <button
                       type="button"
@@ -183,8 +228,12 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
               <ResumeList
                 onEditResume={handleEditResume}
                 onNewResume={handleNewResume}
-                onImportResume={() => setShowImportModal(true)}
+                onImportResume={() => {
+                  setImportModalInitialMode('json');
+                  setShowImportModal(true);
+                }}
                 onAIGenerate={() => setShowPromptModal(true)}
+                onOpenCareerProfile={() => setActiveTab('career-profile')}
                 onResumesLoad={handleResumesLoad}
               />
             </Container>
@@ -201,6 +250,22 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
             />
           )}
         </>
+      )}
+
+      {activeTab === 'career-profile' && (
+        <CareerProfileWorkspace
+          user={user}
+          onOpenResume={(createdResume) => {
+            setSelectedResume(createdResume);
+            setActiveTab('resumes');
+            setActiveView('editor');
+          }}
+          onOpenPortfolio={(createdPortfolio) => {
+            setSelectedPortfolio(createdPortfolio);
+            setActiveTab('portfolios');
+            setPortfolioView('editor');
+          }}
+        />
       )}
 
       {activeTab === 'cover-letters' && (
@@ -286,11 +351,49 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
                   </label>
                   <textarea
                     id="prompt"
-                    className="w-full h-40 p-3.5 border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm sm:text-base"
+                    className="w-full h-36 p-3.5 border border-neutral-300 rounded-control text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm sm:text-base"
                     placeholder="Describe your experience, skills, and the type of resume you want..."
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                   />
+                  <p className="mt-1.5 text-xs text-neutral-500">
+                    When you have a saved Career Profile, AI generation is strictly grounded in your verified profile facts and will never invent roles or metrics.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label
+                      htmlFor="ai-target-role"
+                      className="block text-xs font-medium text-neutral-700 mb-1"
+                    >
+                      Target Role (optional)
+                    </label>
+                    <input
+                      id="ai-target-role"
+                      type="text"
+                      value={aiTargetRole}
+                      onChange={(e) => setAiTargetRole(e.target.value)}
+                      placeholder="e.g. Senior Backend Engineer"
+                      className="w-full h-9 px-3 border border-neutral-300 rounded-control text-sm text-neutral-900 placeholder-neutral-400"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="ai-job-description"
+                      className="block text-xs font-medium text-neutral-700 mb-1"
+                    >
+                      Target Job Description (optional)
+                    </label>
+                    <textarea
+                      id="ai-job-description"
+                      rows={2}
+                      value={aiJobDescription}
+                      onChange={(e) => setAiJobDescription(e.target.value)}
+                      placeholder="Paste target job requirements for grounded tailoring..."
+                      className="w-full p-2.5 border border-neutral-300 rounded-control text-xs text-neutral-900 placeholder-neutral-400"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
@@ -319,6 +422,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
       {/* Import Resume Modal */}
       <ImportResumeModal
         isOpen={showImportModal}
+        initialMode={importModalInitialMode}
         onClose={() => setShowImportModal(false)}
         user={user}
         onImported={(createdResume) => {

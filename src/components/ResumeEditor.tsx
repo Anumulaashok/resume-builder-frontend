@@ -32,6 +32,8 @@ import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
   CodeBracketIcon,
+  SparklesIcon,
+  CheckBadgeIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -72,6 +74,7 @@ import SectionEditors, { DialogBox } from "./sections";
 import ShareModal from "./ShareModal";
 import ReauthModal from "./ReauthModal";
 import VersionHistoryDrawer from "./VersionHistoryDrawer";
+import BulletAssistantDrawer from "./editor/BulletAssistantDrawer";
 import { formatResumeDate } from "../utils/date";
 import { triggerFileDownload } from "../utils/download";
 import {
@@ -496,6 +499,7 @@ interface SortableItemProps {
   onRemove: (sectionId: string, itemId: string) => void;
   onEdit: (type: SectionType, item: any, sectionId: string) => void;
   onHide: (sectionId: string, itemId: string) => void;
+  onRefineItemBullets?: (itemId: string) => void;
 }
 
 const SortableItem: React.FC<SortableItemProps> = ({
@@ -506,6 +510,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
   onRemove,
   onEdit,
   onHide,
+  onRefineItemBullets,
 }) => {
   const {
     attributes,
@@ -620,6 +625,20 @@ const SortableItem: React.FC<SortableItemProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {(section.type === SectionType.WORK ||
+                      section.type === SectionType.PROJECTS) &&
+                      onRefineItemBullets && (
+                        <button
+                          type="button"
+                          data-testid={`refine-bullets-${item.id}`}
+                          onClick={() => onRefineItemBullets(String(item.id))}
+                          title={`Refine bullets for ${primary}`}
+                          aria-label={`Refine bullets for ${primary}`}
+                          className="p-1.5 rounded-md text-accent-600 hover:text-accent-800 hover:bg-accent-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <SparklesIcon className="h-4 w-4" />
+                        </button>
+                      )}
                     <button
                       type="button"
                       onClick={() => onHide(section.id, item.id)}
@@ -698,6 +717,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
   const [showShareModal, setShowShareModal] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showBulletAssistant, setShowBulletAssistant] = useState(false);
+  const [assistantFocusItemId, setAssistantFocusItemId] = useState<string | null>(null);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
@@ -1894,6 +1915,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   <PencilSquareIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-600 shrink-0 transition-colors" />
                 </button>
               )}
+              {resume.provenance?.seededFromCareerProfile && (
+                <span
+                  data-testid="resume-grounded-badge"
+                  title="Standalone resume seeded from Career Profile — edits here never modify your master Career Profile"
+                  className="hidden md:inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 align-middle"
+                >
+                  <CheckBadgeIcon className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Grounded in Career Profile</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -1971,6 +2002,21 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <ArrowUturnRightIcon className="h-4 w-4" />
               </button>
             </div>
+
+            <button
+              type="button"
+              data-testid="toggle-bullet-assistant-btn"
+              aria-expanded={showBulletAssistant}
+              onClick={() => setShowBulletAssistant((prev) => !prev)}
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                showBulletAssistant
+                  ? "border-accent-300 bg-accent-50 text-accent-800"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-neutral-50"
+              }`}
+            >
+              <SparklesIcon className="h-4 w-4 text-accent-600" />
+              <span>AI Assistant</span>
+            </button>
 
             <button
               type="button"
@@ -2236,6 +2282,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   }}
                   onHide={handleToggleItemVisibility}
                   onRemove={handleRemoveItem}
+                  onRefineItemBullets={(itemId) => {
+                    setAssistantFocusItemId(itemId);
+                    setShowBulletAssistant(true);
+                  }}
                 />
               ))}
             </div>
@@ -2321,7 +2371,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 print:!block print:!h-auto print:!min-h-0">
+      <div className="flex-1 min-h-0 flex overflow-hidden print:!block print:!h-auto print:!min-h-0">
+        <div className="flex-1 min-w-0 h-full print:!block print:!h-auto">
         {isDesktop ? (
           <PanelGroup direction="horizontal" className="h-full print:!block print:!h-auto print:!overflow-visible">
             <Panel defaultSize={55} minSize={38} className="h-full print:!hidden">
@@ -2367,6 +2418,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               isExportingTxt={isExportingTxt}
             />
           </div>
+        )}
+        </div>
+
+        {showBulletAssistant && (
+          <BulletAssistantDrawer
+            isOpen={showBulletAssistant}
+            onClose={() => setShowBulletAssistant(false)}
+            resume={resume}
+            resumeId={effectiveResumeId}
+            focusItemId={assistantFocusItemId}
+            onApplyResumeUpdate={(updated) => setResume(updated)}
+          />
         )}
       </div>
 
