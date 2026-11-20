@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { EducationItem, SectionType } from "../types/resume";
+import { EducationItem, IResume, SectionType } from "../types/resume";
 import { formatResumeDate } from "../utils/date";
 import EducationForm from "./Education-form";
+import InlineBulletCoach from "./common/InlineBulletCoach";
 
 export interface ContntProps {
   type: SectionType;
@@ -14,6 +15,8 @@ interface SectionEditorProps {
   content: ContntProps;
   onClose: () => void;
   onSave: (type: SectionType, item: any) => void;
+  resumeId?: string;
+  resumeContext?: Partial<IResume> | null;
 }
 
 interface FieldDescriptor {
@@ -454,8 +457,18 @@ const GenericSectionItemForm: React.FC<{
   initialItem: any;
   onSave: (item: any) => void;
   onCancel: () => void;
-}> = ({ type, initialItem, onSave, onCancel }) => {
+  resumeId?: string;
+  resumeContext?: Partial<IResume> | null;
+}> = ({
+  type,
+  initialItem,
+  onSave,
+  onCancel,
+  resumeId,
+  resumeContext,
+}) => {
   const meta = SECTION_META[type] || SECTION_META[SectionType.CUSTOM];
+  const [focusedFieldKey, setFocusedFieldKey] = useState<string | null>(null);
 
   const [formState, setFormState] = useState<Record<string, any>>(() => {
     const base = { ...(initialItem || { id: Date.now().toString() }) };
@@ -545,8 +558,42 @@ const GenericSectionItemForm: React.FC<{
                 rows={4}
                 value={formState[field.key] ?? ""}
                 placeholder={field.placeholder}
+                onFocus={() => setFocusedFieldKey(field.key)}
+                onBlur={() =>
+                  setFocusedFieldKey((prev) => (prev === field.key ? null : prev))
+                }
                 onChange={(e) => updateField(field, e.target.value)}
                 className="w-full px-3 py-2 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <InlineBulletCoach
+                idPrefix={`section-${field.key}-coach`}
+                value={String(formState[field.key] ?? "")}
+                isFocused={focusedFieldKey === field.key}
+                resumeId={resumeId}
+                resumeContext={resumeContext}
+                sectionType={type}
+                fieldKey={field.key}
+                itemContext={formState}
+                existingSourceFactIds={
+                  Array.isArray(formState.source_fact_ids)
+                    ? formState.source_fact_ids
+                    : undefined
+                }
+                onChange={(nextValue, sourceFactIds) => {
+                  setFormState((prev) => {
+                    const next: Record<string, any> = {
+                      ...prev,
+                      [field.key]: nextValue,
+                    };
+                    if (field.syncKey) {
+                      next[field.syncKey] = nextValue;
+                    }
+                    if (sourceFactIds) {
+                      next.source_fact_ids = sourceFactIds;
+                    }
+                    return next;
+                  });
+                }}
               />
             </div>
           );
@@ -601,6 +648,8 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
   content,
   onClose,
   onSave,
+  resumeId,
+  resumeContext,
 }) => {
   if (!content) {
     return null;
@@ -611,6 +660,8 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
       <DialogBox title="Education" onClose={onClose} hideFooter>
         <EducationForm
           initialContent={content.item as EducationItem}
+          resumeId={resumeId}
+          resumeContext={resumeContext}
           onSave={(newContent) => {
             onSave(content.type, newContent);
           }}
@@ -636,6 +687,8 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
       <GenericSectionItemForm
         type={content.type}
         initialItem={content.item}
+        resumeId={resumeId}
+        resumeContext={resumeContext}
         onSave={(updatedItem) => onSave(content.type, updatedItem)}
         onCancel={onClose}
       />

@@ -80,18 +80,24 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
     itemId: string,
     patch: Record<string, any>
   ) => {
-    if (effectiveReadOnly || !onChange) return;
+    const safeSectionId = typeof sectionId === 'string' ? sectionId.trim() : '';
+    const safeItemId = typeof itemId === 'string' ? itemId.trim() : '';
+    if (effectiveReadOnly || !onChange || !safeSectionId || !safeItemId) return;
     onChange({
       ...resume,
       content: {
         ...resume.content,
         sections: (resume.content?.sections || []).map((sec) =>
-          sec.id === sectionId
+          sec.id === safeSectionId
             ? {
                 ...sec,
                 content: Array.isArray(sec.content)
                   ? sec.content.map((item) =>
-                      item && item.id === itemId ? { ...item, ...patch } : item
+                      item &&
+                      typeof item.id === 'string' &&
+                      item.id.trim() === safeItemId
+                        ? { ...item, ...patch }
+                        : item
                     )
                   : sec.content,
               }

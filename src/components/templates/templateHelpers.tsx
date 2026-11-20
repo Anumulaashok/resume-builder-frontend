@@ -450,6 +450,7 @@ const STANDARD_CUSTOM_ITEM_KEYS = new Set([
   'id',
   '_id',
   'enabled',
+  'source_fact_ids',
   'title',
   'name',
   'subtitle',

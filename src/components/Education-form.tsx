@@ -11,12 +11,36 @@ import {
   SelectValue,
 } from "./ui/select";
 import { LinkIcon } from "@heroicons/react/24/outline";
-import { dateFields, EducationItem } from "../types/resume";
+import { dateFields, EducationItem, IResume, SectionType } from "../types/resume";
+import InlineBulletCoach from "./common/InlineBulletCoach";
 
 const EMPTY_DATE: dateFields = { month: "", year: "" };
 
-const normalizeDateFields = (date?: Partial<dateFields> | null): dateFields => {
-  if (!date || typeof date !== "object") {
+const normalizeDateFields = (
+  date?: Partial<dateFields> | string | null
+): dateFields => {
+  if (!date) {
+    return { ...EMPTY_DATE };
+  }
+  if (typeof date === "string") {
+    const trimmed = date.trim();
+    if (!trimmed || /^present|current|now$/i.test(trimmed)) {
+      return { ...EMPTY_DATE };
+    }
+    const yearOnly = trimmed.match(/^(\d{4})$/);
+    if (yearOnly) {
+      return { month: "", year: yearOnly[1] };
+    }
+    const namedMonth = trimmed.match(/^([A-Za-z]{3,9})\.?\s+(\d{4})$/);
+    if (namedMonth) {
+      const short =
+        namedMonth[1].charAt(0).toUpperCase() +
+        namedMonth[1].slice(1, 3).toLowerCase();
+      return { month: short, year: namedMonth[2] };
+    }
+    return { month: "", year: trimmed };
+  }
+  if (typeof date !== "object") {
     return { ...EMPTY_DATE };
   }
   return {
@@ -101,23 +125,41 @@ export default function EducationForm({
   initialContent,
   onSave,
   onCancel,
+  resumeId,
+  resumeContext,
 }: {
   initialContent?: EducationItem;
   onSave: (content: any) => void;
   onCancel: () => void;
+  resumeId?: string;
+  resumeContext?: Partial<IResume> | null;
 }) {
-  const [content, setContent] = useState<EducationItem>(
-    initialContent ?? {
-      id: Date.now().toString(),
-      degree: "",
-      field: "",
-      location: "",
-      current: false,
-      startDate: { month: "", year: "" },
-      endDate: { month: "", year: "" },
-      description: "",
+  const [isDescriptionFocused, setIsDescriptionFocused] =
+    useState<boolean>(false);
+  const [content, setContent] = useState<EducationItem>(() => {
+    if (!initialContent) {
+      return {
+        id: Date.now().toString(),
+        degree: "",
+        field: "",
+        location: "",
+        current: false,
+        startDate: { month: "", year: "" },
+        endDate: { month: "", year: "" },
+        description: "",
+      };
     }
-  );
+    return {
+      ...initialContent,
+      field: initialContent.field || initialContent.institution || "",
+      startDate: initialContent.startDate
+        ? normalizeDateFields(initialContent.startDate)
+        : initialContent.startDate,
+      endDate: initialContent.endDate
+        ? normalizeDateFields(initialContent.endDate)
+        : initialContent.endDate,
+    };
+  });
 
   const handleSave = () => {
     onSave({
@@ -277,7 +319,27 @@ export default function EducationForm({
             rows={4}
             placeholder="Relevant coursework, honors, thesis, or activities..."
             value={content.description || ""}
+            onFocus={() => setIsDescriptionFocused(true)}
+            onBlur={() => setIsDescriptionFocused(false)}
             onChange={(e) => handleChange("description", e.target.value)}
+          />
+          <InlineBulletCoach
+            idPrefix="edu-description-coach"
+            value={content.description || ""}
+            isFocused={isDescriptionFocused}
+            resumeId={resumeId}
+            resumeContext={resumeContext}
+            sectionType={SectionType.EDUCATION}
+            fieldKey="description"
+            itemContext={content}
+            existingSourceFactIds={content.source_fact_ids}
+            onChange={(nextValue, sourceFactIds) => {
+              setContent((prevContent) => ({
+                ...prevContent,
+                description: nextValue,
+                ...(sourceFactIds ? { source_fact_ids: sourceFactIds } : {}),
+              }));
+            }}
           />
         </div>
       </div>
