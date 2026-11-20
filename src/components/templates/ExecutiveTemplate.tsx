@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { IResume } from '../../types/resume';
 import { InlineEdit } from '../ui/InlineEdit';
 import {
@@ -18,15 +18,6 @@ interface TemplateProps {
 
 const ExecutiveTemplateContent: React.FC = () => {
   const { resume, readOnly, updateBasics } = useTemplateContext();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [enablePrintPageRule, setEnablePrintPageRule] = useState(false);
-
-  useEffect(() => {
-    const el = rootRef.current;
-    if (el && !el.closest('[data-testid^="template-thumbnail-"]')) {
-      setEnablePrintPageRule(true);
-    }
-  }, []);
 
   if (!resume) return null;
 
@@ -43,7 +34,6 @@ const ExecutiveTemplateContent: React.FC = () => {
 
   return (
     <div
-      ref={rootRef}
       data-template-id="executive"
       className="bg-white [&_ul]:mt-2 [&_ul]:pl-5 [&_ul]:space-y-1 [&_li]:font-medium [&_li]:text-[0.98em] [&_li::marker]:text-[color:var(--theme-accent,var(--theme-primary,#1e293b))] [&_[data-section-kind='achievements']]:pl-3 [&_[data-section-kind='achievements']]:border-l-2 [&_[data-section-kind='achievements']]:border-[color:var(--theme-accent,var(--theme-primary,#cbd5e1))]"
       style={{
@@ -54,19 +44,10 @@ const ExecutiveTemplateContent: React.FC = () => {
         lineHeight: 'var(--theme-line-height, 1.5)',
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
-      {enablePrintPageRule && (
-        <style>{`
-          @page { size: A4; margin: 1.4cm 0; }
-          @media print {
-            [data-template-id="executive"] {
-              padding-top: 0.25cm !important;
-              padding-bottom: 0.25cm !important;
-            }
-          }
-        `}</style>
-      )}
       <header
         className="border-l-[5px] pl-4 py-1 pb-3 border-b border-b-slate-200 break-inside-avoid"
         style={{

@@ -40,6 +40,7 @@ const ExecutiveTwoColumnContent: React.FC = () => {
 
   return (
     <div
+      data-template-id="two-column"
       className="bg-white"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
@@ -47,6 +48,8 @@ const ExecutiveTwoColumnContent: React.FC = () => {
         color: 'var(--theme-text-color, #374151)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
         lineHeight: 'var(--theme-line-height, 1.5)',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
       <header
@@ -96,14 +99,14 @@ const ExecutiveTwoColumnContent: React.FC = () => {
         </section>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-7 items-start">
-        <div className="sm:col-span-7 min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-12 print:grid-cols-12 gap-7 items-start">
+        <div className="sm:col-span-7 print:col-span-7 min-w-0">
           <SectionRenderer
             filter={(_sec, kind) => !SECONDARY_COLUMN_KINDS.has(kind)}
             tone="modern"
           />
         </div>
-        <div className="sm:col-span-5 min-w-0">
+        <div className="sm:col-span-5 print:col-span-5 min-w-0">
           <SectionRenderer
             filter={(_sec, kind) => SECONDARY_COLUMN_KINDS.has(kind)}
             tone="modern"

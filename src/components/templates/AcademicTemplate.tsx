@@ -230,7 +230,7 @@ const AcademicReferencesSection: React.FC<{ section: ISection }> = ({
       {enabledItems.length > 0 && (
         <div
           data-testid="academic-references-grid"
-          className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4"
+          className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-x-8 gap-y-4"
         >
           {enabledItems.map((item: any, idx: number) => {
             const roleAndCompany = [item.position, item.company]

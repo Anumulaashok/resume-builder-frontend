@@ -1,7 +1,11 @@
+export type ExportFileFormat = "txt" | "pdf" | "docx";
+
 export function buildFallbackExportFilename(
   rawTitle: string | undefined,
-  ext: "txt" = "txt"
+  ext: ExportFileFormat = "txt"
 ): string {
+  const safeExt: ExportFileFormat =
+    ext === "pdf" || ext === "docx" || ext === "txt" ? ext : "txt";
   const base = (rawTitle || "resume")
     .trim()
     .toLowerCase()
@@ -9,7 +13,7 @@ export function buildFallbackExportFilename(
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
 
-  return `${base || "resume"}.${ext}`;
+  return `${base || "resume"}.${safeExt}`;
 }
 
 export function parseContentDispositionFilename(

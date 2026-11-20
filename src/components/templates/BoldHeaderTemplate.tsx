@@ -63,9 +63,11 @@ const BoldHeaderTemplateContent: React.FC = () => {
       {/* Full-Width Accent Band */}
       <header
         data-testid="bold-header-band"
-        className="w-full text-white border-b-2 border-slate-900/15 break-inside-avoid"
+        className="w-full text-white print:!bg-white print:!text-slate-900 border-b-2 print:border-b-[3px] border-slate-900/15 break-inside-avoid"
         style={{
           backgroundColor:
+            'var(--theme-accent, var(--theme-primary, #991b1b))',
+          borderBottomColor:
             'var(--theme-accent, var(--theme-primary, #991b1b))',
           paddingLeft: 'var(--theme-page-margin, 1.25cm)',
           paddingRight: 'var(--theme-page-margin, 1.25cm)',
@@ -80,7 +82,7 @@ const BoldHeaderTemplateContent: React.FC = () => {
             <div
               data-testid="bold-header-initials"
               aria-hidden="true"
-              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none ${!realInitials ? 'print:hidden' : ''}`}
+              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 print:!border-slate-800 print:!bg-slate-100 print:!text-slate-900 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none ${!realInitials ? 'print:hidden' : ''}`}
               style={{ fontFamily: 'var(--theme-heading-font)' }}
             >
               {initials}
@@ -93,7 +95,7 @@ const BoldHeaderTemplateContent: React.FC = () => {
               onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
               readOnly={readOnly}
               className="[&_input]:!text-slate-900"
-              textClassName="text-2xl sm:text-3xl font-bold tracking-tight leading-tight !text-white hover:!text-slate-900"
+              textClassName="text-2xl sm:text-3xl font-bold tracking-tight leading-tight !text-white print:!text-slate-900 hover:!text-slate-900"
               style={{
                 fontFamily: 'var(--theme-heading-font)',
               }}
@@ -104,10 +106,11 @@ const BoldHeaderTemplateContent: React.FC = () => {
               onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
               readOnly={readOnly}
               className="[&_input]:!text-slate-900"
-              textClassName="text-sm sm:text-base font-medium mt-0.5 block !text-white/90 hover:!text-slate-900"
+              textClassName="text-sm sm:text-base font-medium mt-0.5 block !text-white/90 print:!text-slate-700 hover:!text-slate-900"
               placeholder="Brand & Creative Director"
             />
             <div
+              className="print:[--theme-primary:#0f172a] print:[--theme-accent:#334155]"
               style={
                 {
                   '--theme-primary': '#ffffff',
@@ -117,7 +120,7 @@ const BoldHeaderTemplateContent: React.FC = () => {
             >
               <ContactRow
                 variant="inline-left"
-                className="mt-2.5 !text-white/95 [&_span]:!text-white/90 [&_a]:!decoration-white/60 hover:[&_a]:!decoration-white [&_input]:!text-slate-900"
+                className="mt-2.5 !text-white/95 print:!text-slate-700 [&_span]:!text-white/90 print:[&_span]:!text-slate-700 [&_a]:!decoration-white/60 print:[&_a]:!text-slate-800 print:[&_a]:!decoration-slate-400 hover:[&_a]:!decoration-white [&_input]:!text-slate-900"
               />
             </div>
           </div>

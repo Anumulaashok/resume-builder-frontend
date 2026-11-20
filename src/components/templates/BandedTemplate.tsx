@@ -55,11 +55,13 @@ const BandedTemplateContent: React.FC = () => {
         paddingBottom: 'calc(var(--theme-page-margin, 1.75cm) * 0.5)',
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
       {showHeader && (
         <header
-          className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b-2"
+          className="flex flex-col sm:flex-row print:flex-row sm:justify-between print:justify-between sm:items-end print:items-end gap-3 border-b-2"
           style={{
             paddingLeft: 'var(--theme-page-margin, 1.75cm)',
             paddingRight: 'var(--theme-page-margin, 1.75cm)',

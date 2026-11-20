@@ -32,6 +32,7 @@ import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
   CodeBracketIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -706,6 +707,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [isExportingTxt, setIsExportingTxt] = useState(false);
   const [addContent, setAddContent] = useState<{
     type: SectionType;
@@ -746,10 +749,36 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
   const isExportingRef = useRef(false);
+  const isExportingPdfRef = useRef(false);
+  const isExportingDocxRef = useRef(false);
   const isExportingTxtRef = useRef(false);
   const exportCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+  const previousDocumentTitleRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (previousDocumentTitleRef.current === null) {
+      previousDocumentTitleRef.current = document.title || "Resume Builder";
+    }
+    const syncedTitle =
+      resume.title?.trim() ||
+      resume.content?.basics?.name?.trim() ||
+      "Resume Builder";
+    document.title = syncedTitle;
+  }, [resume.title, resume.content?.basics?.name]);
+
+  useEffect(() => {
+    return () => {
+      if (
+        typeof document !== "undefined" &&
+        previousDocumentTitleRef.current !== null
+      ) {
+        document.title = previousDocumentTitleRef.current;
+      }
+    };
+  }, []);
 
   const effectiveResumeId = resume._id || resume.id || persistedId;
 
@@ -1343,7 +1372,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     setShowShareModal(true);
   };
 
-  const handleExport = useCallback(() => {
+  const handlePrint = useCallback(() => {
     if (isExportingRef.current || loading) {
       return;
     }
@@ -1386,6 +1415,126 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   }, []);
 
+  const ensureSavedBeforeExport = useCallback(
+    async (formatLabel: "PDF" | "DOCX" | "TXT"): Promise<string | null> => {
+      let targetId =
+        latestResumeRef.current._id ||
+        latestResumeRef.current.id ||
+        persistedIdRef.current;
+
+      if (!targetId || hasUnsavedChanges()) {
+        debouncedAutoSave.cancel();
+        const saveResult = await enqueueSave(latestResumeRef.current, "manual");
+        if (!saveResult.ok) {
+          const rawMsg = (
+            saveResult.error as { message?: unknown } | null | undefined
+          )?.message;
+          const detail =
+            typeof rawMsg === "string" && rawMsg.trim()
+              ? ` (${rawMsg.trim()})`
+              : "";
+          toast.error(
+            `Could not save your latest changes before downloading ${formatLabel}${detail}. Please retry saving and try again.`
+          );
+          return null;
+        }
+        targetId =
+          latestResumeRef.current._id ||
+          latestResumeRef.current.id ||
+          persistedIdRef.current ||
+          extractCreatedResumeId(saveResult.data);
+      }
+
+      if (!targetId) {
+        toast.error(
+          `Could not save resume before downloading ${formatLabel}. Please save your resume and try again.`
+        );
+        return null;
+      }
+
+      return targetId;
+    },
+    [debouncedAutoSave, enqueueSave, hasUnsavedChanges]
+  );
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (isExportingPdfRef.current || loading) {
+      return;
+    }
+
+    isExportingPdfRef.current = true;
+    if (isMountedRef.current) {
+      setIsExportingPdf(true);
+      setShowOverflowMenu(false);
+    }
+
+    try {
+      const targetId = await ensureSavedBeforeExport("PDF");
+      if (!targetId) {
+        return;
+      }
+
+      const currentTitle = latestResumeRef.current.title;
+      const exported = await resumeService.exportResumePdf(
+        targetId,
+        currentTitle
+      );
+
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success("PDF resume downloaded");
+    } catch (error: any) {
+      const message =
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message
+          : "Failed to export PDF resume";
+      toast.error(message);
+    } finally {
+      isExportingPdfRef.current = false;
+      if (isMountedRef.current) {
+        setIsExportingPdf(false);
+      }
+    }
+  }, [ensureSavedBeforeExport, loading]);
+
+  const handleExportDocx = useCallback(async () => {
+    if (isExportingDocxRef.current || loading) {
+      return;
+    }
+
+    isExportingDocxRef.current = true;
+    if (isMountedRef.current) {
+      setIsExportingDocx(true);
+      setShowOverflowMenu(false);
+    }
+
+    try {
+      const targetId = await ensureSavedBeforeExport("DOCX");
+      if (!targetId) {
+        return;
+      }
+
+      const currentTitle = latestResumeRef.current.title;
+      const exported = await resumeService.exportResumeDocx(
+        targetId,
+        currentTitle
+      );
+
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success("DOCX resume downloaded");
+    } catch (error: any) {
+      const message =
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message
+          : "Failed to export DOCX resume";
+      toast.error(message);
+    } finally {
+      isExportingDocxRef.current = false;
+      if (isMountedRef.current) {
+        setIsExportingDocx(false);
+      }
+    }
+  }, [ensureSavedBeforeExport, loading]);
+
   const handleExportTxt = useCallback(async () => {
     if (isExportingTxtRef.current || loading) {
       return;
@@ -1398,29 +1547,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
 
     try {
-      let targetId =
-        latestResumeRef.current._id ||
-        latestResumeRef.current.id ||
-        persistedIdRef.current;
-
-      if (!targetId || hasUnsavedChanges()) {
-        debouncedAutoSave.cancel();
-        const saveResult = await enqueueSave(latestResumeRef.current, "manual");
-        if (!saveResult.ok) {
-          throw (
-            saveResult.error ||
-            new Error("Failed to save resume before exporting")
-          );
-        }
-        targetId =
-          latestResumeRef.current._id ||
-          latestResumeRef.current.id ||
-          persistedIdRef.current ||
-          extractCreatedResumeId(saveResult.data);
-      }
-
+      const targetId = await ensureSavedBeforeExport("TXT");
       if (!targetId) {
-        throw new Error("Failed to save resume before exporting");
+        return;
       }
 
       const currentTitle = latestResumeRef.current.title;
@@ -1443,7 +1572,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         setIsExportingTxt(false);
       }
     }
-  }, [debouncedAutoSave, enqueueSave, hasUnsavedChanges, loading]);
+  }, [ensureSavedBeforeExport, loading]);
 
   const applyServerResumeState = useCallback(
     (serverResume: IResume) => {
@@ -2048,12 +2177,27 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                     type="button"
                     role="menuitem"
                     data-testid="export-resume-btn"
-                    onClick={handleExport}
-                    disabled={loading || isExporting}
+                    onClick={() => {
+                      void handleDownloadPdf();
+                    }}
+                    disabled={loading || isExportingPdf}
                     className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                   >
                     <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
-                    <span>Export PDF</span>
+                    <span>Download PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="export-docx-menu-btn"
+                    disabled={loading || isExportingDocx}
+                    onClick={() => {
+                      void handleExportDocx();
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2.5 transition-colors"
+                  >
+                    <DocumentArrowDownIcon className="h-4 w-4 text-gray-500" />
+                    <span>Download DOCX</span>
                   </button>
                   <button
                     type="button"
@@ -2067,6 +2211,17 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   >
                     <DocumentTextIcon className="h-4 w-4 text-gray-500" />
                     <span>Download ATS text</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="print-resume-menu-btn"
+                    onClick={handlePrint}
+                    disabled={loading || isExporting}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                  >
+                    <PrinterIcon className="h-4 w-4 text-gray-500" />
+                    <span>Print</span>
                   </button>
                   <button
                     type="button"
@@ -2346,10 +2501,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <ResumePreview
                   resume={resume}
                   onChange={handlePreviewChange}
-                  onDownloadPdf={handleExport}
-                  isPrinting={isExporting}
+                  onDownloadPdf={handleDownloadPdf}
+                  isExportingPdf={isExportingPdf}
+                  onExportDocx={handleExportDocx}
+                  isExportingDocx={isExportingDocx}
                   onExportTxt={handleExportTxt}
                   isExportingTxt={isExportingTxt}
+                  onPrint={handlePrint}
+                  isPrinting={isExporting}
                 />
               </div>
             </Panel>
@@ -2361,10 +2520,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             <ResumePreview
               resume={resume}
               onChange={handlePreviewChange}
-              onDownloadPdf={handleExport}
-              isPrinting={isExporting}
+              onDownloadPdf={handleDownloadPdf}
+              isExportingPdf={isExportingPdf}
+              onExportDocx={handleExportDocx}
+              isExportingDocx={isExportingDocx}
               onExportTxt={handleExportTxt}
               isExportingTxt={isExportingTxt}
+              onPrint={handlePrint}
+              isPrinting={isExporting}
             />
           </div>
         )}

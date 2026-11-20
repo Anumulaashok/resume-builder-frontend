@@ -34,6 +34,7 @@ const ProfessionalTemplateContent: React.FC = () => {
 
   return (
     <div
+      data-template-id="professional"
       className="bg-white"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
@@ -41,10 +42,12 @@ const ProfessionalTemplateContent: React.FC = () => {
         color: 'var(--theme-text-color, #334155)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
         lineHeight: 'var(--theme-line-height, 1.5)',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
       <header
-        className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b-2 pb-4"
+        className="flex flex-col sm:flex-row print:flex-row sm:justify-between print:justify-between sm:items-end print:items-end gap-3 border-b-2 pb-4"
         style={{
           borderColor: 'var(--theme-primary, #1e293b)',
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',

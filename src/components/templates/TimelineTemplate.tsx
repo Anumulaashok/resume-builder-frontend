@@ -223,7 +223,7 @@ const TimelineSection: React.FC<{
                 key={item.id || idx}
                 data-section-kind={kind}
                 data-timeline-item="true"
-                className="grid grid-cols-[6.25rem_1.5rem_minmax(0,1fr)] sm:grid-cols-[7.75rem_1.75rem_minmax(0,1fr)] break-inside-avoid"
+                className="grid grid-cols-[6.25rem_1.5rem_minmax(0,1fr)] sm:grid-cols-[7.75rem_1.75rem_minmax(0,1fr)] print:grid-cols-[7.75rem_1.75rem_minmax(0,1fr)] break-inside-avoid"
               >
                 {/* Left Date Rail */}
                 <div

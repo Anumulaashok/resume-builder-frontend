@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { IResume, ThemeConfig } from "../types/resume";
 import {
   ArrowPathIcon,
+  DocumentArrowDownIcon,
   DocumentTextIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
@@ -26,10 +27,14 @@ interface ResumePreviewProps {
   resume: IResume;
   onChange?: (resume: IResume) => void;
   readOnly?: boolean;
-  onDownloadPdf?: () => void;
-  isPrinting?: boolean;
+  onDownloadPdf?: () => Promise<void> | void;
+  isExportingPdf?: boolean;
+  onExportDocx?: () => Promise<void> | void;
+  isExportingDocx?: boolean;
   onExportTxt?: () => Promise<void> | void;
   isExportingTxt?: boolean;
+  onPrint?: () => void;
+  isPrinting?: boolean;
 }
 
 export const A4_WIDTH_PX = 794; // 21cm at 96dpi
@@ -62,9 +67,13 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   onChange,
   readOnly = false,
   onDownloadPdf,
-  isPrinting = false,
+  isExportingPdf,
+  onExportDocx,
+  isExportingDocx,
   onExportTxt,
   isExportingTxt,
+  onPrint,
+  isPrinting = false,
 }) => {
   const externalTemplateId =
     resume.templateId || (resume as any).template;
@@ -76,6 +85,10 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
   const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
+  const [internalExportingPdf, setInternalExportingPdf] =
+    useState<boolean>(false);
+  const [internalExportingDocx, setInternalExportingDocx] =
+    useState<boolean>(false);
   const [internalExportingTxt, setInternalExportingTxt] =
     useState<boolean>(false);
 
@@ -145,17 +158,79 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
   const effectiveScale = manualScale ?? fitScale;
   const isFitMode = manualScale === null;
+  const isPdfBusy =
+    isExportingPdf !== undefined ? isExportingPdf : internalExportingPdf;
+  const isDocxBusy =
+    isExportingDocx !== undefined ? isExportingDocx : internalExportingDocx;
   const isTxtBusy =
     isExportingTxt !== undefined ? isExportingTxt : internalExportingTxt;
 
-  const handlePrint = () => {
+  const handleBrowserPrint = () => {
     if (isPrinting) return;
-    if (onDownloadPdf) {
-      onDownloadPdf();
+    if (onPrint) {
+      onPrint();
       return;
     }
     if (typeof window !== "undefined" && typeof window.print === "function") {
       window.print();
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (isPdfBusy) return;
+
+    if (onDownloadPdf) {
+      await onDownloadPdf();
+      return;
+    }
+
+    const resumeId = resume._id || (resume as { id?: string }).id;
+    if (!resumeId) {
+      toast.error("Please save your resume before exporting");
+      return;
+    }
+
+    setInternalExportingPdf(true);
+    try {
+      const exported = await resumeService.exportResumePdf(
+        resumeId,
+        resume.title
+      );
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success("PDF resume downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to export PDF resume");
+    } finally {
+      setInternalExportingPdf(false);
+    }
+  };
+
+  const handleDownloadDocx = async () => {
+    if (isDocxBusy) return;
+
+    if (onExportDocx) {
+      await onExportDocx();
+      return;
+    }
+
+    const resumeId = resume._id || (resume as { id?: string }).id;
+    if (!resumeId) {
+      toast.error("Please save your resume before exporting");
+      return;
+    }
+
+    setInternalExportingDocx(true);
+    try {
+      const exported = await resumeService.exportResumeDocx(
+        resumeId,
+        resume.title
+      );
+      triggerFileDownload(exported.blob, exported.filename);
+      toast.success("DOCX resume downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to export DOCX resume");
+    } finally {
+      setInternalExportingDocx(false);
     }
   };
 
@@ -356,14 +431,68 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
           <button
             type="button"
-            data-testid="export-pdf-btn"
-            onClick={handlePrint}
+            data-testid="export-docx-btn"
+            onClick={() => {
+              void handleDownloadDocx();
+            }}
+            disabled={isDocxBusy}
+            aria-busy={isDocxBusy}
+            title="Download editable Word document (.docx)"
+            className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-white border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+          >
+            {isDocxBusy ? (
+              <>
+                <ArrowPathIcon
+                  className="h-4 w-4 animate-spin text-blue-600"
+                  aria-hidden="true"
+                />
+                <span>Exporting DOCX…</span>
+              </>
+            ) : (
+              <>
+                <DocumentArrowDownIcon className="h-4 w-4" aria-hidden="true" />
+                <span>Download DOCX</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            data-testid="print-resume-btn"
+            onClick={handleBrowserPrint}
             disabled={isPrinting}
-            title="Print or save preview as A4 PDF"
-            className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 rounded-md shadow-sm text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+            title="Print resume via browser dialog"
+            className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-white border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
           >
             <PrinterIcon className="h-4 w-4" aria-hidden="true" />
-            <span>Download PDF</span>
+            <span>Print</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="export-pdf-btn"
+            onClick={() => {
+              void handleDownloadPdf();
+            }}
+            disabled={isPdfBusy}
+            aria-busy={isPdfBusy}
+            title="Download vector PDF (.pdf)"
+            className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 rounded-md shadow-sm text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+          >
+            {isPdfBusy ? (
+              <>
+                <ArrowPathIcon
+                  className="h-4 w-4 animate-spin text-white"
+                  aria-hidden="true"
+                />
+                <span>Exporting PDF…</span>
+              </>
+            ) : (
+              <>
+                <DocumentArrowDownIcon className="h-4 w-4" aria-hidden="true" />
+                <span>Download PDF</span>
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
+import toast from "react-hot-toast";
 import { resumeService } from "../services/resume.service";
 import { IResume } from "../types/resume";
+import { triggerFileDownload } from "../utils/download";
 import { A4_WIDTH_PX, A4_HEIGHT_PX } from "./ResumePreview";
 import { getTemplate } from "./templates/registry";
 import { getThemeStyles } from "../constants/themeConstants";
 import { Container } from "./ui/container";
 import { Skeleton } from "./ui/skeleton";
 import {
+  ArrowPathIcon,
   ClockIcon,
+  DocumentArrowDownIcon,
   DocumentTextIcon,
   HomeIcon,
   LinkSlashIcon,
@@ -102,9 +106,20 @@ function resolveErrorPresentation(error: string | null): ErrorPresentation {
 }
 
 const TopBar: React.FC<{
+  onDownloadPdf?: () => void;
+  isExportingPdf?: boolean;
+  onDownloadDocx?: () => void;
+  isExportingDocx?: boolean;
   onPrint?: () => void;
   showSkeletonAction?: boolean;
-}> = ({ onPrint, showSkeletonAction = false }) => (
+}> = ({
+  onDownloadPdf,
+  isExportingPdf = false,
+  onDownloadDocx,
+  isExportingDocx = false,
+  onPrint,
+  showSkeletonAction = false,
+}) => (
   <header
     data-testid="public-resume-topbar"
     className="sticky top-0 z-20 shrink-0 bg-white/95 backdrop-blur-sm border-b border-neutral-200/80 shadow-header print:hidden"
@@ -126,16 +141,81 @@ const TopBar: React.FC<{
           </span>
         </a>
 
-        {onPrint && (
-          <button
-            type="button"
-            onClick={onPrint}
-            data-testid="public-resume-print-btn"
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-control bg-primary-600 hover:bg-primary-700 text-white text-xs sm:text-sm font-medium shadow-sm transition-colors focus-ring shrink-0"
-          >
-            <PrinterIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>Print / Download</span>
-          </button>
+        {(onDownloadPdf || onDownloadDocx || onPrint) && (
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {onPrint && (
+              <button
+                type="button"
+                onClick={onPrint}
+                data-testid="public-resume-print-btn"
+                title="Print shared resume"
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-control bg-white border border-neutral-300 hover:bg-neutral-50 text-neutral-700 hover:text-neutral-900 text-xs sm:text-sm font-medium transition-colors focus-ring"
+              >
+                <PrinterIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Print</span>
+              </button>
+            )}
+
+            {onDownloadDocx && (
+              <button
+                type="button"
+                onClick={onDownloadDocx}
+                disabled={isExportingDocx}
+                aria-busy={isExportingDocx}
+                data-testid="public-export-docx-btn"
+                title="Download editable Word document (.docx)"
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-control bg-white border border-neutral-300 hover:bg-neutral-50 text-neutral-700 hover:text-neutral-900 disabled:opacity-60 disabled:cursor-not-allowed text-xs sm:text-sm font-medium transition-colors focus-ring"
+              >
+                {isExportingDocx ? (
+                  <>
+                    <ArrowPathIcon
+                      className="h-4 w-4 shrink-0 animate-spin text-primary-600"
+                      aria-hidden="true"
+                    />
+                    <span>DOCX…</span>
+                  </>
+                ) : (
+                  <>
+                    <DocumentArrowDownIcon
+                      className="h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>Download DOCX</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {onDownloadPdf && (
+              <button
+                type="button"
+                onClick={onDownloadPdf}
+                disabled={isExportingPdf}
+                aria-busy={isExportingPdf}
+                data-testid="public-export-pdf-btn"
+                title="Download vector PDF (.pdf)"
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-control bg-primary-600 hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-medium shadow-sm transition-colors focus-ring"
+              >
+                {isExportingPdf ? (
+                  <>
+                    <ArrowPathIcon
+                      className="h-4 w-4 shrink-0 animate-spin text-white"
+                      aria-hidden="true"
+                    />
+                    <span>PDF…</span>
+                  </>
+                ) : (
+                  <>
+                    <DocumentArrowDownIcon
+                      className="h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>Download PDF</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         )}
 
         {showSkeletonAction && (
@@ -158,9 +238,37 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fitScale, setFitScale] = useState<number>(1);
   const [pageHeight, setPageHeight] = useState<number>(A4_HEIGHT_PX);
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+  const [isExportingDocx, setIsExportingDocx] = useState<boolean>(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const previousDocumentTitleRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (previousDocumentTitleRef.current === null) {
+      previousDocumentTitleRef.current = document.title || "Resume Builder";
+    }
+    if (resume) {
+      const syncedTitle =
+        resume.title?.trim() ||
+        resume.content?.basics?.name?.trim() ||
+        "Resume Builder";
+      document.title = syncedTitle;
+    }
+  }, [resume]);
+
+  useEffect(() => {
+    return () => {
+      if (
+        typeof document !== "undefined" &&
+        previousDocumentTitleRef.current !== null
+      ) {
+        document.title = previousDocumentTitleRef.current;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -273,6 +381,40 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadSharedPdf = async () => {
+    if (isExportingPdf || !resume) return;
+    setIsExportingPdf(true);
+    try {
+      const exported = await resumeService.exportSharedResumePdf({
+        shareToken: activeToken,
+        slug: activeSlug,
+        fallbackTitle: resume.title || resume.content?.basics?.name,
+      });
+      triggerFileDownload(exported.blob, exported.filename);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to download PDF resume");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleDownloadSharedDocx = async () => {
+    if (isExportingDocx || !resume) return;
+    setIsExportingDocx(true);
+    try {
+      const exported = await resumeService.exportSharedResumeDocx({
+        shareToken: activeToken,
+        slug: activeSlug,
+        fallbackTitle: resume.title || resume.content?.basics?.name,
+      });
+      triggerFileDownload(exported.blob, exported.filename);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to download DOCX resume");
+    } finally {
+      setIsExportingDocx(false);
+    }
   };
 
   if (loading) {
@@ -389,7 +531,17 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
       className="min-h-screen bg-neutral-100 flex flex-col print:!bg-white print:!block print:!min-h-0"
       data-testid="public-resume-view"
     >
-      <TopBar onPrint={handlePrint} />
+      <TopBar
+        onDownloadPdf={() => {
+          void handleDownloadSharedPdf();
+        }}
+        isExportingPdf={isExportingPdf}
+        onDownloadDocx={() => {
+          void handleDownloadSharedDocx();
+        }}
+        isExportingDocx={isExportingDocx}
+        onPrint={handlePrint}
+      />
 
       {/* Centred Neutral Canvas with Fit-to-Width Scaling */}
       <main
