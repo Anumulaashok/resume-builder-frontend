@@ -1,5 +1,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { XMarkIcon, CheckCircleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import {
+  XMarkIcon,
+  CheckCircleIcon,
+  ShieldCheckIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 import { IResume, ThemeConfig } from '../../types/resume';
 import { getThemeStyles } from '../../constants/themeConstants';
 import {
@@ -171,6 +176,8 @@ export interface TemplateGalleryModalProps {
   onClose: () => void;
 }
 
+type GalleryFilter = 'all' | 'ats' | TemplateCategory;
+
 export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
   isOpen,
   activeTemplateId,
@@ -179,7 +186,7 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
   onSelect,
   onClose,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<'all' | TemplateCategory>('all');
+  const [selectedCategory, setSelectedCategory] = useState<GalleryFilter>('all');
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
@@ -246,8 +253,16 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
     [activeTemplateId]
   );
 
+  const atsFriendlyCount = useMemo(
+    () => templateRegistry.filter((t) => t.atsFriendly).length,
+    []
+  );
+
   const filteredTemplates = useMemo(() => {
     if (selectedCategory === 'all') return templateRegistry;
+    if (selectedCategory === 'ats') {
+      return templateRegistry.filter((t) => t.atsFriendly);
+    }
     return templateRegistry.filter((t) => t.category === selectedCategory);
   }, [selectedCategory]);
 
@@ -309,20 +324,44 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
                 : templateRegistry.filter((t) => t.category === cat.id).length;
             const isActive = selectedCategory === cat.id;
             return (
-              <button
-                key={cat.id}
-                type="button"
-                aria-pressed={isActive}
-                data-testid={`gallery-category-${cat.id}`}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-ring ${
-                  isActive
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                    : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
-                }`}
-              >
-                {`${cat.label} (${count})`}
-              </button>
+              <React.Fragment key={cat.id}>
+                <button
+                  type="button"
+                  aria-pressed={isActive}
+                  data-testid={`gallery-category-${cat.id}`}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-ring ${
+                    isActive
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
+                  }`}
+                >
+                  {`${cat.label} (${count})`}
+                </button>
+                {cat.id === 'all' && (
+                  <button
+                    type="button"
+                    aria-pressed={selectedCategory === 'ats'}
+                    data-testid="gallery-filter-ats"
+                    onClick={() =>
+                      setSelectedCategory((prev) =>
+                        prev === 'ats' ? 'all' : 'ats'
+                      )
+                    }
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-ring ${
+                      selectedCategory === 'ats'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <ShieldCheckIcon
+                      className="h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>{`ATS-friendly (${atsFriendlyCount})`}</span>
+                  </button>
+                )}
+              </React.Fragment>
             );
           })}
         </div>
@@ -372,13 +411,25 @@ export const TemplateGalleryModal: React.FC<TemplateGalleryModalProps> = ({
                         <span className="font-semibold text-sm text-neutral-900 group-hover:text-blue-600 transition-colors">
                           {template.name}
                         </span>
-                        {template.atsFriendly && (
+                        {template.atsFriendly ? (
                           <span
                             data-testid={`ats-badge-${template.id}`}
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
                           >
                             <ShieldCheckIcon className="h-3 w-3" aria-hidden="true" />
                             <span>ATS-friendly</span>
+                          </span>
+                        ) : (
+                          <span
+                            data-testid={`ats-caution-badge-${template.id}`}
+                            title="Multi-column, table, or timeline layout may reduce ATS parsing accuracy"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0"
+                          >
+                            <ExclamationTriangleIcon
+                              className="h-3 w-3"
+                              aria-hidden="true"
+                            />
+                            <span>ATS caution</span>
                           </span>
                         )}
                       </div>

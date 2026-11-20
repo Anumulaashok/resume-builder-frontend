@@ -40,20 +40,32 @@ describe('Accent Sidebar and Banded Templates', () => {
       expect(bandedEntry.name).toBe('Banded');
       expect(bandedEntry.category).toBe('professional');
       expect(bandedEntry.layout).toBe('single');
-      expect(bandedEntry.atsFriendly).toBe(true);
+      expect(bandedEntry.atsFriendly).toBe(false);
       expect(bandedEntry.defaultTheme.headingStyle).toBe('side-label');
       expect(bandedEntry.component).toBe(BandedTemplate);
     });
   });
 
   describe('2. Rendering sampleResume, column placement, and linear DOM order', () => {
-    it('renders AccentSidebarTemplate with sampleResume, monogram, sidebar sections, and main column sections', () => {
-      render(<AccentSidebarTemplate resume={sampleResume} readOnly />);
+    it('renders AccentSidebarTemplate with sampleResume, pseudo-element monogram, main-before-aside DOM reading order, and visual grid placement', () => {
+      const { rerender } = render(
+        <AccentSidebarTemplate resume={sampleResume} readOnly />
+      );
 
       const aside = screen.getByTestId('accent-sidebar-aside');
+      const main = screen.getByRole('main');
       const monogram = screen.getByTestId('accent-sidebar-monogram');
-      expect(monogram).toHaveTextContent('ML');
+      expect(monogram).toHaveAttribute('data-monogram', 'ML');
+      expect(monogram.className).toContain('before:content-[attr(data-monogram)]');
+      expect(monogram).toHaveTextContent('');
       expect(screen.getByTestId('accent-sidebar-print-bg')).toBeInTheDocument();
+
+      // Linear DOM reading order places <main> before <aside> while grid placement keeps aside visually left
+      expect(
+        Boolean(main.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING)
+      ).toBe(true);
+      expect(main.className).toContain('sm:col-start-2');
+      expect(aside.className).toContain('sm:col-start-1');
 
       // Sidebar holds contact, skills, languages, certificates
       expect(within(aside).getByText('maya.lin@example.dev')).toBeInTheDocument();
@@ -64,7 +76,6 @@ describe('Accent Sidebar and Banded Templates', () => {
       ).toBeInTheDocument();
 
       // Main column holds name, title, summary, work experience, education, projects
-      const main = screen.getByRole('main');
       expect(within(main).getByText('Maya Lin')).toBeInTheDocument();
       expect(
         within(main).getByText('Staff Frontend & Platform Architect')
@@ -75,6 +86,23 @@ describe('Accent Sidebar and Banded Templates', () => {
       expect(within(main).getByText('Staff Frontend Architect')).toBeInTheDocument();
       expect(within(main).getByText('M.S. in Computer Science')).toBeInTheDocument();
       expect(within(main).getByText('Lattice UI Primitives')).toBeInTheDocument();
+
+      // Omits monogram element and attribute when candidate name is empty
+      rerender(
+        <AccentSidebarTemplate
+          resume={{
+            ...sampleResume,
+            content: {
+              ...sampleResume.content,
+              basics: { ...sampleResume.content.basics, name: '   ' },
+            },
+          }}
+          readOnly={false}
+        />
+      );
+      expect(
+        screen.queryByTestId('accent-sidebar-monogram')
+      ).not.toBeInTheDocument();
     });
 
     it('respects skillStyle theme configuration in AccentSidebarTemplate', () => {
@@ -303,7 +331,7 @@ describe('Accent Sidebar and Banded Templates', () => {
         within(dialog).getByTestId('template-card-banded')
       ).toBeInTheDocument();
 
-      // Filter by Modern -> Accent Sidebar appears (no ATS badge since atsFriendly is false), Banded hidden
+      // Filter by Modern -> Accent Sidebar appears with caution badge (atsFriendly is false), Banded hidden
       fireEvent.click(within(dialog).getByTestId('gallery-category-modern'));
       expect(
         within(dialog).getByTestId('template-card-accent-sidebar')
@@ -312,10 +340,13 @@ describe('Accent Sidebar and Banded Templates', () => {
         within(dialog).queryByTestId('ats-badge-accent-sidebar')
       ).not.toBeInTheDocument();
       expect(
+        within(dialog).getByTestId('ats-caution-badge-accent-sidebar')
+      ).toBeInTheDocument();
+      expect(
         within(dialog).queryByTestId('template-card-banded')
       ).not.toBeInTheDocument();
 
-      // Filter by Professional -> Banded appears (with ATS badge since atsFriendly is true), Accent Sidebar hidden
+      // Filter by Professional -> Banded appears with caution badge (2-column label grid, atsFriendly is false), Accent Sidebar hidden
       fireEvent.click(
         within(dialog).getByTestId('gallery-category-professional')
       );
@@ -323,7 +354,10 @@ describe('Accent Sidebar and Banded Templates', () => {
         within(dialog).getByTestId('template-card-banded')
       ).toBeInTheDocument();
       expect(
-        within(dialog).getByTestId('ats-badge-banded')
+        within(dialog).queryByTestId('ats-badge-banded')
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).getByTestId('ats-caution-badge-banded')
       ).toBeInTheDocument();
       expect(
         within(dialog).queryByTestId('template-card-accent-sidebar')

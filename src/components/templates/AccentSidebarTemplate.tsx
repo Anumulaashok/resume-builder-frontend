@@ -27,14 +27,14 @@ const SIDEBAR_KINDS = new Set<CanonicalSectionKind>([
 ]);
 
 function getMonogramInitials(rawName?: string): string {
-  if (!rawName || !rawName.trim()) return 'CV';
+  if (!rawName || typeof rawName !== 'string' || !rawName.trim()) return '';
   const words = rawName
     .trim()
     .split(/\s+/)
-    .map((part) => part.replace(/^[^A-Za-z0-9]+/, ''))
+    .map((part) => part.replace(/^[^A-Za-z0-9\u00C0-\u024F]+/, ''))
     .filter(Boolean);
 
-  if (words.length === 0) return 'CV';
+  if (words.length === 0) return '';
   if (words.length === 1) return words[0][0].toUpperCase();
   return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
 }
@@ -111,62 +111,8 @@ const AccentSidebarContent: React.FC = () => {
         }}
       />
 
-      <aside
-        data-testid="accent-sidebar-aside"
-        className="relative z-10 min-w-0 max-w-full [overflow-wrap:anywhere] text-white [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-white/15 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
-        style={{
-          backgroundColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
-          padding: 'var(--theme-page-margin, 1.25cm)',
-          overflowWrap: 'anywhere',
-          WebkitPrintColorAdjust: 'exact',
-          printColorAdjust: 'exact',
-        }}
-      >
-        <div
-          style={
-            {
-              '--theme-primary': '#ffffff',
-              '--theme-heading-color': '#ffffff',
-              '--theme-text-color': 'rgba(255, 255, 255, 0.92)',
-              '--theme-accent': 'rgba(255, 255, 255, 0.9)',
-            } as React.CSSProperties
-          }
-        >
-          <div
-            aria-hidden="true"
-            data-testid="accent-sidebar-monogram"
-            className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs select-none"
-            style={{
-              fontFamily: 'var(--theme-heading-font)',
-              marginBottom: 'var(--theme-section-spacing, 1.5rem)',
-            }}
-          >
-            {initials}
-          </div>
-
-          {showContact && (
-            <section
-              style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
-            >
-              <SectionHeading title="Contact" accentBorder />
-              <ContactRow
-                variant="stacked-left"
-                className="!text-white/90 space-y-1.5 [&_a]:break-all"
-              />
-            </section>
-          )}
-
-          <SectionRenderer
-            filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
-            tone="modern"
-            accentHeadingBorder
-            narrow
-          />
-        </div>
-      </aside>
-
       <main
-        className="relative z-10 min-w-0 bg-white print:bg-transparent print:[&_[data-section-id]]:pt-2"
+        className="relative z-10 min-w-0 bg-white sm:col-start-2 sm:row-start-1 print:col-start-2 print:row-start-1 print:bg-transparent print:[&_[data-section-id]]:pt-2"
         style={{ padding: 'var(--theme-page-margin, 1.25cm)' }}
       >
         {showHeader && (
@@ -222,6 +168,61 @@ const AccentSidebarContent: React.FC = () => {
           accentHeadingBorder
         />
       </main>
+
+      <aside
+        data-testid="accent-sidebar-aside"
+        className="relative z-10 min-w-0 max-w-full sm:col-start-1 sm:row-start-1 print:col-start-1 print:row-start-1 [overflow-wrap:anywhere] text-white [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-white/15 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
+        style={{
+          backgroundColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
+          padding: 'var(--theme-page-margin, 1.25cm)',
+          overflowWrap: 'anywhere',
+          WebkitPrintColorAdjust: 'exact',
+          printColorAdjust: 'exact',
+        }}
+      >
+        <div
+          style={
+            {
+              '--theme-primary': '#ffffff',
+              '--theme-heading-color': '#ffffff',
+              '--theme-text-color': 'rgba(255, 255, 255, 0.92)',
+              '--theme-accent': 'rgba(255, 255, 255, 0.9)',
+            } as React.CSSProperties
+          }
+        >
+          {initials && (
+            <div
+              aria-hidden="true"
+              data-testid="accent-sidebar-monogram"
+              data-monogram={initials}
+              className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs select-none before:content-[attr(data-monogram)]"
+              style={{
+                fontFamily: 'var(--theme-heading-font)',
+                marginBottom: 'var(--theme-section-spacing, 1.5rem)',
+              }}
+            />
+          )}
+
+          {showContact && (
+            <section
+              style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
+            >
+              <SectionHeading title="Contact" accentBorder />
+              <ContactRow
+                variant="stacked-left"
+                className="!text-white/90 space-y-1.5 [&_a]:break-all"
+              />
+            </section>
+          )}
+
+          <SectionRenderer
+            filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
+            tone="modern"
+            accentHeadingBorder
+            narrow
+          />
+        </div>
+      </aside>
     </div>
   );
 };

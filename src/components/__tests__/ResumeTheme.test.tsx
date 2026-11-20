@@ -7,6 +7,7 @@ import { useResumeHistory } from '../useResumeHistory';
 import { IResume } from '../../types/resume';
 import { defaultResume } from '../../constants/editorConstants';
 import { defaultThemeConfig, fontPairingOptions, colorOptions, spacingOptions } from '../../constants/themeConstants';
+import { getTemplate, templateRegistry } from '../templates/registry';
 
 describe('Theme Customization and Token System', () => {
   const sampleResume: IResume = {
@@ -62,6 +63,79 @@ describe('Theme Customization and Token System', () => {
       spacingOptions.forEach((s) => {
         expect(screen.getByTestId(`spacing-option-${s.id}`)).toBeInTheDocument();
       });
+
+      // Default chips skill style does not show an ATS warning
+      expect(screen.queryByTestId('skill-style-ats-warning')).not.toBeInTheDocument();
+    });
+
+    it('shows an inline ATS warning when bars or dots skill style is active and switches to chips in one click', () => {
+      const mockOnChange = jest.fn();
+      const mockOnKeysCustomised = jest.fn();
+      const mockOnClose = jest.fn();
+
+      const { rerender } = render(
+        <ThemeCustomizationPanel
+          themeConfig={{ ...defaultThemeConfig, skillStyle: 'bars' }}
+          onChange={mockOnChange}
+          onKeysCustomised={mockOnKeysCustomised}
+          onClose={mockOnClose}
+        />
+      );
+
+      const warning = screen.getByTestId('skill-style-ats-warning');
+      expect(warning).toBeInTheDocument();
+      expect(warning).toHaveTextContent(/progress bars/i);
+
+      fireEvent.click(screen.getByTestId('switch-skill-style-chips-btn'));
+      expect(mockOnKeysCustomised).toHaveBeenCalledWith(['skillStyle']);
+      expect(mockOnChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skillStyle: 'chips',
+        })
+      );
+
+      // Also shows when templateDefaultTheme defaults to dots (e.g. two-column)
+      rerender(
+        <ThemeCustomizationPanel
+          templateDefaultTheme={{ skillStyle: 'dots' }}
+          onChange={mockOnChange}
+          onClose={mockOnClose}
+        />
+      );
+      expect(screen.getByTestId('skill-style-ats-warning')).toHaveTextContent(
+        /dot meters/i
+      );
+
+      // Hidden once chips is active
+      rerender(
+        <ThemeCustomizationPanel
+          themeConfig={{ skillStyle: 'chips' }}
+          templateDefaultTheme={{ skillStyle: 'dots' }}
+          onChange={mockOnChange}
+          onClose={mockOnClose}
+        />
+      );
+      expect(screen.queryByTestId('skill-style-ats-warning')).not.toBeInTheDocument();
+    });
+
+    it('marks multi-column, grid, and presentation-table templates as non-ATS in registry.ts', () => {
+      expect(getTemplate('tech-split').atsFriendly).toBe(false);
+      expect(getTemplate('two-column').atsFriendly).toBe(false);
+      expect(getTemplate('banded').atsFriendly).toBe(false);
+      expect(getTemplate('developer').atsFriendly).toBe(false);
+
+      const atsIds = templateRegistry
+        .filter((t) => t.atsFriendly)
+        .map((t) => t.id);
+      expect(atsIds).toEqual([
+        'modern',
+        'professional',
+        'minimal',
+        'classic',
+        'executive',
+        'compact',
+        'academic',
+      ]);
     });
 
     it('updates font pairing when clicked', () => {

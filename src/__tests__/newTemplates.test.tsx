@@ -17,7 +17,7 @@ const NEW_TEMPLATES = [
     id: 'developer',
     name: 'Developer',
     category: 'tech',
-    atsFriendly: true,
+    atsFriendly: false,
     component: DeveloperTemplate,
   },
   {
@@ -334,6 +334,11 @@ describe('Developer, Startup, and Academic CV Templates', () => {
       );
 
       const prominentLinks = screen.getByTestId('developer-prominent-links');
+      const labelPrefix = screen.getByTestId('developer-label-prefix');
+      expect(labelPrefix).toHaveAttribute('data-prefix', '//');
+      expect(labelPrefix.className).toContain('before:content-[attr(data-prefix)]');
+      expect(labelPrefix).toHaveTextContent('');
+      expect(container.textContent).not.toContain('//');
       expect(
         within(prominentLinks).getByRole('link', { name: 'github.com/mayalin' })
       ).toHaveAttribute('href', 'https://github.com/mayalin');
@@ -388,13 +393,24 @@ describe('Developer, Startup, and Academic CV Templates', () => {
       );
       expect(pillHeadings.length).toBeGreaterThan(0);
 
-      // Metrics extracted and emphasised from bullets/descriptions
+      // Metrics extracted and emphasised via CSS ::before attributes without duplicate DOM text
       const metricBars = screen.getAllByTestId('startup-impact-metrics');
       expect(metricBars.length).toBeGreaterThan(0);
-      const metricText = metricBars.map((el) => el.textContent).join(' ');
-      expect(metricText).toContain('41%');
-      expect(metricText).toContain('100k+');
-      expect(metricText).toContain('60fps');
+      metricBars.forEach((el) => {
+        expect(el).toHaveTextContent('');
+      });
+      const metricPills = metricBars.flatMap((el) =>
+        Array.from(el.querySelectorAll('[data-metric]'))
+      );
+      const metricAttrValues = metricPills.map((pill) =>
+        pill.getAttribute('data-metric')
+      );
+      expect(metricAttrValues).toEqual(
+        expect.arrayContaining(['↗ 41%', '↗ 100k+', '↗ 60fps'])
+      );
+      metricPills.forEach((pill) => {
+        expect(pill.className).toContain('before:content-[attr(data-metric)]');
+      });
     });
 
     it('AcademicTemplate places Education first, numbers enabled publications in citation format, and supports inline editing on publications', async () => {
@@ -498,13 +514,16 @@ describe('Developer, Startup, and Academic CV Templates', () => {
         `All (${templateRegistry.length})`
       );
 
-      // Tech category -> tech-split, developer (ATS), startup (non-ATS)
+      // Tech category -> tech-split, developer, startup (all non-ATS with caution badges)
       fireEvent.click(within(dialog).getByTestId('gallery-category-tech'));
       expect(
         within(dialog).getByTestId('template-card-developer')
       ).toBeInTheDocument();
       expect(
-        within(dialog).getByTestId('ats-badge-developer')
+        within(dialog).queryByTestId('ats-badge-developer')
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).getByTestId('ats-caution-badge-developer')
       ).toBeInTheDocument();
       expect(
         within(dialog).getByTestId('template-card-startup')
@@ -513,7 +532,31 @@ describe('Developer, Startup, and Academic CV Templates', () => {
         within(dialog).queryByTestId('ats-badge-startup')
       ).not.toBeInTheDocument();
       expect(
+        within(dialog).getByTestId('ats-caution-badge-startup')
+      ).toBeInTheDocument();
+      expect(
         within(dialog).queryByTestId('template-card-academic')
+      ).not.toBeInTheDocument();
+
+      // ATS-friendly filter chip -> shows only ATS-friendly single-column templates
+      fireEvent.click(within(dialog).getByTestId('gallery-filter-ats'));
+      expect(
+        within(dialog).getByTestId('template-card-academic')
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).queryByTestId('template-card-developer')
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByTestId('template-card-tech-split')
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByTestId('template-card-two-column')
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByTestId('template-card-banded')
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByTestId('template-card-timeline')
       ).not.toBeInTheDocument();
 
       // Professional category -> professional, academic (ATS)

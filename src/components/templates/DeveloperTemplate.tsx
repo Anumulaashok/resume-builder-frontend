@@ -232,19 +232,25 @@ const DeveloperTemplateContent: React.FC = () => {
                       }}
                       placeholder="Your Name"
                     />
-                    {(basics.label || !readOnly) && (
-                      <div className="flex items-baseline gap-1.5 mt-1">
-                        <span
-                          aria-hidden="true"
-                          className="text-xs font-bold select-none"
-                          style={{
-                            fontFamily: MONO_STACK,
-                            color:
-                              'var(--theme-accent, var(--theme-primary, #0284c7))',
-                          }}
-                        >
-                          {'//'}
-                        </span>
+                    {(Boolean(basics.label?.trim()) || !readOnly) && (
+                      <div
+                        className={`flex items-baseline gap-1.5 mt-1 ${
+                          !basics.label?.trim() ? 'print:hidden' : ''
+                        }`}
+                      >
+                        {Boolean(basics.label?.trim()) && (
+                          <span
+                            aria-hidden="true"
+                            data-testid="developer-label-prefix"
+                            data-prefix="//"
+                            className="text-xs font-bold select-none before:content-[attr(data-prefix)]"
+                            style={{
+                              fontFamily: MONO_STACK,
+                              color:
+                                'var(--theme-accent, var(--theme-primary, #0284c7))',
+                            }}
+                          />
+                        )}
                         <InlineEdit
                           value={basics.label || ''}
                           onChange={
