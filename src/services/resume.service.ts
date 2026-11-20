@@ -15,6 +15,7 @@ import {
 } from "../utils/download";
 import {
   markResumeOmittedSummary,
+  normalizeGeneratedResumePayload,
   normalizeResume,
 } from "../utils/resumeNormalizer";
 
@@ -109,7 +110,7 @@ class ResumeService {
       if (!generatedResume) {
         throw new Error("Failed to generate resume content");
       }
-      return normalizeResumeIdentifiers(generatedResume);
+      return normalizeGeneratedResumePayload(generatedResume, basics);
     } catch (generateError) {
       try {
         await this.deleteResume(resumeId);

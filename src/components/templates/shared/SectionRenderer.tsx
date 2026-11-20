@@ -1,5 +1,9 @@
 import React from 'react';
 import { IResume, ISection } from '../../../types/resume';
+import {
+  ensureTemplateResumeIds,
+  normalizeSectionsAndOrder,
+} from '../../../utils/resumeNormalizer';
 import { InlineEdit } from '../../ui/InlineEdit';
 import {
   buildSyncedFieldPatch,
@@ -51,11 +55,20 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
   readOnly: propReadOnly,
 }) => {
   const ctx = useTemplateContext();
-  const resume = propResume || ctx.resume;
+  const baseResume = propResume || ctx.resume;
+  const resume = baseResume ? ensureTemplateResumeIds(baseResume) : undefined;
   const isReadOnly = propReadOnly ?? ctx.readOnly;
 
-  const rawSections = propSections ?? resume?.content?.sections ?? [];
-  const rawOrder = propSectionOrder ?? resume?.content?.sectionOrder ?? [];
+  const normalizedPropData = propSections
+    ? normalizeSectionsAndOrder(propSections, propSectionOrder)
+    : undefined;
+  const rawSections =
+    normalizedPropData?.sections ?? resume?.content?.sections ?? [];
+  const rawOrder =
+    propSectionOrder ??
+    normalizedPropData?.sectionOrder ??
+    resume?.content?.sectionOrder ??
+    [];
 
   const ordered = getOrderedSections(rawSections, rawOrder).filter((sec) => {
     if (!filter) return true;

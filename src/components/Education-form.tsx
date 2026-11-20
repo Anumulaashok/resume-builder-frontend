@@ -12,17 +12,15 @@ import {
 } from "./ui/select";
 import { LinkIcon } from "@heroicons/react/24/outline";
 import { dateFields, EducationItem } from "../types/resume";
+import {
+  createUniqueItemId,
+  hasValidIdentifier,
+  isPresentDateValue,
+  normalizeEducationDate,
+} from "../utils/resumeNormalizer";
 
-const EMPTY_DATE: dateFields = { month: "", year: "" };
-
-const normalizeDateFields = (date?: Partial<dateFields> | null): dateFields => {
-  if (!date || typeof date !== "object") {
-    return { ...EMPTY_DATE };
-  }
-  return {
-    month: typeof date.month === "string" ? date.month : "",
-    year: typeof date.year === "string" ? date.year : "",
-  };
+const normalizeDateFields = (date?: unknown): dateFields => {
+  return normalizeEducationDate(date);
 };
 
 const MONTHS = [
@@ -54,9 +52,13 @@ const MonthYearSelector: React.FC<{
   onYearChange,
 }) => {
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 45 }, (_, i) =>
+  const baseYears = Array.from({ length: 45 }, (_, i) =>
     (currentYear + 5 - i).toString()
   );
+  const years =
+    selectedYear && !baseYears.includes(selectedYear)
+      ? [...baseYears, selectedYear]
+      : baseYears;
 
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -106,22 +108,51 @@ export default function EducationForm({
   onSave: (content: any) => void;
   onCancel: () => void;
 }) {
-  const [content, setContent] = useState<EducationItem>(
-    initialContent ?? {
-      id: Date.now().toString(),
-      degree: "",
-      field: "",
-      location: "",
-      current: false,
-      startDate: { month: "", year: "" },
-      endDate: { month: "", year: "" },
-      description: "",
+  const usesInstitutionField = Boolean(initialContent?.institution);
+
+  const [content, setContent] = useState<EducationItem>(() => {
+    const resolvedId = hasValidIdentifier(initialContent?.id)
+      ? initialContent!.id.trim()
+      : createUniqueItemId("edu");
+
+    if (!initialContent) {
+      return {
+        id: resolvedId,
+        degree: "",
+        field: "",
+        location: "",
+        current: false,
+        startDate: { month: "", year: "" },
+        endDate: { month: "", year: "" },
+        description: "",
+      };
     }
-  );
+
+    const rawEnd = (initialContent as any).endDate;
+    const endIsPresent = isPresentDateValue(rawEnd);
+
+    return {
+      ...initialContent,
+      id: resolvedId,
+      degree: initialContent.degree ?? "",
+      field: initialContent.field ?? "",
+      current:
+        initialContent.current !== undefined
+          ? Boolean(initialContent.current)
+          : endIsPresent,
+      startDate: normalizeDateFields((initialContent as any).startDate),
+      endDate: endIsPresent
+        ? { month: "", year: "" }
+        : normalizeDateFields(rawEnd),
+    };
+  });
 
   const handleSave = () => {
     onSave({
       ...content,
+      id: hasValidIdentifier(content.id)
+        ? content.id.trim()
+        : createUniqueItemId("edu"),
       startDate: normalizeDateFields(content.startDate),
       endDate: normalizeDateFields(content.endDate),
     });
@@ -165,8 +196,17 @@ export default function EducationForm({
               id="edu-school"
               placeholder="Enter school or university"
               className="bg-white text-gray-900 placeholder-gray-400 border-gray-300 flex-1"
-              value={content.field || ""}
-              onChange={(e) => handleChange("field", e.target.value)}
+              value={
+                usesInstitutionField
+                  ? content.institution || ""
+                  : content.field || ""
+              }
+              onChange={(e) =>
+                handleChange(
+                  usesInstitutionField ? "institution" : "field",
+                  e.target.value
+                )
+              }
             />
             <Button
               type="button"

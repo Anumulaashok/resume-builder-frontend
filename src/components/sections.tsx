@@ -3,11 +3,19 @@ import { motion } from "framer-motion";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { EducationItem, SectionType } from "../types/resume";
 import { formatResumeDate } from "../utils/date";
+import {
+  createUniqueItemId,
+  hasValidIdentifier,
+  normalizeSectionType,
+} from "../utils/resumeNormalizer";
 import EducationForm from "./Education-form";
 
 export interface ContntProps {
-  type: SectionType;
+  type: SectionType | string;
   item: any;
+  sectionId?: string;
+  sectionTitle?: string;
+  itemIndex?: number;
 }
 
 interface SectionEditorProps {
@@ -458,7 +466,13 @@ const GenericSectionItemForm: React.FC<{
   const meta = SECTION_META[type] || SECTION_META[SectionType.CUSTOM];
 
   const [formState, setFormState] = useState<Record<string, any>>(() => {
-    const base = { ...(initialItem || { id: Date.now().toString() }) };
+    const resolvedId = hasValidIdentifier(initialItem?.id)
+      ? initialItem.id.trim()
+      : createUniqueItemId("item");
+    const base: Record<string, any> = {
+      ...(initialItem || {}),
+      id: resolvedId,
+    };
     meta.fields.forEach((field) => {
       if (field.syncKey) {
         const resolved = base[field.key] || base[field.syncKey] || "";
@@ -490,7 +504,12 @@ const GenericSectionItemForm: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const prepared = { ...formState };
+    const prepared: Record<string, any> = {
+      ...formState,
+      id: hasValidIdentifier(formState.id)
+        ? formState.id.trim()
+        : createUniqueItemId("item"),
+    };
     meta.fields.forEach((field) => {
       if (field.type === "tags") {
         const raw = prepared[field.key];
@@ -606,13 +625,18 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
     return null;
   }
 
-  if (content.type === SectionType.EDUCATION) {
+  const resolvedType = normalizeSectionType(content.type, {
+    id: content.sectionId,
+    title: content.sectionTitle,
+  });
+
+  if (resolvedType === SectionType.EDUCATION) {
     return (
       <DialogBox title="Education" onClose={onClose} hideFooter>
         <EducationForm
           initialContent={content.item as EducationItem}
           onSave={(newContent) => {
-            onSave(content.type, newContent);
+            onSave(resolvedType, newContent);
           }}
           onCancel={onClose}
         />
@@ -620,23 +644,14 @@ const SectionEditors: React.FC<SectionEditorProps> = ({
     );
   }
 
-  const meta = SECTION_META[content.type];
-  if (!meta) {
-    return (
-      <DialogBox title="Unsupported Section" onClose={onClose}>
-        <p className="text-sm text-gray-600">
-          Unknown content type: {String(content.type)}
-        </p>
-      </DialogBox>
-    );
-  }
+  const meta = SECTION_META[resolvedType] || SECTION_META[SectionType.CUSTOM];
 
   return (
     <DialogBox title={meta.title} onClose={onClose} hideFooter>
       <GenericSectionItemForm
-        type={content.type}
+        type={resolvedType}
         initialItem={content.item}
-        onSave={(updatedItem) => onSave(content.type, updatedItem)}
+        onSave={(updatedItem) => onSave(resolvedType, updatedItem)}
         onCancel={onClose}
       />
     </DialogBox>

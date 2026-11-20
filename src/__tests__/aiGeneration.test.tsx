@@ -1,11 +1,14 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import axiosInstance from '../services/axios';
 import { resumeService, ResumeWithMeta } from '../services/resume.service';
 import HomePage from '../components/HomePage';
+import ResumeEditor from '../components/ResumeEditor';
+import { ModernTemplate } from '../components/templates/ModernTemplate';
+import { ProfessionalTemplate } from '../components/templates/ProfessionalTemplate';
 import App from '../App';
-import { SectionType } from '../types/resume';
+import { IResume, SectionType } from '../types/resume';
 import { getStoredUser, setStoredUser, setToken } from '../utils/token';
 
 jest.mock('../services/axios', () => ({
@@ -535,6 +538,347 @@ describe('AI Resume Generation Flow', () => {
       // Return to list view and log out to verify stored user cleanup
       fireEvent.click(screen.getByRole('button', { name: /Logout/i }));
       expect(getStoredUser()).toBeNull();
+    });
+  });
+
+  describe('AI Output Normalization, Editor Hydration & Inline Preview Isolation', () => {
+    it('normalizes raw AI section aliases, missing IDs, string education dates, and invalid emails in resumeService.generateFromPrompt', async () => {
+      mockedAxios.post
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            data: {
+              _id: 'raw-ai-res-1',
+              title: 'AI Draft',
+              content: {
+                basics: { name: 'Grace Hopper', email: 'grace@navy.mil' },
+                sections: [],
+                sectionOrder: [],
+              },
+            },
+          },
+        } as any)
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            data: {
+              _id: 'raw-ai-res-1',
+              title: 'Compiler Engineer',
+              summary: 'Built early compiler toolchains.',
+              content: {
+                basics: {
+                  name: '',
+                  email: 'not-a-valid-email',
+                  label: 'Compiler Engineer',
+                },
+                sections: [
+                  {
+                    type: 'work',
+                    title: 'Experience',
+                    content: [
+                      {
+                        company: 'Remington Rand',
+                        position: 'Director of Automatic Programming',
+                        startDate: '1952-01',
+                        endDate: '1964-12',
+                        description: 'Led FLOW-MATIC compiler development.',
+                      },
+                      {
+                        company: 'Eckert-Mauchly',
+                        position: 'Senior Mathematician',
+                        startDate: '1949-06',
+                        endDate: '1952-01',
+                        description: 'Developed A-0 system.',
+                      },
+                    ],
+                  },
+                  {
+                    type: 'education',
+                    title: 'Education',
+                    content: [
+                      {
+                        institution: 'Yale University',
+                        degree: 'Ph.D.',
+                        field: 'Mathematics',
+                        startDate: '1930-09',
+                        endDate: 'May 1934',
+                      },
+                    ],
+                  },
+                  {
+                    type: 'skills',
+                    title: 'Skills',
+                    content: ['COBOL', { name: 'Compilers', level: 'Expert' }],
+                  },
+                  {
+                    type: 'patents',
+                    title: 'Patents & Specifications',
+                    content: [
+                      {
+                        name: 'Automatic Programming Specification',
+                        description: 'Machine-independent language design',
+                      },
+                    ],
+                  },
+                ],
+                sectionOrder: [],
+              },
+            },
+          },
+        } as any);
+
+      const normalized = await resumeService.generateFromPrompt(
+        'Compiler engineer resume',
+        { name: 'Grace Hopper', email: 'grace@navy.mil' }
+      );
+
+      expect(normalized.content.basics.name).toBe('Grace Hopper');
+      expect(normalized.content.basics.email).toBe('grace@navy.mil');
+
+      const sections = normalized.content.sections;
+      expect(sections.map((s) => s.type)).toEqual([
+        SectionType.WORK,
+        SectionType.EDUCATION,
+        SectionType.SKILLS,
+        SectionType.CUSTOM,
+      ]);
+      expect(sections[3].isCustom).toBe(true);
+
+      const sectionIds = sections.map((s) => s.id);
+      expect(sectionIds.every((id) => Boolean(id && id.trim()))).toBe(true);
+      expect(new Set(sectionIds).size).toBe(sectionIds.length);
+      expect(normalized.content.sectionOrder).toEqual(sectionIds);
+
+      const itemIds = sections.flatMap((s) => s.content.map((i: any) => i.id));
+      expect(itemIds.every((id) => Boolean(id && id.trim()))).toBe(true);
+      expect(new Set(itemIds).size).toBe(itemIds.length);
+
+      expect(sections[1].content[0].startDate).toEqual({
+        month: 'Sep',
+        year: '1930',
+      });
+      expect(sections[1].content[0].endDate).toEqual({
+        month: 'May',
+        year: '1934',
+      });
+    });
+
+    it('hydrates legacy AI resumes in ResumeEditor, opens matching modals with education dates, and isolates edit/hide/delete per item', async () => {
+      mockedAxios.put.mockResolvedValue({
+        data: { success: true, data: {} },
+      } as any);
+
+      const legacyAiResume: any = {
+        _id: 'legacy-ai-99',
+        title: 'Full Stack Engineer',
+        summary: 'Builds web platforms.',
+        content: {
+          basics: {
+            name: 'Linus Torvalds',
+            email: 'linus@kernel.org',
+          },
+          sections: [
+            {
+              type: 'work',
+              title: 'Work History',
+              content: [
+                {
+                  company: 'Alpha Systems',
+                  position: 'Lead Engineer',
+                  startDate: 'Jan 2022',
+                  endDate: 'Dec 2024',
+                  description: 'Built core platform.',
+                },
+                {
+                  company: 'Beta Labs',
+                  position: 'Software Engineer',
+                  startDate: 'Jan 2020',
+                  endDate: 'Dec 2021',
+                  description: 'Built developer tools.',
+                },
+              ],
+            },
+            {
+              type: 'education',
+              title: 'Academic Background',
+              content: [
+                {
+                  institution: 'University of Helsinki',
+                  degree: 'M.Sc.',
+                  field: 'Computer Science',
+                  startDate: '2018-09',
+                  endDate: 'May 2022',
+                },
+              ],
+            },
+            {
+              type: 'patents',
+              title: 'Open Source Stewardship',
+              content: [
+                {
+                  title: 'Git SCM',
+                  description: 'Distributed version control',
+                },
+              ],
+            },
+          ],
+          sectionOrder: [],
+        },
+      };
+
+      render(<ResumeEditor initialResume={legacyAiResume} onBack={jest.fn()} />);
+
+      // Open Education modal and verify string dates hydrated into Month/Year selects
+      fireEvent.click(screen.getByRole('button', { name: /Edit University of Helsinki/i }));
+      expect(screen.queryByText(/Unsupported Section/i)).not.toBeInTheDocument();
+      const eduDialog = screen.getByRole('dialog');
+      expect(within(eduDialog).getByLabelText(/School \/ Institution/i)).toHaveValue(
+        'University of Helsinki'
+      );
+      const startDateGroup = within(eduDialog).getByText('Start Date').parentElement!;
+      const endDateGroup = within(eduDialog).getByText('End Date').parentElement!;
+      expect(within(startDateGroup).getByRole('button', { name: 'Sep' })).toBeInTheDocument();
+      expect(within(startDateGroup).getByRole('button', { name: '2018' })).toBeInTheDocument();
+      expect(within(endDateGroup).getByRole('button', { name: 'May' })).toBeInTheDocument();
+      expect(within(endDateGroup).getByRole('button', { name: '2022' })).toBeInTheDocument();
+      fireEvent.click(within(eduDialog).getByRole('button', { name: /^Save$/i }));
+
+      // Open unknown section ("patents" -> CustomItem) and verify no "Unsupported Section" dialog
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Edit Git SCM/i }));
+      expect(screen.queryByText(/Unsupported Section/i)).not.toBeInTheDocument();
+      const customDialog = screen.getByRole('dialog');
+      expect(within(customDialog).getByDisplayValue('Git SCM')).toBeInTheDocument();
+      fireEvent.click(within(customDialog).getByRole('button', { name: /Cancel/i }));
+
+      // Edit ONLY the second work item (Beta Labs) and verify Alpha Systems is untouched
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Edit Beta Labs/i }));
+      const workDialog = screen.getByRole('dialog');
+      const companyInput = within(workDialog).getByDisplayValue('Beta Labs');
+      fireEvent.change(companyInput, { target: { value: 'Beta Cloud Labs' } });
+      fireEvent.click(within(workDialog).getByRole('button', { name: /^Save$/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit Beta Cloud Labs/i })).toBeInTheDocument();
+      });
+      expect(screen.getByRole('button', { name: /Edit Alpha Systems/i })).toBeInTheDocument();
+
+      // Hide ONLY Alpha Systems and verify Beta Cloud Labs remains visible (not hidden)
+      fireEvent.click(screen.getByRole('button', { name: /Hide Alpha Systems/i }));
+      expect(screen.getByRole('button', { name: /Show Alpha Systems/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Hide Beta Cloud Labs/i })).toBeInTheDocument();
+
+      // Delete ONLY Alpha Systems and verify Beta Cloud Labs remains in the section
+      fireEvent.click(screen.getByRole('button', { name: /Remove Alpha Systems/i }));
+      expect(screen.queryByRole('button', { name: /Alpha Systems/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Edit Beta Cloud Labs/i })).toBeInTheDocument();
+    });
+
+    it('isolates inline preview edits to the single edited item in ModernTemplate and ProfessionalTemplate even when raw items omit IDs', async () => {
+      const buildRawMultiItemResume = (): IResume =>
+        ({
+          title: 'Systems Engineer',
+          summary: 'Builds reliable services.',
+          content: {
+            basics: {
+              name: 'Barbara Liskov',
+              email: 'liskov@mit.edu',
+            },
+            sections: [
+              {
+                id: 'work-sec',
+                type: 'work' as any,
+                title: 'Experience',
+                content: [
+                  {
+                    company: 'First Corp',
+                    position: 'Principal Architect',
+                    description: 'Designed CLU language.',
+                  },
+                  {
+                    company: 'Second Corp',
+                    position: 'Staff Researcher',
+                    description: 'Designed Thor object database.',
+                  },
+                ],
+              },
+              {
+                id: 'skill-sec',
+                type: 'skills' as any,
+                title: 'Skills',
+                content: [
+                  { name: 'Distributed Systems', level: 'Expert' },
+                  { name: 'Type Theory', level: 'Advanced' },
+                ],
+              },
+            ],
+            sectionOrder: ['work-sec', 'skill-sec'],
+          },
+        } as IResume);
+
+      // Verify ModernTemplate inline edit isolation
+      let modernLatest: IResume | null = null;
+      const { unmount } = render(
+        <ModernTemplate
+          resume={buildRawMultiItemResume()}
+          onChange={(updated) => {
+            modernLatest = updated;
+          }}
+        />
+      );
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Inline edit: Designed Thor object database.' })
+      );
+      const modernTextarea = await screen.findByDisplayValue(
+        'Designed Thor object database.'
+      );
+      fireEvent.change(modernTextarea, {
+        target: { value: 'Designed Byzantine fault-tolerant replication.' },
+      });
+      fireEvent.blur(modernTextarea);
+
+      expect(modernLatest).not.toBeNull();
+      expect(modernLatest!.content.sections[0].content[0].description).toBe(
+        'Designed CLU language.'
+      );
+      expect(modernLatest!.content.sections[0].content[1].description).toBe(
+        'Designed Byzantine fault-tolerant replication.'
+      );
+      unmount();
+
+      // Verify ProfessionalTemplate inline edit isolation on skills
+      let professionalLatest: IResume | null = null;
+      render(
+        <ProfessionalTemplate
+          resume={buildRawMultiItemResume()}
+          onChange={(updated) => {
+            professionalLatest = updated;
+          }}
+        />
+      );
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Inline edit: Type Theory' })
+      );
+      const skillInput = await screen.findByDisplayValue('Type Theory');
+      fireEvent.change(skillInput, {
+        target: { value: 'Program Verification' },
+      });
+      fireEvent.blur(skillInput);
+
+      expect(professionalLatest).not.toBeNull();
+      expect(professionalLatest!.content.sections[1].content[0].name).toBe(
+        'Distributed Systems'
+      );
+      expect(professionalLatest!.content.sections[1].content[1].name).toBe(
+        'Program Verification'
+      );
     });
   });
 });

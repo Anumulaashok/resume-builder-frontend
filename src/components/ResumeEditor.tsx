@@ -57,8 +57,11 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useResumeHistory } from "./useResumeHistory";
 import { resumeService } from "../services/resume.service";
 import {
+  createUniqueItemId,
   hasResumeOmittedSummary,
+  hasValidIdentifier,
   normalizeResume,
+  normalizeSectionType,
 } from "../utils/resumeNormalizer";
 import {
   dateFields,
@@ -290,8 +293,9 @@ export function getItemDisplayLines(
   }
 
   const dateRange = formatItemDateRange(item);
+  const resolvedType = normalizeSectionType(sectionType);
 
-  switch (sectionType) {
+  switch (resolvedType) {
     case SectionType.WORK: {
       const company = (item.company || item.name || "").trim();
       const position = (item.position || "").trim();
@@ -493,9 +497,15 @@ interface SortableItemProps {
   section: ISection;
   onAddItem: (section: ISection) => void;
   onDeleteSection: (section: ISection) => void;
-  onRemove: (sectionId: string, itemId: string) => void;
-  onEdit: (type: SectionType, item: any, sectionId: string) => void;
-  onHide: (sectionId: string, itemId: string) => void;
+  onRemove: (sectionId: string, itemId: string, itemIndex?: number) => void;
+  onEdit: (
+    type: SectionType,
+    item: any,
+    sectionId: string,
+    itemIndex?: number,
+    sectionTitle?: string
+  ) => void;
+  onHide: (sectionId: string, itemId: string, itemIndex?: number) => void;
 }
 
 const SortableItem: React.FC<SortableItemProps> = ({
@@ -582,16 +592,19 @@ const SortableItem: React.FC<SortableItemProps> = ({
       <div className="p-4 sm:p-5">
         {section.content && section.content.length > 0 ? (
           <div className="space-y-2.5">
-            {section.content.map((item: any) => {
+            {section.content.map((item: any, itemIndex: number) => {
               const { primary, secondary } = getItemDisplayLines(
                 section.type,
                 item
               );
               const isHidden = item.enabled === false;
+              const itemKey = hasValidIdentifier(item?.id)
+                ? item.id
+                : `${section.id}-item-${itemIndex}`;
 
               return (
                 <div
-                  key={item.id}
+                  key={itemKey}
                   className={`px-3.5 py-3 border rounded-lg transition-colors flex items-center justify-between gap-3 ${
                     isHidden
                       ? "border-gray-200 bg-neutral-50 opacity-65"
@@ -599,7 +612,15 @@ const SortableItem: React.FC<SortableItemProps> = ({
                   }`}
                 >
                   <div
-                    onClick={() => onEdit(section.type, item, section.id)}
+                    onClick={() =>
+                      onEdit(
+                        section.type,
+                        item,
+                        section.id,
+                        itemIndex,
+                        section.title
+                      )
+                    }
                     className="min-w-0 flex-1 cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
@@ -622,7 +643,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
-                      onClick={() => onHide(section.id, item.id)}
+                      onClick={() => onHide(section.id, item?.id, itemIndex)}
                       title={
                         isHidden
                           ? "Show item on resume"
@@ -641,7 +662,15 @@ const SortableItem: React.FC<SortableItemProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onEdit(section.type, item, section.id)}
+                      onClick={() =>
+                        onEdit(
+                          section.type,
+                          item,
+                          section.id,
+                          itemIndex,
+                          section.title
+                        )
+                      }
                       title={`Edit ${primary}`}
                       aria-label={`Edit ${primary}`}
                       className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -650,7 +679,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onRemove(section.id, item.id)}
+                      onClick={() => onRemove(section.id, item?.id, itemIndex)}
                       title={`Remove ${primary}`}
                       aria-label={`Remove ${primary}`}
                       className="p-1.5 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -711,6 +740,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     type: SectionType;
     item: any;
     sectionId?: string;
+    sectionTitle?: string;
+    itemIndex?: number;
   } | null>(null);
   const [deletableSection, setDeletableSection] = useState<ISection | null>(
     null
@@ -1538,11 +1569,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   );
 
   const handleAddNewItem = (section: ISection) => {
+    const resolvedType = normalizeSectionType(section.type, section);
     let newItem: any = {
-      id: `${section.id}-item-${Date.now()}`,
+      id: createUniqueItemId(section.id || "section"),
     };
 
-    switch (section.type) {
+    switch (resolvedType) {
       case SectionType.EDUCATION:
         newItem = {
           ...newItem,
@@ -1691,29 +1723,59 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         };
     }
 
-    setAddContent({ type: section.type, item: newItem, sectionId: section.id });
+    setAddContent({
+      type: resolvedType,
+      item: newItem,
+      sectionId: section.id,
+      sectionTitle: section.title,
+    });
   };
 
   const handleAddContent = (type: SectionType, item: any) => {
     const targetSectionId = addContent?.sectionId;
+    const targetItemIndex = addContent?.itemIndex;
+    const resolvedType = normalizeSectionType(type);
+    const savedItem = hasValidIdentifier(item?.id)
+      ? item
+      : {
+          ...(item && typeof item === "object" ? item : {}),
+          id: createUniqueItemId(targetSectionId || "section"),
+        };
 
     setResume((prev) => {
       const updatedSections = prev.content.sections.map((section) => {
         const matchesSection = targetSectionId
           ? section.id === targetSectionId
-          : section.type === type;
+          : normalizeSectionType(section.type, section) === resolvedType;
         if (!matchesSection) {
           return section;
         }
 
         const existingContent = section.content || [];
-        const existingItemIndex = existingContent.findIndex(
-          (contentItem) => contentItem.id === item.id
-        );
+        const existingItemIndex = hasValidIdentifier(savedItem.id)
+          ? existingContent.findIndex(
+              (contentItem) =>
+                hasValidIdentifier(contentItem?.id) &&
+                contentItem.id === savedItem.id
+            )
+          : -1;
 
         if (existingItemIndex !== -1) {
           const updatedContent = [...existingContent];
-          updatedContent[existingItemIndex] = item;
+          updatedContent[existingItemIndex] = savedItem;
+          return {
+            ...section,
+            content: updatedContent,
+          };
+        }
+
+        if (
+          typeof targetItemIndex === "number" &&
+          targetItemIndex >= 0 &&
+          targetItemIndex < existingContent.length
+        ) {
+          const updatedContent = [...existingContent];
+          updatedContent[targetItemIndex] = savedItem;
           return {
             ...section,
             content: updatedContent,
@@ -1722,7 +1784,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
         return {
           ...section,
-          content: [...existingContent, item],
+          content: [...existingContent, savedItem],
         };
       });
 
@@ -1754,7 +1816,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     toast.success("Section deleted successfully");
   };
 
-  const handleToggleItemVisibility = (sectionId: string, itemId: string) => {
+  const handleToggleItemVisibility = (
+    sectionId: string,
+    itemId: string,
+    itemIndex?: number
+  ) => {
     setResume((prev) => ({
       ...prev,
       content: {
@@ -1763,21 +1829,32 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           if (section.id !== sectionId) return section;
           return {
             ...section,
-            content: section.content.map((item) =>
-              item.id === itemId
-                ? {
-                    ...item,
-                    enabled: item.enabled === false ? true : false,
-                  }
-                : item
-            ),
+            content: section.content.map((item, idx) => {
+              const matchesItem = hasValidIdentifier(itemId)
+                ? hasValidIdentifier(item?.id) && item.id === itemId
+                : typeof itemIndex === "number" && idx === itemIndex;
+              if (!matchesItem) {
+                return item;
+              }
+              return {
+                ...item,
+                id: hasValidIdentifier(item?.id)
+                  ? item.id
+                  : createUniqueItemId(sectionId || "section"),
+                enabled: item.enabled === false ? true : false,
+              };
+            }),
           };
         }),
       },
     }));
   };
 
-  const handleRemoveItem = (sectionId: string, itemId: string) => {
+  const handleRemoveItem = (
+    sectionId: string,
+    itemId: string,
+    itemIndex?: number
+  ) => {
     setResume((prev) => ({
       ...prev,
       content: {
@@ -1786,7 +1863,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           if (section.id !== sectionId) return section;
           return {
             ...section,
-            content: section.content.filter((item) => item.id !== itemId),
+            content: section.content.filter((item, idx) => {
+              if (hasValidIdentifier(itemId)) {
+                return !(hasValidIdentifier(item?.id) && item.id === itemId);
+              }
+              if (typeof itemIndex === "number") {
+                return idx !== itemIndex;
+              }
+              return true;
+            }),
           };
         }),
       },
@@ -2231,8 +2316,29 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   section={section}
                   onAddItem={handleAddNewItem}
                   onDeleteSection={setDeletableSection}
-                  onEdit={(type, content, sectionId) => {
-                    setAddContent({ type, item: content, sectionId });
+                  onEdit={(
+                    type,
+                    content,
+                    sectionId,
+                    itemIndex,
+                    sectionTitle
+                  ) => {
+                    const resolvedType = normalizeSectionType(type, section);
+                    const safeItem = hasValidIdentifier(content?.id)
+                      ? content
+                      : {
+                          ...(content && typeof content === "object"
+                            ? content
+                            : {}),
+                          id: createUniqueItemId(sectionId || "section"),
+                        };
+                    setAddContent({
+                      type: resolvedType,
+                      item: safeItem,
+                      sectionId,
+                      sectionTitle: sectionTitle || section.title,
+                      itemIndex,
+                    });
                   }}
                   onHide={handleToggleItemVisibility}
                   onRemove={handleRemoveItem}
