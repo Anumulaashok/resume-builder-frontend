@@ -1,6 +1,7 @@
 export {
   TemplateContext,
   TemplateProvider,
+  applyBasicsFieldUpdate,
   useTemplateContext,
 } from './TemplateContext';
 export type {
@@ -37,8 +38,8 @@ export type {
   NarrowSkillDecisionInput,
 } from './SkillList';
 
-export { ContactRow } from './ContactRow';
-export type { ContactRowProps } from './ContactRow';
+export { ContactRow, InlineLinkEdit } from './ContactRow';
+export type { ContactRowProps, InlineLinkEditProps } from './ContactRow';
 
 export { SectionRenderer } from './SectionRenderer';
 export type { SectionRendererProps } from './SectionRenderer';

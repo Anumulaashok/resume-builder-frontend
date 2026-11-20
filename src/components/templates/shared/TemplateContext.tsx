@@ -51,6 +51,121 @@ export interface TemplateProviderProps {
   children: React.ReactNode;
 }
 
+export function applyBasicsFieldUpdate(
+  basics: IResume['content']['basics'] | undefined,
+  field: string,
+  value: string
+): IResume['content']['basics'] {
+  const current = basics || {};
+
+  if (field === 'location') {
+    const parts = value
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const prevLoc = current.location || {};
+    let nextLocation: NonNullable<IResume['content']['basics']['location']>;
+
+    if (parts.length === 0) {
+      nextLocation = {
+        ...prevLoc,
+        address: '',
+        city: '',
+        region: '',
+        countryCode: '',
+        postalCode: '',
+      };
+    } else if (parts.length === 1) {
+      nextLocation = {
+        ...prevLoc,
+        address: '',
+        city: parts[0],
+        region: '',
+        countryCode: '',
+      };
+    } else if (parts.length === 2) {
+      nextLocation = {
+        ...prevLoc,
+        address: '',
+        city: parts[0],
+        region: parts[1],
+        countryCode: '',
+      };
+    } else if (parts.length === 3) {
+      nextLocation = {
+        ...prevLoc,
+        address: '',
+        city: parts[0],
+        region: parts[1],
+        countryCode: parts[2],
+      };
+    } else {
+      nextLocation = {
+        ...prevLoc,
+        address: parts.slice(0, -3).join(', '),
+        city: parts[parts.length - 3],
+        region: parts[parts.length - 2],
+        countryCode: parts[parts.length - 1],
+      };
+    }
+
+    return {
+      ...current,
+      location: nextLocation,
+    };
+  }
+
+  if (field === 'url' || field === 'website') {
+    const nextBasics: IResume['content']['basics'] = {
+      ...current,
+      url: value,
+    };
+    if (Object.prototype.hasOwnProperty.call(current, 'website')) {
+      nextBasics.website = value;
+    }
+    if (Object.prototype.hasOwnProperty.call(current, 'portfolioUrl')) {
+      nextBasics.portfolioUrl = value;
+    }
+    return nextBasics;
+  }
+
+  if (field === 'profile:new') {
+    const trimmed = value.trim();
+    if (!trimmed) return current;
+    return {
+      ...current,
+      profiles: [
+        ...(Array.isArray(current.profiles) ? current.profiles : []),
+        { network: '', username: '', url: trimmed },
+      ],
+    };
+  }
+
+  if (field.startsWith('profile:')) {
+    const idx = Number.parseInt(field.slice('profile:'.length), 10);
+    if (Number.isNaN(idx) || idx < 0) return current;
+    const existingProfiles = Array.isArray(current.profiles)
+      ? [...current.profiles]
+      : [];
+    const trimmed = value.trim();
+    const target = existingProfiles[idx] || {};
+    if (!trimmed && !target.network?.trim() && !target.username?.trim()) {
+      existingProfiles.splice(idx, 1);
+    } else {
+      existingProfiles[idx] = { ...target, url: trimmed };
+    }
+    return {
+      ...current,
+      profiles: existingProfiles,
+    };
+  }
+
+  return {
+    ...current,
+    [field]: value,
+  };
+}
+
 export const TemplateProvider: React.FC<TemplateProviderProps> = ({
   resume,
   onChange,
@@ -67,10 +182,7 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
       ...resume,
       content: {
         ...resume.content,
-        basics: {
-          ...(resume.content?.basics || {}),
-          [field]: value,
-        },
+        basics: applyBasicsFieldUpdate(resume.content?.basics, field, value),
       },
     });
   };

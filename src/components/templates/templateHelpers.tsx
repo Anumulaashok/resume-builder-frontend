@@ -382,14 +382,73 @@ export function extractHighlights(item: Record<string, any>): string[] {
     .filter(Boolean);
 }
 
+function stripAsciiControlChars(input: string): string {
+  let out = '';
+  for (let i = 0; i < input.length; i += 1) {
+    const code = input.charCodeAt(i);
+    if (code > 31 && code !== 127) {
+      out += input[i];
+    }
+  }
+  return out;
+}
+
 export function normalizeHref(rawUrl?: unknown): string {
   if (typeof rawUrl !== 'string') return '';
-  const trimmed = rawUrl.trim();
-  if (!trimmed) return '';
-  if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) {
-    return trimmed;
+  const cleaned = stripAsciiControlChars(rawUrl).trim();
+  if (!cleaned) return '';
+  if (/^(javascript|data|vbscript|file):/i.test(cleaned)) {
+    return '';
   }
-  return `https://${trimmed}`;
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(cleaned)) {
+    return cleaned;
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(cleaned)) {
+    return '';
+  }
+  return `https://${cleaned}`;
+}
+
+export function validateOptionalLinkInput(rawUrl?: unknown): string | null {
+  if (rawUrl === undefined || rawUrl === null || rawUrl === '') {
+    return null;
+  }
+  if (typeof rawUrl !== 'string') {
+    return 'Enter a valid URL';
+  }
+  const cleaned = stripAsciiControlChars(rawUrl).trim();
+  if (!cleaned) {
+    return null;
+  }
+  if (/^(javascript|data|vbscript|file):/i.test(cleaned)) {
+    return 'Unsafe URL scheme (javascript: and data: are not allowed)';
+  }
+  if (/\s/.test(rawUrl.trim())) {
+    return 'URL cannot contain spaces';
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(cleaned) && !/^https?:\/\//i.test(cleaned)) {
+    return 'URL must start with https:// or http://';
+  }
+  const withProtocol = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return 'URL must use http or https';
+    }
+    const host = parsed.hostname;
+    if (
+      !host ||
+      host.startsWith('.') ||
+      host.endsWith('.') ||
+      host.includes('..') ||
+      (host !== 'localhost' && !/\.[a-zA-Z]{2,}$/.test(host))
+    ) {
+      return 'Enter a valid domain (e.g. github.com/username)';
+    }
+  } catch {
+    return 'Enter a valid URL (e.g. https://example.com)';
+  }
+  return null;
 }
 
 export function formatLinkLabel(rawUrl?: unknown): string {
@@ -534,6 +593,9 @@ export interface ContactLinkItem {
   key: string;
   label: string;
   href: string;
+  fieldKey?: string;
+  rawValue?: string;
+  network?: string;
 }
 
 export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLinkItem[] {
@@ -542,27 +604,42 @@ export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLin
 
   const directUrl = basics.url || basics.website || basics.portfolioUrl;
   if (typeof directUrl === 'string' && directUrl.trim()) {
-    links.push({
-      key: 'website',
-      label: formatLinkLabel(directUrl),
-      href: normalizeHref(directUrl),
-    });
+    const href = normalizeHref(directUrl);
+    if (href) {
+      links.push({
+        key: 'website',
+        fieldKey: 'url',
+        rawValue: directUrl.trim(),
+        label: formatLinkLabel(directUrl),
+        href,
+      });
+    }
   }
 
   if (typeof basics.linkedin === 'string' && basics.linkedin.trim()) {
-    links.push({
-      key: 'linkedin',
-      label: formatLinkLabel(basics.linkedin),
-      href: normalizeHref(basics.linkedin),
-    });
+    const href = normalizeHref(basics.linkedin);
+    if (href) {
+      links.push({
+        key: 'linkedin',
+        fieldKey: 'linkedin',
+        rawValue: basics.linkedin.trim(),
+        label: formatLinkLabel(basics.linkedin),
+        href,
+      });
+    }
   }
 
   if (typeof basics.github === 'string' && basics.github.trim()) {
-    links.push({
-      key: 'github',
-      label: formatLinkLabel(basics.github),
-      href: normalizeHref(basics.github),
-    });
+    const href = normalizeHref(basics.github);
+    if (href) {
+      links.push({
+        key: 'github',
+        fieldKey: 'github',
+        rawValue: basics.github.trim(),
+        label: formatLinkLabel(basics.github),
+        href,
+      });
+    }
   }
 
   if (Array.isArray(basics.profiles)) {
@@ -572,11 +649,17 @@ export function extractExtraBasicsLinks(basics: Record<string, any>): ContactLin
       const network = typeof profile.network === 'string' ? profile.network.trim() : '';
       const username = typeof profile.username === 'string' ? profile.username.trim() : '';
       if (profileUrl) {
-        links.push({
-          key: `profile-${idx}`,
-          label: formatLinkLabel(profileUrl) || network || username,
-          href: normalizeHref(profileUrl),
-        });
+        const href = normalizeHref(profileUrl);
+        if (href) {
+          links.push({
+            key: `profile-${idx}`,
+            fieldKey: `profile:${idx}`,
+            rawValue: profileUrl,
+            network,
+            label: formatLinkLabel(profileUrl) || network || username,
+            href,
+          });
+        }
       }
     });
   }
@@ -611,7 +694,13 @@ export function isResumeEmpty(resume?: IResume | null): boolean {
     (basics.email && basics.email.trim()) ||
     (basics.phone && basics.phone.trim()) ||
     (basics.summary && basics.summary.trim()) ||
-    (resume.summary && resume.summary.trim())
+    (resume.summary && resume.summary.trim()) ||
+    (basics.location?.address && basics.location.address.trim()) ||
+    (basics.location?.city && basics.location.city.trim()) ||
+    (basics.location?.region && basics.location.region.trim()) ||
+    (basics.location?.countryCode && basics.location.countryCode.trim()) ||
+    (basics.location?.postalCode && basics.location.postalCode.trim()) ||
+    extractExtraBasicsLinks(basics as Record<string, any>).length > 0
   ) {
     return false;
   }

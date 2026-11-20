@@ -25,7 +25,9 @@ function hasHeaderContent(resume: IResume, readOnly: boolean): boolean {
   if (
     basics.location?.address?.trim() ||
     basics.location?.city?.trim() ||
-    basics.location?.countryCode?.trim()
+    basics.location?.region?.trim() ||
+    basics.location?.countryCode?.trim() ||
+    basics.location?.postalCode?.trim()
   ) {
     return true;
   }

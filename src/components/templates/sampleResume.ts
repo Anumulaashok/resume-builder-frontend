@@ -18,11 +18,9 @@ export const sampleResume: IResume = {
         countryCode: 'US',
         postalCode: '94103',
       },
-      ...({
-        website: 'https://mayalin.dev',
-        github: 'https://github.com/mayalin',
-        linkedin: 'https://linkedin.com/in/mayalin',
-      } as Record<string, string>),
+      website: 'https://mayalin.dev',
+      github: 'https://github.com/mayalin',
+      linkedin: 'https://linkedin.com/in/mayalin',
     },
     sections: [
       {

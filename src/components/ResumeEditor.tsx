@@ -32,6 +32,8 @@ import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
   CodeBracketIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import {
@@ -60,6 +62,7 @@ import {
   hasResumeOmittedSummary,
   normalizeResume,
 } from "../utils/resumeNormalizer";
+import { validateOptionalLinkInput } from "./templates/templateHelpers";
 import {
   dateFields,
   IResume,
@@ -715,6 +718,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [deletableSection, setDeletableSection] = useState<ISection | null>(
     null
   );
+  const [showStreetAddress, setShowStreetAddress] = useState<boolean>(() =>
+    Boolean(
+      initialResume?.content?.basics?.location?.address?.trim() ||
+        initialResume?.content?.basics?.location?.postalCode?.trim()
+    )
+  );
 
   const prevInitialResumeRef = useRef<IResume | undefined>(initialResume);
   const isInitialMountRef = useRef(true);
@@ -1062,6 +1071,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       lastSavedSnapshotRef.current = nextId ? snap : null;
       hasShownAutoSaveErrorToastRef.current = false;
       updateSaveStatus(nextId ? "saved" : "unsaved_new");
+      setShowStreetAddress(
+        Boolean(
+          normalized.content?.basics?.location?.address?.trim() ||
+            normalized.content?.basics?.location?.postalCode?.trim()
+        )
+      );
       setResume(normalized);
     }
   }, [initialResume, setResume, debouncedAutoSave, updateSaveStatus]);
@@ -1246,6 +1261,20 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       return;
     }
 
+    const basicsForCheck = resume.content?.basics;
+    const hasInvalidBasicsLink = Boolean(
+      validateOptionalLinkInput(basicsForCheck?.url) ||
+        validateOptionalLinkInput(basicsForCheck?.linkedin) ||
+        validateOptionalLinkInput(basicsForCheck?.github) ||
+        (basicsForCheck?.profiles || []).some((p) =>
+          Boolean(validateOptionalLinkInput(p?.url))
+        )
+    );
+    if (hasInvalidBasicsLink) {
+      debouncedAutoSave.cancel();
+      return;
+    }
+
     debouncedAutoSave(resume);
   }, [resume, debouncedAutoSave]);
 
@@ -1295,6 +1324,19 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const handleSave = async () => {
     debouncedAutoSave.cancel();
+    const basicsForCheck = latestResumeRef.current.content?.basics;
+    const hasInvalidLink = Boolean(
+      validateOptionalLinkInput(basicsForCheck?.url) ||
+        validateOptionalLinkInput(basicsForCheck?.linkedin) ||
+        validateOptionalLinkInput(basicsForCheck?.github) ||
+        (basicsForCheck?.profiles || []).some((p) =>
+          Boolean(validateOptionalLinkInput(p?.url))
+        )
+    );
+    if (hasInvalidLink) {
+      toast.error("Please fix invalid profile links before saving");
+      return;
+    }
     if (sessionExpiredRef.current) {
       pendingRetryAfterAuthRef.current = true;
       handleReopenReauth();
@@ -1825,6 +1867,96 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const summaryValue =
     resume.content?.basics?.summary ?? resume.summary ?? "";
 
+  const portfolioUrlValue =
+    resume.content?.basics?.url ||
+    resume.content?.basics?.website ||
+    resume.content?.basics?.portfolioUrl ||
+    "";
+
+  const basicsLinkErrors = useMemo(() => {
+    const b = resume.content?.basics || {};
+    const urlErr = validateOptionalLinkInput(
+      b.url || b.website || b.portfolioUrl || ""
+    );
+    const linkedinErr = validateOptionalLinkInput(b.linkedin);
+    const githubErr = validateOptionalLinkInput(b.github);
+    const profileErrs = Array.isArray(b.profiles)
+      ? b.profiles.map((p) => validateOptionalLinkInput(p?.url))
+      : [];
+    return {
+      url: urlErr,
+      linkedin: linkedinErr,
+      github: githubErr,
+      profiles: profileErrs,
+    };
+  }, [resume.content?.basics]);
+
+  const handleLocationFieldChange = (
+    field: "address" | "city" | "region" | "countryCode" | "postalCode",
+    value: string
+  ) => {
+    handleChange("basics", {
+      ...resume.content.basics,
+      location: {
+        ...(resume.content.basics.location || {}),
+        [field]: value,
+      },
+    });
+  };
+
+  const handlePortfolioUrlChange = (value: string) => {
+    const currentBasics = resume.content.basics;
+    const nextBasics: IResume["content"]["basics"] = {
+      ...currentBasics,
+      url: value,
+    };
+    if (Object.prototype.hasOwnProperty.call(currentBasics, "website")) {
+      nextBasics.website = value;
+    }
+    if (Object.prototype.hasOwnProperty.call(currentBasics, "portfolioUrl")) {
+      nextBasics.portfolioUrl = value;
+    }
+    handleChange("basics", nextBasics);
+  };
+
+  const handleAddCustomProfile = () => {
+    const existing = Array.isArray(resume.content.basics.profiles)
+      ? resume.content.basics.profiles
+      : [];
+    handleChange("basics", {
+      ...resume.content.basics,
+      profiles: [...existing, { network: "", username: "", url: "" }],
+    });
+  };
+
+  const handleUpdateCustomProfile = (
+    index: number,
+    field: "network" | "url",
+    value: string
+  ) => {
+    const existing = Array.isArray(resume.content.basics.profiles)
+      ? [...resume.content.basics.profiles]
+      : [];
+    existing[index] = {
+      ...(existing[index] || { network: "", username: "", url: "" }),
+      [field]: value,
+    };
+    handleChange("basics", {
+      ...resume.content.basics,
+      profiles: existing,
+    });
+  };
+
+  const handleRemoveCustomProfile = (index: number) => {
+    const existing = Array.isArray(resume.content.basics.profiles)
+      ? resume.content.basics.profiles.filter((_, i) => i !== index)
+      : [];
+    handleChange("basics", {
+      ...resume.content.basics,
+      profiles: existing,
+    });
+  };
+
   const editorToolbar = (
     <div
       data-testid="resume-editor-toolbar"
@@ -2186,6 +2318,313 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   placeholder="+1 (555) 000-0000"
                   className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
+              </div>
+            </div>
+
+            {/* Location Fields */}
+            <div className="pt-2 border-t border-gray-100 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div>
+                  <label
+                    htmlFor="basics-city"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    City
+                  </label>
+                  <input
+                    id="basics-city"
+                    type="text"
+                    value={resume.content.basics.location?.city || ""}
+                    onChange={(e) =>
+                      handleLocationFieldChange("city", e.target.value)
+                    }
+                    placeholder="e.g. San Francisco"
+                    className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="basics-region"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    State / Region
+                  </label>
+                  <input
+                    id="basics-region"
+                    type="text"
+                    value={resume.content.basics.location?.region || ""}
+                    onChange={(e) =>
+                      handleLocationFieldChange("region", e.target.value)
+                    }
+                    placeholder="e.g. CA"
+                    className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="basics-country"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Country
+                  </label>
+                  <input
+                    id="basics-country"
+                    type="text"
+                    value={resume.content.basics.location?.countryCode || ""}
+                    onChange={(e) =>
+                      handleLocationFieldChange("countryCode", e.target.value)
+                    }
+                    placeholder="e.g. US"
+                    className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  data-testid="toggle-street-address"
+                  aria-expanded={showStreetAddress}
+                  aria-controls="basics-street-address-panel"
+                  onClick={() => setShowStreetAddress((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 py-0.5 -ml-1 transition-colors"
+                >
+                  {showStreetAddress ? (
+                    <ChevronDownIcon className="h-3.5 w-3.5 text-gray-500" />
+                  ) : (
+                    <ChevronRightIcon className="h-3.5 w-3.5 text-gray-500" />
+                  )}
+                  <span>Street address &amp; postal code (optional)</span>
+                </button>
+
+                {showStreetAddress && (
+                  <div
+                    id="basics-street-address-panel"
+                    className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-2.5"
+                  >
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor="basics-address"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Street Address
+                      </label>
+                      <input
+                        id="basics-address"
+                        type="text"
+                        value={resume.content.basics.location?.address || ""}
+                        onChange={(e) =>
+                          handleLocationFieldChange("address", e.target.value)
+                        }
+                        placeholder="e.g. 742 Market Street, Apt 4B"
+                        className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="basics-postal-code"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Postal Code
+                      </label>
+                      <input
+                        id="basics-postal-code"
+                        type="text"
+                        value={resume.content.basics.location?.postalCode || ""}
+                        onChange={(e) =>
+                          handleLocationFieldChange(
+                            "postalCode",
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g. 94103"
+                        className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Profile & Portfolio Links */}
+            <div className="pt-2 border-t border-gray-100 space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div>
+                  <label
+                    htmlFor="basics-linkedin"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    LinkedIn
+                  </label>
+                  <input
+                    id="basics-linkedin"
+                    type="text"
+                    value={resume.content.basics.linkedin || ""}
+                    aria-invalid={Boolean(basicsLinkErrors.linkedin)}
+                    onChange={(e) =>
+                      handleChange("basics", {
+                        ...resume.content.basics,
+                        linkedin: e.target.value,
+                      })
+                    }
+                    placeholder="linkedin.com/in/janedoe"
+                    className={`w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border rounded-lg shadow-sm focus:outline-none focus:ring-2 sm:text-sm ${
+                      basicsLinkErrors.linkedin
+                        ? "border-red-400 focus:ring-red-500 focus:border-red-500"
+                        : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                    }`}
+                  />
+                  {basicsLinkErrors.linkedin && (
+                    <p role="alert" className="mt-1 text-xs text-red-600">
+                      {basicsLinkErrors.linkedin}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="basics-github"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    GitHub
+                  </label>
+                  <input
+                    id="basics-github"
+                    type="text"
+                    value={resume.content.basics.github || ""}
+                    aria-invalid={Boolean(basicsLinkErrors.github)}
+                    onChange={(e) =>
+                      handleChange("basics", {
+                        ...resume.content.basics,
+                        github: e.target.value,
+                      })
+                    }
+                    placeholder="github.com/janedoe"
+                    className={`w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border rounded-lg shadow-sm focus:outline-none focus:ring-2 sm:text-sm ${
+                      basicsLinkErrors.github
+                        ? "border-red-400 focus:ring-red-500 focus:border-red-500"
+                        : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                    }`}
+                  />
+                  {basicsLinkErrors.github && (
+                    <p role="alert" className="mt-1 text-xs text-red-600">
+                      {basicsLinkErrors.github}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="basics-url"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Portfolio
+                  </label>
+                  <input
+                    id="basics-url"
+                    type="text"
+                    value={portfolioUrlValue}
+                    aria-invalid={Boolean(basicsLinkErrors.url)}
+                    onChange={(e) => handlePortfolioUrlChange(e.target.value)}
+                    placeholder="janedoe.dev"
+                    className={`w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border rounded-lg shadow-sm focus:outline-none focus:ring-2 sm:text-sm ${
+                      basicsLinkErrors.url
+                        ? "border-red-400 focus:ring-red-500 focus:border-red-500"
+                        : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                    }`}
+                  />
+                  {basicsLinkErrors.url && (
+                    <p role="alert" className="mt-1 text-xs text-red-600">
+                      {basicsLinkErrors.url}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Repeatable Custom Links */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Custom Links
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="add-custom-profile-btn"
+                    onClick={handleAddCustomProfile}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1.5 py-0.5 transition-colors"
+                  >
+                    <PlusIcon className="h-3.5 w-3.5" />
+                    <span>Add link</span>
+                  </button>
+                </div>
+
+                {Array.isArray(resume.content.basics.profiles) &&
+                  resume.content.basics.profiles.length > 0 && (
+                    <div className="space-y-2">
+                      {resume.content.basics.profiles.map((profile, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <input
+                              type="text"
+                              aria-label={`Custom link ${idx + 1} label`}
+                              value={profile.network || ""}
+                              onChange={(e) =>
+                                handleUpdateCustomProfile(
+                                  idx,
+                                  "network",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Label (e.g. Dribbble, X)"
+                              className="sm:w-44 px-3 py-1.5 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <input
+                                type="text"
+                                aria-label={`Custom link ${idx + 1} URL`}
+                                value={profile.url || ""}
+                                aria-invalid={Boolean(
+                                  basicsLinkErrors.profiles[idx]
+                                )}
+                                onChange={(e) =>
+                                  handleUpdateCustomProfile(
+                                    idx,
+                                    "url",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="https://dribbble.com/janedoe"
+                                className={`flex-1 min-w-0 px-3 py-1.5 bg-white text-gray-900 placeholder-gray-400 border rounded-lg shadow-sm focus:outline-none focus:ring-2 text-sm ${
+                                  basicsLinkErrors.profiles[idx]
+                                    ? "border-red-400 focus:ring-red-500 focus:border-red-500"
+                                    : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                aria-label={`Remove custom link ${idx + 1}`}
+                                onClick={() => handleRemoveCustomProfile(idx)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shrink-0"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          {basicsLinkErrors.profiles[idx] && (
+                            <p
+                              role="alert"
+                              className="text-xs text-red-600 pl-1"
+                            >
+                              {basicsLinkErrors.profiles[idx]}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </div>
             </div>
 

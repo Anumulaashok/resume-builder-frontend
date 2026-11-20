@@ -40,6 +40,25 @@ export function normalizeResume(input?: IResume): IResume {
     .filter((id) => !rawOrder.includes(id));
   const resolvedId = source._id || source.id;
 
+  const resolvedUrl =
+    typeof basics?.url === "string" && basics.url.length > 0
+      ? basics.url
+      : typeof basics?.website === "string" && basics.website.length > 0
+      ? basics.website
+      : typeof basics?.portfolioUrl === "string" && basics.portfolioUrl.length > 0
+      ? basics.portfolioUrl
+      : basics?.url ?? "";
+
+  const normalizedProfiles = Array.isArray(basics?.profiles)
+    ? basics.profiles
+        .filter((p) => p && typeof p === "object")
+        .map((p) => ({
+          network: p.network ?? "",
+          username: p.username ?? "",
+          url: p.url ?? "",
+        }))
+    : [];
+
   return {
     ...defaultResume,
     ...source,
@@ -61,11 +80,20 @@ export function normalizeResume(input?: IResume): IResume {
         label: basics?.label ?? "",
         email: basics?.email ?? "",
         phone: basics?.phone ?? "",
+        url: resolvedUrl,
+        linkedin: basics?.linkedin ?? "",
+        github: basics?.github ?? "",
         summary: resolvedSummary,
         location: {
           ...defaultResume.content.basics.location,
           ...(basics?.location || {}),
+          address: basics?.location?.address ?? "",
+          city: basics?.location?.city ?? "",
+          region: basics?.location?.region ?? "",
+          countryCode: basics?.location?.countryCode ?? "",
+          postalCode: basics?.location?.postalCode ?? "",
         },
+        profiles: normalizedProfiles,
       },
       sections,
       sectionOrder: [...rawOrder, ...missingIds],

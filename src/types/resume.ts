@@ -75,6 +75,9 @@ export interface IResume {
       phone?: string;
       url?: string;
       website?: string;
+      portfolioUrl?: string;
+      linkedin?: string;
+      github?: string;
       image?: string;
       summary?: string;
       location?: {

@@ -346,8 +346,10 @@ const StartupTemplateContent: React.FC = () => {
       (basics.email && basics.email.trim()) ||
         (basics.phone && basics.phone.trim()) ||
         basics.location?.city ||
+        basics.location?.region ||
         basics.location?.address ||
         basics.location?.countryCode ||
+        basics.location?.postalCode ||
         extractExtraBasicsLinks(basics as Record<string, any>).length > 0
     );
 
