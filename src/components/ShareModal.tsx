@@ -1275,8 +1275,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                     </span>
                     <p className="text-[11px] text-neutral-500 truncate">
                       {privacy.hideAddress
-                        ? "Physical address is hidden from public viewers"
-                        : "Address is visible on public resume"}
+                        ? "Street address & postal code are hidden; city & region stay visible"
+                        : "Hides street address & postal code while keeping city & region visible"}
                     </p>
                   </div>
                 </label>

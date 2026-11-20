@@ -62,7 +62,8 @@ function hasVisibleContactEntries(resume: IResume, readOnly: boolean): boolean {
   const hasLocation = Boolean(
     (!hideAddress && basics.location?.address?.trim()) ||
       basics.location?.city?.trim() ||
-      (basics.location as Record<string, any> | undefined)?.region?.trim?.() ||
+      basics.location?.region?.trim() ||
+      (!hideAddress && basics.location?.postalCode?.trim()) ||
       basics.location?.countryCode?.trim()
   );
   if (hasLocation) return true;

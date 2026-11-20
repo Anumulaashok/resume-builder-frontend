@@ -3,6 +3,7 @@ import {
   CodeBracketIcon,
   GlobeAltIcon,
   LinkIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 import { IResume, ISection } from '../../types/resume';
 import { InlineEdit } from '../ui/InlineEdit';
@@ -18,6 +19,7 @@ import {
   Bullets,
   ContactRow,
   Description,
+  InlineLinkEdit,
   ItemHeader,
   KeywordList,
   SectionHeading,
@@ -264,42 +266,107 @@ const DeveloperTemplateContent: React.FC = () => {
                     )}
                   </div>
 
-                  {prominentLinks.length > 0 && (
+                  {(prominentLinks.length > 0 || !readOnly) && (
                     <div
                       data-testid="developer-prominent-links"
-                      className="flex flex-wrap sm:justify-end gap-1.5 shrink-0"
+                      className={`flex flex-wrap sm:justify-end gap-1.5 shrink-0 ${
+                        prominentLinks.length === 0 ? 'print:hidden' : ''
+                      }`}
                     >
                       {prominentLinks.map((link) => (
-                        <a
+                        <InlineLinkEdit
                           key={link.key}
+                          rawValue={link.rawValue || link.href}
                           href={link.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium bg-slate-50 hover:bg-slate-100 transition-colors print:bg-slate-50"
-                          style={{
+                          label={link.label}
+                          placeholder="Add Link"
+                          ariaLabel={`Inline edit: ${link.key} URL`}
+                          readOnly={readOnly}
+                          onChange={
+                            readOnly
+                              ? undefined
+                              : (v) => updateBasics(link.fieldKey || 'url', v)
+                          }
+                          linkClassName="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium bg-slate-50 hover:bg-slate-100 transition-colors print:bg-slate-50"
+                          linkStyle={{
                             fontFamily: MONO_STACK,
                             borderColor:
                               'var(--theme-accent, var(--theme-primary, #0284c7))',
                             color: 'var(--theme-primary, #0f172a)',
                           }}
-                        >
-                          <span
-                            style={{
-                              color:
-                                'var(--theme-accent, var(--theme-primary, #0284c7))',
-                            }}
-                          >
-                            {renderLinkIcon(link.key)}
-                          </span>
-                          <span>{link.label}</span>
-                        </a>
+                          leadingIcon={
+                            <span
+                              style={{
+                                color:
+                                  'var(--theme-accent, var(--theme-primary, #0284c7))',
+                              }}
+                            >
+                              {renderLinkIcon(link.key)}
+                            </span>
+                          }
+                        />
                       ))}
+
+                      {!readOnly && (
+                        <>
+                          {!prominentLinks.some((l) => l.key === 'github') && (
+                            <InlineLinkEdit
+                              placeholder="Add GitHub"
+                              ariaLabel="Inline edit: GitHub URL"
+                              readOnly={false}
+                              onChange={(v) => updateBasics('github', v)}
+                              placeholderClassName="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-neutral-400 italic hover:text-slate-600 hover:border-slate-400 transition-colors print:hidden"
+                              placeholderStyle={{ fontFamily: MONO_STACK }}
+                              leadingIcon={renderLinkIcon('github')}
+                            />
+                          )}
+                          {!prominentLinks.some((l) => l.key === 'website') && (
+                            <InlineLinkEdit
+                              placeholder="Add Website"
+                              ariaLabel="Inline edit: Website URL"
+                              readOnly={false}
+                              onChange={(v) => updateBasics('url', v)}
+                              placeholderClassName="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-neutral-400 italic hover:text-slate-600 hover:border-slate-400 transition-colors print:hidden"
+                              placeholderStyle={{ fontFamily: MONO_STACK }}
+                              leadingIcon={renderLinkIcon('website')}
+                            />
+                          )}
+                          {!prominentLinks.some((l) => l.key === 'linkedin') && (
+                            <InlineLinkEdit
+                              placeholder="Add LinkedIn"
+                              ariaLabel="Inline edit: LinkedIn URL"
+                              readOnly={false}
+                              onChange={(v) => updateBasics('linkedin', v)}
+                              placeholderClassName="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-neutral-400 italic hover:text-slate-600 hover:border-slate-400 transition-colors print:hidden"
+                              placeholderStyle={{ fontFamily: MONO_STACK }}
+                              leadingIcon={renderLinkIcon('linkedin')}
+                            />
+                          )}
+                          <InlineLinkEdit
+                            placeholder="Custom Link"
+                            ariaLabel="Inline edit: Add custom link"
+                            readOnly={false}
+                            clearAfterCommit
+                            onChange={(v) => updateBasics('profile:new', v)}
+                            placeholderClassName="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-neutral-400 italic hover:text-slate-600 hover:border-slate-400 transition-colors print:hidden"
+                            placeholderStyle={{ fontFamily: MONO_STACK }}
+                            leadingIcon={
+                              <PlusIcon
+                                className="h-3 w-3 shrink-0"
+                                aria-hidden="true"
+                              />
+                            }
+                          />
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
 
                 <ContactRow
                   resume={contactOnlyResume}
+                  hideLinks
+                  onUpdateBasics={updateBasics}
                   variant="inline-left"
                   className="mt-2.5"
                 />
