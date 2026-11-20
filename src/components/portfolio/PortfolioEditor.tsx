@@ -794,6 +794,32 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                                   />
                                 </div>
 
+                                <div className="sm:col-span-2">
+                                  <label
+                                    htmlFor={`proj-highlights-${proj.id}`}
+                                    className={LABEL_CLASS}
+                                  >
+                                    Key Highlights / Achievements (one bullet per line)
+                                  </label>
+                                  <textarea
+                                    id={`proj-highlights-${proj.id}`}
+                                    rows={2}
+                                    value={(proj.highlights || []).join('\n')}
+                                    onChange={(e) =>
+                                      handleProjectUpdate(
+                                        proj.id,
+                                        'highlights',
+                                        e.target.value
+                                          .split('\n')
+                                          .map((line) => line.replace(/^[•*-]\s*/, ''))
+                                          .filter((line) => line.trim().length > 0)
+                                      )
+                                    }
+                                    placeholder="• Sustained 120k events/sec with sub-50ms p99 lag"
+                                    className={TEXTAREA_CLASS}
+                                  />
+                                </div>
+
                                 <div>
                                   <label
                                     htmlFor={`proj-demo-${proj.id}`}
@@ -1371,6 +1397,19 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
                                       textClassName="text-xs text-neutral-600 leading-relaxed"
                                     />
                                   </div>
+
+                                  {p.highlights && p.highlights.length > 0 && (
+                                    <ul
+                                      data-testid="canvas-project-highlights"
+                                      className="mt-2 space-y-1 text-xs text-neutral-700 list-disc pl-4"
+                                    >
+                                      {p.highlights.map((bullet, bIdx) => (
+                                        <li key={bIdx} className="leading-snug">
+                                          {bullet}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
 
                                   {p.tags && p.tags.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5 mt-3">

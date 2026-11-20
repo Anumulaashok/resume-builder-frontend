@@ -22,6 +22,8 @@
     "framer-motion": "^12.42.0",
     "lodash": "^4.18.1",
     "lucide-react": "^0.511.0",
+    "mammoth": "^1.8.0",
+    "pdfjs-dist": "^3.11.174",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",

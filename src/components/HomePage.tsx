@@ -2,8 +2,15 @@ import React, { useState, useCallback } from 'react';
 import { ArrowUpTrayIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
+import {
+  careerProfileService,
+  hasApprovedCareerProfileFacts,
+} from '../services/careerProfile.service';
+import { ICareerProfile } from '../types/careerProfile';
 import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
+import { CareerProfileWorkspace } from './careerProfile/CareerProfileWorkspace';
+import { CreateFromProfileModal } from './careerProfile/CreateFromProfileModal';
 import CoverLettersWorkspace from './coverLetters/CoverLettersWorkspace';
 import ImportResumeModal from './ImportResumeModal';
 import JobMatch from './jobMatch/JobMatch';
@@ -41,7 +48,11 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const tabParam = urlParams?.get('tab');
   const initialTab: AppTab =
-    tabParam === 'cover-letters' || tabParam === 'portfolios' || tabParam === 'job-match' || tabParam === 'job-tracker'
+    tabParam === 'career-profile' ||
+    tabParam === 'cover-letters' ||
+    tabParam === 'portfolios' ||
+    tabParam === 'job-match' ||
+    tabParam === 'job-tracker'
       ? tabParam
       : 'resumes';
   const initialView = urlParams?.get('view') === 'editor' ? 'editor' : 'list';
@@ -59,6 +70,8 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [prompt, setPrompt] = useState('');
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [profileForNewResume, setProfileForNewResume] = useState<ICareerProfile | null>(null);
+  const [showCreateFromProfileModal, setShowCreateFromProfileModal] = useState(false);
   const [resumeCount, setResumeCount] = useState<number | null>(null);
 
   const handleResumesLoad = useCallback((resumes: Resume[]) => {
@@ -97,7 +110,17 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
     setActiveView('editor');
   };
 
-  const handleNewResume = () => {
+  const handleNewResume = async () => {
+    try {
+      const profile = await careerProfileService.getProfile();
+      if (hasApprovedCareerProfileFacts(profile)) {
+        setProfileForNewResume(profile);
+        setShowCreateFromProfileModal(true);
+        return;
+      }
+    } catch {
+      // Fall back to opening blank editor if profile fetch fails
+    }
     setSelectedResume(null);
     setActiveView('editor');
   };
@@ -201,6 +224,22 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
             />
           )}
         </>
+      )}
+
+      {activeTab === 'career-profile' && (
+        <CareerProfileWorkspace
+          user={user}
+          onStartTailoredResume={(seeded) => {
+            setSelectedResume(seeded);
+            setActiveTab('resumes');
+            setActiveView('editor');
+          }}
+          onStartBlankResume={() => {
+            setSelectedResume(null);
+            setActiveTab('resumes');
+            setActiveView('editor');
+          }}
+        />
       )}
 
       {activeTab === 'cover-letters' && (
@@ -326,7 +365,29 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
           setSelectedResume(createdResume);
           setActiveView('editor');
         }}
+        onProfileApproved={(approvedProfile) => {
+          setProfileForNewResume(approvedProfile);
+        }}
       />
+
+      {/* Seed New Resume from Career Profile Modal */}
+      {profileForNewResume && (
+        <CreateFromProfileModal
+          isOpen={showCreateFromProfileModal}
+          profile={profileForNewResume}
+          onClose={() => setShowCreateFromProfileModal(false)}
+          onCreateSeededResume={(seededDraft) => {
+            setShowCreateFromProfileModal(false);
+            setSelectedResume(seededDraft);
+            setActiveView('editor');
+          }}
+          onStartBlank={() => {
+            setShowCreateFromProfileModal(false);
+            setSelectedResume(null);
+            setActiveView('editor');
+          }}
+        />
+      )}
     </div>
   );
 }
