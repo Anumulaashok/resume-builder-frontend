@@ -12,9 +12,14 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { IResume, ISection, SectionType } from '../types/resume';
+import { ICareerProfile } from '../types/careerProfile';
 import { ResumeWithMeta, resumeService } from '../services/resume.service';
+import { careerProfileService } from '../services/careerProfile.service';
 import { getStoredUser } from '../utils/token';
 import {
+  DocumentExtractionError,
+  detectImportFileKind,
+  extractTextFromDocumentFile,
   hasRecognizedJsonResumeFields,
   importJsonResume,
   parseDateToDateFields,
@@ -27,6 +32,8 @@ export interface ImportResumeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImported: (createdResume: ResumeWithMeta) => void;
+  importTarget?: 'resume' | 'profile';
+  onProfileApproved?: (profile: ICareerProfile) => void;
   user?: {
     name?: string;
     email?: string;
@@ -232,21 +239,26 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   isOpen,
   onClose,
   onImported,
+  importTarget = 'resume',
+  onProfileApproved,
   user,
 }) => {
   const [mode, setMode] = useState<ImportMode>('json');
   const [submitting, setSubmitting] = useState(false);
+  const [extractingFile, setExtractingFile] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isScannedPdfError, setIsScannedPdfError] = useState(false);
 
-  // JSON Upload state
+  // File Upload state
   const [selectedFileName, setSelectedFileName] = useState<string>('');
   const [jsonMappedResume, setJsonMappedResume] = useState<IResume | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Paste Text state
+  // Paste Text / Interactive Review state
   const [rawText, setRawText] = useState<string>('');
   const [textStep, setTextStep] = useState<TextStep>('paste');
   const [reviewResume, setReviewResume] = useState<IResume | null>(null);
+  const [syncToProfileOnImport, setSyncToProfileOnImport] = useState<boolean>(true);
   const [newSectionType, setNewSectionType] = useState<SectionType>(SectionType.WORK);
 
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -267,13 +279,16 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
     if (!isOpen) {
       setMode('json');
       setSubmitting(false);
+      setExtractingFile(false);
       setErrorMessage(null);
+      setIsScannedPdfError(false);
       setSelectedFileName('');
       setJsonMappedResume(null);
       setIsDragOver(false);
       setRawText('');
       setTextStep('paste');
       setReviewResume(null);
+      setSyncToProfileOnImport(true);
       return;
     }
 
@@ -327,28 +342,81 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
 
   if (!isOpen) return null;
 
+  const hydrateParsedResumeForReview = (parsed: IResume): IResume => {
+    const storedUser = getStoredUser();
+    return {
+      ...parsed,
+      content: {
+        ...parsed.content,
+        basics: {
+          ...parsed.content.basics,
+          email:
+            parsed.content.basics.email ||
+            user?.email?.trim() ||
+            storedUser?.email?.trim() ||
+            '',
+        },
+      },
+    };
+  };
+
   const handleSelectFile = async (file: File | null | undefined) => {
     if (!file) return;
     setErrorMessage(null);
+    setIsScannedPdfError(false);
     setSelectedFileName(file.name);
+    setJsonMappedResume(null);
 
-    try {
-      const text = await readFileAsText(file);
-      const parsed = parseJsonResumeString(text);
-      if (!hasRecognizedJsonResumeFields(parsed)) {
+    const kind = detectImportFileKind(file);
+
+    if (kind === 'json') {
+      try {
+        const text = await readFileAsText(file);
+        const parsed = parseJsonResumeString(text);
+        if (!hasRecognizedJsonResumeFields(parsed)) {
+          setJsonMappedResume(null);
+          setErrorMessage(
+            'This JSON file does not contain recognized JSON Resume v1 fields (e.g. basics, work, education, skills).'
+          );
+          return;
+        }
+        const mapped = importJsonResume(parsed);
+        if (importTarget === 'profile') {
+          setReviewResume(hydrateParsedResumeForReview(mapped));
+          setMode('text');
+          setTextStep('review');
+          return;
+        }
+        setJsonMappedResume(mapped);
+      } catch (err) {
         setJsonMappedResume(null);
         setErrorMessage(
-          'This JSON file does not contain recognized JSON Resume v1 fields (e.g. basics, work, education, skills).'
+          err instanceof Error ? err.message : 'Unable to parse JSON Resume file.'
         );
-        return;
       }
-      const mapped = importJsonResume(parsed);
-      setJsonMappedResume(mapped);
+      return;
+    }
+
+    setExtractingFile(true);
+    try {
+      const extracted = await extractTextFromDocumentFile(file);
+      setRawText(extracted.text);
+      const parsed = parseResumeText(extracted.text);
+      const hydrated = hydrateParsedResumeForReview(parsed);
+      setReviewResume(hydrated);
+      setMode('text');
+      setTextStep('review');
     } catch (err) {
-      setJsonMappedResume(null);
+      if (err instanceof DocumentExtractionError && err.code === 'SCANNED_PDF') {
+        setIsScannedPdfError(true);
+      }
       setErrorMessage(
-        err instanceof Error ? err.message : 'Unable to parse JSON Resume file.'
+        err instanceof Error
+          ? err.message
+          : 'Unable to extract text from the selected file. Please upload a DOCX/TXT file or paste text.'
       );
+    } finally {
+      setExtractingFile(false);
     }
   };
 
@@ -362,7 +430,21 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
     setErrorMessage(null);
     try {
       const payload = prepareImportedResumePayload(jsonMappedResume, user);
+      if (importTarget === 'profile') {
+        const savedProfile = await careerProfileService.mergeProfile(payload);
+        toast.success('Approved career facts saved to your Career Profile!');
+        onProfileApproved?.(savedProfile);
+        return;
+      }
       const created = await resumeService.createResume(payload);
+      try {
+        const merged = await careerProfileService.mergeProfile(payload);
+        if (merged) {
+          onProfileApproved?.(merged);
+        }
+      } catch {
+        // Non-blocking profile sync during direct JSON resume creation
+      }
       toast.success('Resume imported successfully!');
       onImported(created);
     } catch (err) {
@@ -377,6 +459,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
 
   const handleParseTextToReview = () => {
     setErrorMessage(null);
+    setIsScannedPdfError(false);
     if (!rawText.trim()) {
       setErrorMessage('Please paste your resume or profile text before continuing.');
       return;
@@ -384,21 +467,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
 
     try {
       const parsed = parseResumeText(rawText);
-      const storedUser = getStoredUser();
-      const hydrated: IResume = {
-        ...parsed,
-        content: {
-          ...parsed.content,
-          basics: {
-            ...parsed.content.basics,
-            email:
-              parsed.content.basics.email ||
-              user?.email?.trim() ||
-              storedUser?.email?.trim() ||
-              '',
-          },
-        },
-      };
+      const hydrated = hydrateParsedResumeForReview(parsed);
       setReviewResume(hydrated);
       setTextStep('review');
     } catch (err) {
@@ -414,14 +483,39 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
     setErrorMessage(null);
     try {
       const payload = prepareImportedResumePayload(reviewResume, user);
+      if (importTarget === 'profile') {
+        const mergedProfile = await careerProfileService.mergeProfile(payload);
+        toast.success('Approved career facts merged into your Career Profile!');
+        onProfileApproved?.(mergedProfile);
+        return;
+      }
+
       const created = await resumeService.createResume(payload);
+      if (syncToProfileOnImport) {
+        try {
+          const mergedProfile = await careerProfileService.mergeProfile(payload);
+          if (mergedProfile) {
+            onProfileApproved?.(mergedProfile);
+          }
+        } catch {
+          // Non-blocking sync when saving resume
+        }
+      }
       toast.success('Resume imported successfully!');
       onImported(created);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Failed to create resume.';
+        err instanceof Error
+          ? err.message
+          : importTarget === 'profile'
+          ? 'Failed to save Career Profile.'
+          : 'Failed to create resume.';
       setErrorMessage(message);
-      toast.error('Failed to import resume');
+      toast.error(
+        importTarget === 'profile'
+          ? 'Failed to save Career Profile'
+          : 'Failed to import resume'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -931,18 +1025,39 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-neutral-600 mb-1">
-              Description / Bullets
+              Project Summary
             </label>
-            <textarea
-              rows={2}
-              value={bulletsVal || item.description || ''}
+            <input
+              type="text"
+              value={item.description || ''}
               onChange={(e) =>
                 updateReviewItem(sectionId, itemId, (curr) => ({
                   ...curr,
                   description: e.target.value,
-                  highlights: [],
                 }))
               }
+              placeholder="Concise one-line overview of the project"
+              className="w-full px-2.5 py-1.5 text-sm border border-neutral-300 rounded-control text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-neutral-600 mb-1">
+              Highlights / Bullets (one per line)
+            </label>
+            <textarea
+              rows={2}
+              value={bulletsVal}
+              onChange={(e) => {
+                const lines = e.target.value
+                  .split('\n')
+                  .map((l) => l.replace(/^[•*-]\s*/, ''))
+                  .filter((l) => l.trim().length > 0);
+                updateReviewItem(sectionId, itemId, (curr) => ({
+                  ...curr,
+                  highlights: lines,
+                }));
+              }}
+              placeholder="• Achieved sub-50ms p99 query latency"
               className="w-full px-2.5 py-1.5 text-sm border border-neutral-300 rounded-control text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -1102,13 +1217,15 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                 id="import-resume-modal-title"
                 className="text-base sm:text-lg font-semibold text-neutral-900 truncate"
               >
-                Import Resume
+                {importTarget === 'profile'
+                  ? 'Import & Review into Career Profile'
+                  : 'Import Resume'}
               </h2>
               <p
                 id="import-resume-modal-desc"
                 className="text-xs text-neutral-500 truncate"
               >
-                Upload a JSON Resume v1 file or paste text from LinkedIn or an existing CV
+                Upload a PDF, DOCX, TXT, or JSON Resume file, or paste text for interactive review
               </p>
             </div>
           </div>
@@ -1156,10 +1273,10 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
               />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-neutral-900">
-                  Upload JSON Resume
+                  Upload File (PDF, DOCX, TXT, JSON)
                 </p>
                 <p className="text-xs text-neutral-500 mt-0.5">
-                  Import a standard jsonresume.org schema v1 file
+                  Extract from PDF, Word (.docx), TXT, or Upload JSON Resume
                 </p>
               </div>
             </button>
@@ -1204,17 +1321,36 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
             <div
               role="alert"
               data-testid="import-resume-error"
-              className="flex items-start gap-2.5 p-3.5 rounded-card bg-red-50 border border-red-200 text-sm text-red-700"
+              className="flex flex-col gap-2 p-3.5 rounded-card bg-red-50 border border-red-200 text-sm text-red-700"
             >
-              <ExclamationCircleIcon
-                className="h-5 w-5 text-red-600 shrink-0 mt-0.5"
-                aria-hidden="true"
-              />
-              <span>{errorMessage}</span>
+              <div className="flex items-start gap-2.5">
+                <ExclamationCircleIcon
+                  className="h-5 w-5 text-red-600 shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                <span>{errorMessage}</span>
+              </div>
+              {isScannedPdfError && (
+                <div className="pl-7 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    data-testid="scanned-pdf-paste-fallback-btn"
+                    onClick={() => {
+                      setMode('text');
+                      setTextStep('paste');
+                      setErrorMessage(null);
+                      setIsScannedPdfError(false);
+                    }}
+                    className="px-2.5 py-1 rounded-control text-xs font-semibold bg-white text-red-700 border border-red-300 hover:bg-red-100 transition-colors"
+                  >
+                    Paste Resume Text Instead
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Option A: Upload JSON Resume */}
+          {/* Option A: Upload File (PDF, DOCX, TXT, JSON) */}
           {mode === 'json' && (
             <div
               id="import-panel-json"
@@ -1245,12 +1381,11 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                   aria-hidden="true"
                 />
                 <p className="text-sm font-semibold text-neutral-900">
-                  Select a JSON Resume (.json) file
+                  Select a PDF, Word (.docx), Plain Text (.txt), or JSON Resume (.json) file
                 </p>
                 <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto">
-                  Supports jsonresume.org v1 schema including basics, work, education,
-                  skills, projects, languages, certificates, awards, publications,
-                  volunteer, interests, and references.
+                  Extracts text locally in your browser and opens an interactive review
+                  screen before saving any data.
                 </p>
                 <div className="mt-4">
                   <input
@@ -1258,7 +1393,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                     id="json-resume-file-input"
                     data-testid="json-resume-file-input"
                     type="file"
-                    accept=".json,application/json"
+                    accept=".pdf,.docx,.txt,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/json"
                     onChange={(e) => {
                       const chosen = e.target.files?.[0];
                       void handleSelectFile(chosen);
@@ -1269,7 +1404,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                     htmlFor="json-resume-file-input"
                     className="inline-flex items-center justify-center h-9 px-4 rounded-control bg-white border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50 shadow-sm cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-primary-500"
                   >
-                    Choose JSON File
+                    {extractingFile ? 'Extracting Text…' : 'Choose File (PDF, DOCX, TXT, JSON)'}
                   </label>
                 </div>
                 {selectedFileName && (
@@ -1284,12 +1419,26 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                   data-testid="json-import-preview"
                   className="rounded-card border border-primary-200 bg-primary-50/40 p-4 space-y-2.5"
                 >
-                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-                    <CheckCircleIcon
-                      className="h-5 w-5 text-emerald-600 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <span>Ready to import: {jsonMappedResume.title}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
+                      <CheckCircleIcon
+                        className="h-5 w-5 text-emerald-600 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>Ready to import: {jsonMappedResume.title}</span>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="json-open-review-btn"
+                      onClick={() => {
+                        setReviewResume(hydrateParsedResumeForReview(jsonMappedResume));
+                        setMode('text');
+                        setTextStep('review');
+                      }}
+                      className="text-xs font-semibold text-primary-700 hover:text-primary-800 underline"
+                    >
+                      Review &amp; Edit Sections
+                    </button>
                   </div>
                   <div className="text-xs text-neutral-600 flex flex-wrap gap-x-4 gap-y-1">
                     {jsonMappedResume.content.basics.name && (
@@ -1675,6 +1824,22 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
                         Add Section
                       </button>
                     </div>
+
+                    {importTarget === 'resume' && (
+                      <label className="flex items-center gap-2.5 pt-2 text-xs text-neutral-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          data-testid="sync-to-profile-checkbox"
+                          checked={syncToProfileOnImport}
+                          onChange={(e) => setSyncToProfileOnImport(e.target.checked)}
+                          className="h-4 w-4 text-primary-600 rounded border-neutral-300 focus-ring"
+                        />
+                        <span>
+                          Also save approved career facts to my reusable{' '}
+                          <strong>Career Profile</strong>
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </div>
               )}
@@ -1686,7 +1851,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
         <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 px-5 sm:px-6 py-4 border-t border-neutral-200 bg-neutral-50 shrink-0">
           <button
             type="button"
-            disabled={submitting}
+            disabled={submitting || extractingFile}
             onClick={onClose}
             className="w-full sm:w-auto h-10 px-4 border border-neutral-300 bg-white rounded-control text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors focus-ring disabled:opacity-50"
           >
@@ -1697,7 +1862,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
             <button
               type="button"
               data-testid="confirm-json-import-btn"
-              disabled={!jsonMappedResume || submitting}
+              disabled={!jsonMappedResume || submitting || extractingFile}
               onClick={handleConfirmJsonImport}
               className="w-full sm:w-auto h-10 px-5 rounded-control text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors focus-ring"
             >
@@ -1709,7 +1874,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
             <button
               type="button"
               data-testid="parse-text-review-btn"
-              disabled={!rawText.trim() || submitting}
+              disabled={!rawText.trim() || submitting || extractingFile}
               onClick={handleParseTextToReview}
               className="w-full sm:w-auto h-10 px-5 rounded-control text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors focus-ring"
             >
@@ -1720,12 +1885,22 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
           {mode === 'text' && textStep === 'review' && (
             <button
               type="button"
-              data-testid="create-from-review-btn"
-              disabled={submitting}
+              data-testid={
+                importTarget === 'profile'
+                  ? 'approve-profile-import-btn'
+                  : 'create-from-review-btn'
+              }
+              disabled={submitting || extractingFile}
               onClick={handleCreateFromReview}
               className="w-full sm:w-auto h-10 px-5 rounded-control text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors focus-ring"
             >
-              {submitting ? 'Creating…' : 'Create Resume'}
+              {submitting
+                ? importTarget === 'profile'
+                  ? 'Approving…'
+                  : 'Creating…'
+                : importTarget === 'profile'
+                ? 'Approve & Save to Profile'
+                : 'Create Resume'}
             </button>
           )}
         </div>

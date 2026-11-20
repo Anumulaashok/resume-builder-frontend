@@ -463,9 +463,23 @@ export const PortfolioPublicView: React.FC<PortfolioPublicViewProps> = ({ slug: 
                             <h3 className="text-lg sm:text-xl font-semibold text-neutral-900">
                               {project.title}
                             </h3>
-                            <p className="mt-2 text-sm text-neutral-600 leading-relaxed">
-                              {project.description}
-                            </p>
+                            {project.description && (
+                              <p className="mt-2 text-sm text-neutral-600 leading-relaxed">
+                                {project.description}
+                              </p>
+                            )}
+                            {project.highlights && project.highlights.length > 0 && (
+                              <ul
+                                data-testid="public-project-highlights"
+                                className="mt-2.5 space-y-1 text-sm text-neutral-700 list-disc pl-5"
+                              >
+                                {project.highlights.map((bullet, bIdx) => (
+                                  <li key={bIdx} className="leading-snug">
+                                    {bullet}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
 
                             {/* Gallery Thumbnails if multiple */}
                             {project.images && project.images.length > 1 && (

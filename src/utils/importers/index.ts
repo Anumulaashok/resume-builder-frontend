@@ -35,3 +35,19 @@ export {
 } from './textParser';
 
 export type { ExtractedDateRange } from './textParser';
+
+export {
+  DocumentExtractionError,
+  detectImportFileKind,
+  extractTextFromDocumentFile,
+  convertMammothHtmlToResumeText,
+  readFileAsArrayBuffer,
+  readFileAsUtf8Text,
+} from './fileExtractor';
+
+export type {
+  SupportedImportFileKind,
+  DocumentExtractionErrorCode,
+  ExtractedDocumentResult,
+} from './fileExtractor';
+

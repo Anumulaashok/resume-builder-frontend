@@ -6,6 +6,7 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { resumeService } from '../../services/resume.service';
+import { careerProfileService } from '../../services/careerProfile.service';
 import { PortfolioProject } from '../../types/portfolio';
 import { Skeleton } from '../ui/skeleton';
 
@@ -20,8 +21,10 @@ interface ExtractedProject {
   sourceResumeTitle: string;
   name: string;
   description: string;
+  highlights?: string[];
   technologies?: string[];
   url?: string;
+  githubUrl?: string;
 }
 
 const FOCUSABLE_SELECTOR =
@@ -102,40 +105,70 @@ export const ImportProjectsModal: React.FC<ImportProjectsModalProps> = ({
     const loadResumeProjects = async () => {
       setLoading(true);
       try {
-        const resumes = (await resumeService.getResumes()) || [];
         const foundProjects: ExtractedProject[] = [];
+        const profile = await careerProfileService.getProfile().catch(() => null);
+        const profileProjects = Array.isArray(profile?.projects)
+          ? profile!.projects
+          : [];
 
-        resumes.forEach((resume) => {
-          const resumeTitle = resume.title || 'Untitled Resume';
-          const sections = resume.content?.sections || [];
-
-          sections.forEach((section) => {
-            const isProjectSection =
-              section.type?.toLowerCase().includes('project') ||
-              section.title?.toLowerCase().includes('project');
-
-            if (Array.isArray(section.content)) {
-              section.content.forEach((item: any, idx: number) => {
-                if (isProjectSection || item.technologies || item.url) {
-                  const name = item.name || item.title || `Project ${idx + 1}`;
-                  const description = item.description || item.summary || '';
-                  const technologies = Array.isArray(item.technologies)
-                    ? item.technologies
-                    : [];
-
-                  foundProjects.push({
-                    id: `${resume.id || resume._id || 'res'}-${section.id}-${item.id || idx}`,
-                    sourceResumeTitle: resumeTitle,
-                    name,
-                    description,
-                    technologies,
-                    url: item.url || ''
-                  });
-                }
-              });
-            }
+        if (profileProjects.length > 0) {
+          profileProjects.forEach((proj, idx) => {
+            const cleanHighlights = Array.isArray(proj.highlights)
+              ? proj.highlights.map((h) => (h || '').trim()).filter(Boolean)
+              : [];
+            foundProjects.push({
+              id: `profile-proj-${proj.id || idx}`,
+              sourceResumeTitle: 'Career Profile',
+              name: proj.name || `Project ${idx + 1}`,
+              description: proj.description || '',
+              highlights: cleanHighlights,
+              technologies: Array.isArray(proj.technologies)
+                ? proj.technologies
+                : [],
+              url: proj.url || '',
+              githubUrl: proj.githubUrl || ''
+            });
           });
-        });
+        } else {
+          const resumes = (await resumeService.getResumes()) || [];
+
+          resumes.forEach((resume) => {
+            const resumeTitle = resume.title || 'Untitled Resume';
+            const sections = resume.content?.sections || [];
+
+            sections.forEach((section) => {
+              const isProjectSection =
+                section.type?.toLowerCase().includes('project') ||
+                section.title?.toLowerCase().includes('project');
+
+              if (Array.isArray(section.content)) {
+                section.content.forEach((item: any, idx: number) => {
+                  if (isProjectSection || item.technologies || item.url) {
+                    const name = item.name || item.title || `Project ${idx + 1}`;
+                    const description = item.description || item.summary || '';
+                    const highlights = Array.isArray(item.highlights)
+                      ? item.highlights.map((h: any) => String(h || '').trim()).filter(Boolean)
+                      : [];
+                    const technologies = Array.isArray(item.technologies)
+                      ? item.technologies
+                      : [];
+
+                    foundProjects.push({
+                      id: `${resume.id || resume._id || 'res'}-${section.id}-${item.id || idx}`,
+                      sourceResumeTitle: resumeTitle,
+                      name,
+                      description,
+                      highlights,
+                      technologies,
+                      url: item.url || '',
+                      githubUrl: item.githubUrl || ''
+                    });
+                  }
+                });
+              }
+            });
+          });
+        }
 
         setExtractedProjects(foundProjects);
         // By default select all found projects
@@ -162,15 +195,18 @@ export const ImportProjectsModal: React.FC<ImportProjectsModalProps> = ({
   };
 
   const handleConfirmImport = () => {
-    const toImport = extractedProjects
+    const toImport: PortfolioProject[] = extractedProjects
       .filter((p) => selectedIds.has(p.id))
       .map((p, idx) => ({
         id: `imported-proj-${Date.now()}-${idx}`,
         title: p.name,
         description: p.description,
+        ...(p.highlights && p.highlights.length > 0
+          ? { highlights: [...p.highlights] }
+          : {}),
         tags: p.technologies || [],
         demoUrl: p.url || '',
-        githubUrl: '',
+        githubUrl: p.githubUrl || '',
         images: []
       }));
 
@@ -345,6 +381,18 @@ export const ImportProjectsModal: React.FC<ImportProjectsModalProps> = ({
                           <p className="text-xs text-neutral-600 mt-1.5 line-clamp-2 leading-relaxed">
                             {p.description}
                           </p>
+                        )}
+                        {p.highlights && p.highlights.length > 0 && (
+                          <ul
+                            data-testid="import-project-highlights"
+                            className="mt-1.5 space-y-1 text-xs text-neutral-700 list-disc pl-4"
+                          >
+                            {p.highlights.map((bullet, bIdx) => (
+                              <li key={bIdx} className="leading-snug">
+                                {bullet}
+                              </li>
+                            ))}
+                          </ul>
                         )}
                         {p.technologies && p.technologies.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-2.5">

@@ -2,6 +2,7 @@ export interface PortfolioProject {
   id: string;
   title: string;
   description: string;
+  highlights?: string[];
   tags: string[];
   demoUrl?: string;
   githubUrl?: string;

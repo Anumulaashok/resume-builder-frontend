@@ -56,6 +56,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { useResumeHistory } from "./useResumeHistory";
 import { resumeService } from "../services/resume.service";
+import { careerProfileService } from "../services/careerProfile.service";
 import {
   hasResumeOmittedSummary,
   normalizeResume,
@@ -2077,6 +2078,24 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                   >
                     <CodeBracketIcon className="h-4 w-4 text-gray-500" />
                     <span>Export JSON</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="sync-to-profile-menu-btn"
+                    onClick={async () => {
+                      setShowOverflowMenu(false);
+                      try {
+                        await careerProfileService.mergeProfile(resume);
+                        toast.success("Synced changes to Career Profile");
+                      } catch {
+                        toast.error("Failed to sync to Career Profile");
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-neutral-50 hover:text-gray-900 flex items-center gap-2.5 border-t border-gray-100 transition-colors"
+                  >
+                    <ArrowPathIcon className="h-4 w-4 text-gray-500" />
+                    <span>Sync to Profile</span>
                   </button>
                 </div>
               )}
