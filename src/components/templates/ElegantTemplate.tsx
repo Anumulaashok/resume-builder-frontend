@@ -5,6 +5,7 @@ import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
   Description,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -50,7 +51,7 @@ const ElegantTemplateContent: React.FC = () => {
 
   return (
     <div
-      className="bg-white"
+      className="bg-white print:!py-0"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
         fontFamily: 'var(--theme-body-font, inherit)',
@@ -63,6 +64,7 @@ const ElegantTemplateContent: React.FC = () => {
         WebkitBoxDecorationBreak: 'clone',
       }}
     >
+      <PrintMarginTable fallbackMargin="1.75cm">
       {/* Editorial Monogram & Thin-Ruled Header */}
       <header
         className="text-center break-inside-avoid"
@@ -76,7 +78,7 @@ const ElegantTemplateContent: React.FC = () => {
             aria-hidden="true"
           >
             <span
-              className="h-px w-12 sm:w-16"
+              className="h-px w-16"
               style={{
                 backgroundColor:
                   'var(--theme-accent, var(--theme-primary, #b45309))',
@@ -96,7 +98,7 @@ const ElegantTemplateContent: React.FC = () => {
               {monogram}
             </span>
             <span
-              className="h-px w-12 sm:w-16"
+              className="h-px w-16"
               style={{
                 backgroundColor:
                   'var(--theme-accent, var(--theme-primary, #b45309))',
@@ -110,7 +112,7 @@ const ElegantTemplateContent: React.FC = () => {
           value={basics.name || ''}
           onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
           readOnly={readOnly}
-          textClassName="text-3xl sm:text-[32px] font-normal tracking-wide leading-tight"
+          textClassName="text-[32px] font-normal tracking-wide leading-tight"
           style={{
             fontFamily: 'var(--theme-heading-font)',
             color: 'var(--theme-heading-color, #111827)',
@@ -201,6 +203,7 @@ const ElegantTemplateContent: React.FC = () => {
       >
         <SectionRenderer tone="classic" accentHeadingBorder />
       </div>
+      </PrintMarginTable>
     </div>
   );
 };

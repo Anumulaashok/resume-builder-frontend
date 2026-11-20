@@ -15,6 +15,7 @@ import {
   Description,
   ItemHeader,
   KeywordList,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -365,7 +366,7 @@ const StartupTemplateContent: React.FC = () => {
 
   return (
     <div
-      className="relative bg-white min-h-[1123px] print:min-h-[29.7cm] flex flex-col"
+      className="relative bg-white min-h-[1123px] print:min-h-0 flex flex-col"
       style={{
         fontFamily: 'var(--theme-body-font, inherit)',
         color: 'var(--theme-text-color, #334155)',
@@ -463,85 +464,63 @@ const StartupTemplateContent: React.FC = () => {
           className="flex-1 min-w-0 max-w-full [overflow-wrap:anywhere] print:!py-0"
           style={{ padding: 'var(--theme-page-margin, 1.25cm)', overflowWrap: 'anywhere' }}
         >
-          <table role="presentation" className="w-full table-fixed border-collapse">
-            <thead aria-hidden="true" className="hidden print:table-header-group">
-              <tr>
-                <td
-                  className="p-0"
-                  style={{ height: 'var(--theme-page-margin, 1.25cm)' }}
+          <PrintMarginTable fallbackMargin="1.25cm">
+            {showSummary && (
+              <section
+                data-testid="startup-summary-callout"
+                className="rounded-r-xl border border-slate-200/90 border-l-4 bg-slate-50/90 print:bg-slate-50 p-3.5 break-inside-avoid"
+                style={{
+                  borderLeftColor:
+                    'var(--theme-accent, var(--theme-primary, #ea580c))',
+                  marginBottom:
+                    mainSections.length > 0
+                      ? 'var(--theme-section-spacing, 1rem)'
+                      : undefined,
+                }}
+              >
+                <SectionHeading title="Impact Summary" />
+                <InlineEdit
+                  value={summaryValue}
+                  onChange={
+                    readOnly ? undefined : (v) => updateBasics('summary', v)
+                  }
+                  multiline
+                  textClassName="text-[0.96em] font-medium whitespace-pre-wrap break-words block"
+                  style={{
+                    color: 'var(--theme-text-color, #1e293b)',
+                    lineHeight: 'var(--theme-line-height, 1.48)',
+                  }}
+                  placeholder="Highlight 0-to-1 launches, scale, and business outcomes..."
+                  readOnly={readOnly}
                 />
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="p-0 align-top">
-                  {showSummary && (
-                    <section
-                      data-testid="startup-summary-callout"
-                      className="rounded-r-xl border border-slate-200/90 border-l-4 bg-slate-50/90 print:bg-slate-50 p-3.5 break-inside-avoid"
-                      style={{
-                        borderLeftColor:
-                          'var(--theme-accent, var(--theme-primary, #ea580c))',
-                        marginBottom:
-                          mainSections.length > 0
-                            ? 'var(--theme-section-spacing, 1rem)'
-                            : undefined,
-                      }}
-                    >
-                      <SectionHeading title="Impact Summary" />
-                      <InlineEdit
-                        value={summaryValue}
-                        onChange={
-                          readOnly ? undefined : (v) => updateBasics('summary', v)
-                        }
-                        multiline
-                        textClassName="text-[0.96em] font-medium whitespace-pre-wrap break-words block"
-                        style={{
-                          color: 'var(--theme-text-color, #1e293b)',
-                          lineHeight: 'var(--theme-line-height, 1.48)',
-                        }}
-                        placeholder="Highlight 0-to-1 launches, scale, and business outcomes..."
-                        readOnly={readOnly}
-                      />
-                    </section>
-                  )}
+              </section>
+            )}
 
-                  {mainSections.map((section, idx) => {
-                    const isLast = idx === mainSections.length - 1;
-                    const kind = resolveSectionKind(section);
-                    return (
-                      <div
-                        key={section.id}
-                        style={
-                          isLast
-                            ? undefined
-                            : { marginBottom: 'var(--theme-section-spacing, 1rem)' }
-                        }
-                      >
-                        {METRIC_RICH_KINDS.has(kind) ? (
-                          <StartupMetricSection section={section} kind={kind} />
-                        ) : (
-                          <SectionRenderer
-                            sections={[section]}
-                            sectionOrder={[section.id]}
-                            tone="modern"
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </td>
-              </tr>
-            </tbody>
-            <tfoot aria-hidden="true" className="hidden print:table-footer-group">
-              <tr>
-                <td
-                  className="p-0"
-                  style={{ height: 'var(--theme-page-margin, 1.25cm)' }}
-                />
-              </tr>
-            </tfoot>
-          </table>
+            {mainSections.map((section, idx) => {
+              const isLast = idx === mainSections.length - 1;
+              const kind = resolveSectionKind(section);
+              return (
+                <div
+                  key={section.id}
+                  style={
+                    isLast
+                      ? undefined
+                      : { marginBottom: 'var(--theme-section-spacing, 1rem)' }
+                  }
+                >
+                  {METRIC_RICH_KINDS.has(kind) ? (
+                    <StartupMetricSection section={section} kind={kind} />
+                  ) : (
+                    <SectionRenderer
+                      sections={[section]}
+                      sectionOrder={[section.id]}
+                      tone="modern"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </PrintMarginTable>
         </main>
 
         {hasSidebarSections && (
@@ -554,35 +533,13 @@ const StartupTemplateContent: React.FC = () => {
               overflowWrap: 'anywhere',
             }}
           >
-            <table role="presentation" className="w-full table-fixed border-collapse">
-              <thead aria-hidden="true" className="hidden print:table-header-group">
-                <tr>
-                  <td
-                    className="p-0"
-                    style={{ height: 'var(--theme-page-margin, 1.25cm)' }}
-                  />
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="p-0 align-top w-full max-w-full">
-                    <SectionRenderer
-                      filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
-                      tone="modern"
-                      narrow
-                    />
-                  </td>
-                </tr>
-              </tbody>
-              <tfoot aria-hidden="true" className="hidden print:table-footer-group">
-                <tr>
-                  <td
-                    className="p-0"
-                    style={{ height: 'var(--theme-page-margin, 1.25cm)' }}
-                  />
-                </tr>
-              </tfoot>
-            </table>
+            <PrintMarginTable fallbackMargin="1.25cm">
+              <SectionRenderer
+                filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
+                tone="modern"
+                narrow
+              />
+            </PrintMarginTable>
           </aside>
         )}
       </div>

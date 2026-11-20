@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -34,7 +35,7 @@ const ProfessionalTemplateContent: React.FC = () => {
 
   return (
     <div
-      className="bg-white"
+      className="bg-white print:!py-0"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
         fontFamily: 'var(--theme-body-font, Georgia, serif)',
@@ -43,64 +44,66 @@ const ProfessionalTemplateContent: React.FC = () => {
         lineHeight: 'var(--theme-line-height, 1.5)',
       }}
     >
-      <header
-        className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b-2 pb-4"
-        style={{
-          borderColor: 'var(--theme-primary, #1e293b)',
-          marginBottom: 'var(--theme-section-spacing, 1.5rem)',
-        }}
-      >
-        <div className="min-w-0">
-          <InlineEdit
-            value={basics.name || ''}
-            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-            readOnly={readOnly}
-            textClassName="text-3xl font-bold tracking-tight leading-tight"
-            style={{
-              fontFamily: 'var(--theme-heading-font)',
-              color: 'var(--theme-heading-color, #1e293b)',
-            }}
-            placeholder="Your Name"
-          />
-          <InlineEdit
-            value={basics.label || ''}
-            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-            readOnly={readOnly}
-            textClassName="text-base mt-1 block font-medium"
-            style={{ color: 'var(--theme-accent, var(--theme-primary, #475569))' }}
-            placeholder="Professional Title"
-          />
-        </div>
-        <ContactRow variant="stacked-right" />
-      </header>
-
-      {showSummary && (
-        <section
-          className={!hasSummaryText ? 'print:hidden' : undefined}
+      <PrintMarginTable fallbackMargin="1.75cm">
+        <header
+          className="flex flex-row justify-between items-end gap-3 border-b-2 pb-4"
           style={{
-            marginBottom:
-              orderedSections.length > 0
-                ? 'var(--theme-section-spacing, 1.5rem)'
-                : undefined,
+            borderColor: 'var(--theme-primary, #1e293b)',
+            marginBottom: 'var(--theme-section-spacing, 1.5rem)',
           }}
         >
-          <SectionHeading title="Profile" accentBorder />
-          <InlineEdit
-            value={summaryValue}
-            onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
-            multiline
-            textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
-            style={{
-              color: 'var(--theme-text-color, #334155)',
-              lineHeight: 'var(--theme-line-height, 1.5)',
-            }}
-            placeholder="A brief summary of your professional background..."
-            readOnly={readOnly}
-          />
-        </section>
-      )}
+          <div className="min-w-0">
+            <InlineEdit
+              value={basics.name || ''}
+              onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+              readOnly={readOnly}
+              textClassName="text-3xl font-bold tracking-tight leading-tight"
+              style={{
+                fontFamily: 'var(--theme-heading-font)',
+                color: 'var(--theme-heading-color, #1e293b)',
+              }}
+              placeholder="Your Name"
+            />
+            <InlineEdit
+              value={basics.label || ''}
+              onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+              readOnly={readOnly}
+              textClassName="text-base mt-1 block font-medium"
+              style={{ color: 'var(--theme-accent, var(--theme-primary, #475569))' }}
+              placeholder="Professional Title"
+            />
+          </div>
+          <ContactRow variant="stacked-right" />
+        </header>
 
-      <SectionRenderer tone="classic" accentHeadingBorder />
+        {showSummary && (
+          <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
+            style={{
+              marginBottom:
+                orderedSections.length > 0
+                  ? 'var(--theme-section-spacing, 1.5rem)'
+                  : undefined,
+            }}
+          >
+            <SectionHeading title="Profile" accentBorder />
+            <InlineEdit
+              value={summaryValue}
+              onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+              multiline
+              textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
+              style={{
+                color: 'var(--theme-text-color, #334155)',
+                lineHeight: 'var(--theme-line-height, 1.5)',
+              }}
+              placeholder="A brief summary of your professional background..."
+              readOnly={readOnly}
+            />
+          </section>
+        )}
+
+        <SectionRenderer tone="classic" accentHeadingBorder />
+      </PrintMarginTable>
     </div>
   );
 };

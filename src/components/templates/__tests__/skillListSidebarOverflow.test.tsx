@@ -268,7 +268,7 @@ describe('SkillList narrow-column stacking and sidebar overflow prevention', () 
       expect(root).toHaveAttribute('data-skill-layout', 'stacked');
       const row = root.querySelector('[data-skill-group]') as HTMLElement;
       expect(row.className).toContain('flex-col');
-      expect(row.className).not.toContain('sm:flex-row');
+      expect(row.className).not.toContain('flex-row');
 
       act(() => {
         capturedCallback?.([
@@ -279,10 +279,10 @@ describe('SkillList narrow-column stacking and sidebar overflow prevention', () 
       expect(root).toHaveAttribute('data-skill-layout', 'inline');
       expect(
         (root.querySelector('[data-skill-group]') as HTMLElement).className
-      ).toContain('sm:flex-row');
+      ).toContain('flex-row');
     });
 
-    it('preserves inline sm:flex-row layout in wide single-column templates while keeping overflow-wrap:anywhere on chips', () => {
+    it('preserves inline flex-row layout in wide single-column templates while keeping overflow-wrap:anywhere on chips', () => {
       const resume = buildResumeWith12LongKeywords('modern');
       const { container } = render(<ModernTemplate resume={resume} readOnly />);
 
@@ -292,7 +292,7 @@ describe('SkillList narrow-column stacking and sidebar overflow prevention', () 
       const firstGroup = skillList.querySelector(
         '[data-skill-group]'
       ) as HTMLElement;
-      expect(firstGroup.className).toContain('sm:flex-row');
+      expect(firstGroup.className).toContain('flex-row');
     });
   });
 });

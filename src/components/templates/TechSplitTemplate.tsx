@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { CanonicalSectionKind } from './templateHelpers';
 import {
   ContactRow,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -38,7 +39,7 @@ const TechSplitContent: React.FC = () => {
 
   return (
     <div
-      className="bg-white"
+      className="bg-white print:!py-0"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
         fontFamily: 'var(--theme-body-font, inherit)',
@@ -47,82 +48,84 @@ const TechSplitContent: React.FC = () => {
         lineHeight: 'var(--theme-line-height, 1.5)',
       }}
     >
-      <header
-        className="pb-4 border-b"
-        style={{
-          borderColor: 'var(--theme-accent, var(--theme-primary, #0f766e))',
-          marginBottom: 'var(--theme-section-spacing, 1.5rem)',
-        }}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-          <div>
-            <InlineEdit
-              value={basics.name || ''}
-              onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-              readOnly={readOnly}
-              textClassName="text-2xl font-bold tracking-tight"
-              style={{
-                fontFamily: 'var(--theme-heading-font)',
-                color: 'var(--theme-heading-color, #0f172a)',
-              }}
-              placeholder="Your Name"
-            />
-            <InlineEdit
-              value={basics.label || ''}
-              onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-              readOnly={readOnly}
-              textClassName="text-sm font-medium mt-0.5 block"
-              style={{ color: 'var(--theme-accent, var(--theme-primary, #0f766e))' }}
-              placeholder="Systems / Software Engineer"
-            />
-          </div>
-          <ContactRow variant="stacked-right" />
-        </div>
-      </header>
-
-      <div className="flex flex-col sm:flex-row print:flex-row gap-7 items-start min-w-0">
-        <div className="flex-1 min-w-0 w-full [overflow-wrap:anywhere]">
-          {showSummary && (
-            <section
-              className={!hasSummaryText ? 'print:hidden' : undefined}
-              style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
-            >
-              <SectionHeading title="Overview" />
-              <InlineEdit
-                value={summaryValue}
-                onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
-                multiline
-                textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
-                style={{
-                  color: 'var(--theme-text-color, #374151)',
-                  lineHeight: 'var(--theme-line-height, 1.5)',
-                }}
-                placeholder="Technical focus and impact..."
-                readOnly={readOnly}
-              />
-            </section>
-          )}
-          <SectionRenderer
-            filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
-            tone="modern"
-          />
-        </div>
-
-        <aside
-          data-testid="tech-split-sidebar"
-          className="shrink-0 min-w-0 max-w-full w-full sm:pl-5 print:pl-5 sm:border-l print:border-l border-slate-200 [overflow-wrap:anywhere]"
+      <PrintMarginTable fallbackMargin="1.75cm">
+        <header
+          className="pb-4 border-b"
           style={{
-            width: 'var(--theme-sidebar-width, 32%)',
-            overflowWrap: 'anywhere',
+            borderColor: 'var(--theme-accent, var(--theme-primary, #0f766e))',
+            marginBottom: 'var(--theme-section-spacing, 1.5rem)',
           }}
         >
-          <SectionRenderer
-            filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
-            tone="modern"
-            narrow
-          />
-        </aside>
-      </div>
+          <div className="flex flex-row items-baseline justify-between gap-2">
+            <div className="min-w-0">
+              <InlineEdit
+                value={basics.name || ''}
+                onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+                readOnly={readOnly}
+                textClassName="text-2xl font-bold tracking-tight"
+                style={{
+                  fontFamily: 'var(--theme-heading-font)',
+                  color: 'var(--theme-heading-color, #0f172a)',
+                }}
+                placeholder="Your Name"
+              />
+              <InlineEdit
+                value={basics.label || ''}
+                onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+                readOnly={readOnly}
+                textClassName="text-sm font-medium mt-0.5 block"
+                style={{ color: 'var(--theme-accent, var(--theme-primary, #0f766e))' }}
+                placeholder="Systems / Software Engineer"
+              />
+            </div>
+            <ContactRow variant="stacked-right" />
+          </div>
+        </header>
+
+        <div className="flex flex-row gap-7 items-start min-w-0">
+          <div className="flex-1 min-w-0 [overflow-wrap:anywhere]">
+            {showSummary && (
+              <section
+                className={!hasSummaryText ? 'print:hidden' : undefined}
+                style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
+              >
+                <SectionHeading title="Overview" />
+                <InlineEdit
+                  value={summaryValue}
+                  onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+                  multiline
+                  textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
+                  style={{
+                    color: 'var(--theme-text-color, #374151)',
+                    lineHeight: 'var(--theme-line-height, 1.5)',
+                  }}
+                  placeholder="Technical focus and impact..."
+                  readOnly={readOnly}
+                />
+              </section>
+            )}
+            <SectionRenderer
+              filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
+              tone="modern"
+            />
+          </div>
+
+          <aside
+            data-testid="tech-split-sidebar"
+            className="shrink-0 min-w-0 max-w-full pl-5 border-l border-slate-200 [overflow-wrap:anywhere]"
+            style={{
+              width: 'var(--theme-sidebar-width, 32%)',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            <SectionRenderer
+              filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
+              tone="modern"
+              narrow
+            />
+          </aside>
+        </div>
+      </PrintMarginTable>
     </div>
   );
 };

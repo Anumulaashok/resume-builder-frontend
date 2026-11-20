@@ -4,6 +4,7 @@ import { InlineEdit } from '../ui/InlineEdit';
 import { getOrderedSections } from './templateHelpers';
 import {
   ContactRow,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -34,7 +35,7 @@ const MinimalTemplateContent: React.FC = () => {
 
   return (
     <div
-      className="bg-white"
+      className="bg-white print:!py-0"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
         fontFamily: 'var(--theme-body-font, inherit)',
@@ -43,59 +44,61 @@ const MinimalTemplateContent: React.FC = () => {
         lineHeight: 'var(--theme-line-height, 1.5)',
       }}
     >
-      <header
-        className="pb-4"
-        style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
-      >
-        <InlineEdit
-          value={basics.name || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-          readOnly={readOnly}
-          textClassName="text-[28px] font-semibold tracking-tight leading-tight"
-          style={{
-            fontFamily: 'var(--theme-heading-font)',
-            color: 'var(--theme-heading-color, #111827)',
-          }}
-          placeholder="Your Name"
-        />
-        <InlineEdit
-          value={basics.label || ''}
-          onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-          readOnly={readOnly}
-          textClassName="text-sm mt-0.5 font-normal block"
-          style={{ color: 'var(--theme-accent, var(--theme-primary, #64748b))' }}
-          placeholder="Role / Headline"
-        />
-        <ContactRow variant="inline-left" className="mt-2.5" />
-      </header>
-
-      {showSummary && (
-        <section
-          className={!hasSummaryText ? 'print:hidden' : undefined}
-          style={{
-            marginBottom:
-              orderedSections.length > 0
-                ? 'var(--theme-section-spacing, 1.5rem)'
-                : undefined,
-          }}
+      <PrintMarginTable fallbackMargin="1.75cm">
+        <header
+          className="pb-4"
+          style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
         >
-          <SectionHeading title="Summary" />
           <InlineEdit
-            value={summaryValue}
-            onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
-            multiline
-            textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
-            style={{
-              color: 'var(--theme-text-color, #374151)',
-              lineHeight: 'var(--theme-line-height, 1.5)',
-            }}
-            placeholder="A concise overview of your background..."
+            value={basics.name || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
             readOnly={readOnly}
+            textClassName="text-[28px] font-semibold tracking-tight leading-tight"
+            style={{
+              fontFamily: 'var(--theme-heading-font)',
+              color: 'var(--theme-heading-color, #111827)',
+            }}
+            placeholder="Your Name"
           />
-        </section>
-      )}
+          <InlineEdit
+            value={basics.label || ''}
+            onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+            readOnly={readOnly}
+            textClassName="text-sm mt-0.5 font-normal block"
+            style={{ color: 'var(--theme-accent, var(--theme-primary, #64748b))' }}
+            placeholder="Role / Headline"
+          />
+          <ContactRow variant="inline-left" className="mt-2.5" />
+        </header>
 
-      <SectionRenderer tone="modern" />
+        {showSummary && (
+          <section
+            className={!hasSummaryText ? 'print:hidden' : undefined}
+            style={{
+              marginBottom:
+                orderedSections.length > 0
+                  ? 'var(--theme-section-spacing, 1.5rem)'
+                  : undefined,
+            }}
+          >
+            <SectionHeading title="Summary" />
+            <InlineEdit
+              value={summaryValue}
+              onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+              multiline
+              textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
+              style={{
+                color: 'var(--theme-text-color, #374151)',
+                lineHeight: 'var(--theme-line-height, 1.5)',
+              }}
+              placeholder="A concise overview of your background..."
+              readOnly={readOnly}
+            />
+          </section>
+        )}
+
+        <SectionRenderer tone="modern" />
+      </PrintMarginTable>
     </div>
   );
 };

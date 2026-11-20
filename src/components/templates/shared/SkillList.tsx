@@ -263,7 +263,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         className={`grid min-w-0 max-w-full ${
           isNarrow
             ? 'grid-cols-1 gap-y-2.5'
-            : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5'
+            : 'grid-cols-2 gap-x-6 gap-y-2.5'
         }`}
       >
         {enabledItems.map((item: any, idx: number) => {
@@ -327,7 +327,7 @@ export const SkillList: React.FC<SkillListProps> = ({
         className={`grid min-w-0 max-w-full ${
           isNarrow
             ? 'grid-cols-1 gap-y-2'
-            : 'grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2'
+            : 'grid-cols-2 gap-x-6 gap-y-2'
         }`}
       >
         {enabledItems.map((item: any, idx: number) => {
@@ -398,8 +398,8 @@ export const SkillList: React.FC<SkillListProps> = ({
     const columnsGridClass = isNarrow
       ? 'grid-cols-1 gap-2'
       : hasGrouped
-      ? 'grid-cols-1 sm:grid-cols-2 gap-3'
-      : 'grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5';
+      ? 'grid-cols-2 gap-3'
+      : 'grid-cols-3 gap-x-4 gap-y-1.5';
 
     return (
       <div
@@ -515,7 +515,7 @@ export const SkillList: React.FC<SkillListProps> = ({
 
           const groupRowClass = isNarrow
             ? 'break-inside-avoid flex flex-col gap-0.5 min-w-0 max-w-full text-[0.96em] leading-relaxed'
-            : 'break-inside-avoid flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2 min-w-0 max-w-full text-[0.96em] leading-relaxed';
+            : 'break-inside-avoid flex flex-row items-baseline gap-2 min-w-0 max-w-full text-[0.96em] leading-relaxed';
 
           const labelContainerClass = isNarrow
             ? 'w-full min-w-0 max-w-full flex flex-wrap items-baseline gap-x-1.5 [overflow-wrap:anywhere]'
@@ -629,11 +629,11 @@ export const SkillList: React.FC<SkillListProps> = ({
 
         const groupRowClass = isNarrow
           ? 'break-inside-avoid flex flex-col gap-1 min-w-0 max-w-full'
-          : 'break-inside-avoid flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 min-w-0 max-w-full';
+          : 'break-inside-avoid flex flex-row items-baseline gap-3 min-w-0 max-w-full';
 
         const labelContainerClass = isNarrow
           ? 'w-full min-w-0 max-w-full flex flex-wrap items-baseline gap-1.5 [overflow-wrap:anywhere]'
-          : 'sm:w-40 shrink-0 min-w-0 max-w-full flex flex-wrap items-baseline gap-1.5 [overflow-wrap:anywhere]';
+          : 'w-40 shrink-0 min-w-0 max-w-full flex flex-wrap items-baseline gap-1.5 [overflow-wrap:anywhere]';
 
         const chipListClass = isNarrow
           ? 'flex flex-wrap gap-1.5 min-w-0 max-w-full'

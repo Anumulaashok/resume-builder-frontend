@@ -163,14 +163,14 @@ export const ContactRow: React.FC<ContactRowProps> = ({
     return (
       <div
         className={`text-xs text-slate-600 space-y-1 shrink-0 ${
-          isRight ? 'sm:text-right' : 'text-left'
+          isRight ? 'text-right' : 'text-left'
         } ${!hasAnyNonEmptyEntry ? 'print:hidden' : ''} ${className}`}
       >
         {entries.map((entry) => (
           <div
             key={entry.key}
             className={`flex items-center gap-1.5 ${
-              isRight ? 'sm:justify-end' : 'justify-start'
+              isRight ? 'justify-end' : 'justify-start'
             } ${entry.isEmptyPlaceholder ? 'print:hidden' : ''}`}
           >
             {showIcons && !isRight && entry.icon}

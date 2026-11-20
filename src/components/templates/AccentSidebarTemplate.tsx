@@ -8,6 +8,7 @@ import {
 import {
   ContactRow,
   Description,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -88,7 +89,7 @@ const AccentSidebarContent: React.FC = () => {
   return (
     <div
       data-testid="accent-sidebar-template"
-      className="relative bg-white grid grid-cols-1 sm:grid-cols-[var(--theme-sidebar-width,33%)_minmax(0,1fr)] print:grid-cols-[var(--theme-sidebar-width,33%)_minmax(0,1fr)] min-h-[1123px] print:min-h-0"
+      className="relative bg-white grid grid-cols-[var(--theme-sidebar-width,33%)_minmax(0,1fr)] min-h-[1123px] print:min-h-0"
       style={{
         fontFamily: 'var(--theme-body-font, inherit)',
         color: 'var(--theme-text-color, #334155)',
@@ -113,7 +114,7 @@ const AccentSidebarContent: React.FC = () => {
 
       <aside
         data-testid="accent-sidebar-aside"
-        className="relative z-10 min-w-0 max-w-full [overflow-wrap:anywhere] text-white [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-white/15 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
+        className="relative z-10 min-w-0 max-w-full print:!py-0 [overflow-wrap:anywhere] text-white [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-white/15 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
         style={{
           backgroundColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
           padding: 'var(--theme-page-margin, 1.25cm)',
@@ -122,105 +123,109 @@ const AccentSidebarContent: React.FC = () => {
           printColorAdjust: 'exact',
         }}
       >
-        <div
-          style={
-            {
-              '--theme-primary': '#ffffff',
-              '--theme-heading-color': '#ffffff',
-              '--theme-text-color': 'rgba(255, 255, 255, 0.92)',
-              '--theme-accent': 'rgba(255, 255, 255, 0.9)',
-            } as React.CSSProperties
-          }
-        >
+        <PrintMarginTable fallbackMargin="1.25cm">
           <div
-            aria-hidden="true"
-            data-testid="accent-sidebar-monogram"
-            className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs select-none"
-            style={{
-              fontFamily: 'var(--theme-heading-font)',
-              marginBottom: 'var(--theme-section-spacing, 1.5rem)',
-            }}
+            style={
+              {
+                '--theme-primary': '#ffffff',
+                '--theme-heading-color': '#ffffff',
+                '--theme-text-color': 'rgba(255, 255, 255, 0.92)',
+                '--theme-accent': 'rgba(255, 255, 255, 0.9)',
+              } as React.CSSProperties
+            }
           >
-            {initials}
-          </div>
+            <div
+              aria-hidden="true"
+              data-testid="accent-sidebar-monogram"
+              className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs select-none"
+              style={{
+                fontFamily: 'var(--theme-heading-font)',
+                marginBottom: 'var(--theme-section-spacing, 1.5rem)',
+              }}
+            >
+              {initials}
+            </div>
 
-          {showContact && (
+            {showContact && (
+              <section
+                style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
+              >
+                <SectionHeading title="Contact" accentBorder />
+                <ContactRow
+                  variant="stacked-left"
+                  className="!text-white/90 space-y-1.5 [&_a]:break-all"
+                />
+              </section>
+            )}
+
+            <SectionRenderer
+              filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
+              tone="modern"
+              accentHeadingBorder
+              narrow
+            />
+          </div>
+        </PrintMarginTable>
+      </aside>
+
+      <main
+        className="relative z-10 min-w-0 bg-white print:bg-transparent print:!py-0"
+        style={{ padding: 'var(--theme-page-margin, 1.25cm)' }}
+      >
+        <PrintMarginTable fallbackMargin="1.25cm">
+          {showHeader && (
+            <header
+              className="pb-4 border-b-2"
+              style={{
+                borderColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
+                marginBottom: 'var(--theme-section-spacing, 1.5rem)',
+              }}
+            >
+              <InlineEdit
+                value={basics.name || ''}
+                onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
+                readOnly={readOnly}
+                textClassName="text-3xl font-bold tracking-tight leading-tight"
+                style={{
+                  fontFamily: 'var(--theme-heading-font)',
+                  color: 'var(--theme-heading-color, #0f172a)',
+                }}
+                placeholder="Your Name"
+              />
+              <InlineEdit
+                value={basics.label || ''}
+                onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
+                readOnly={readOnly}
+                textClassName="text-base font-medium mt-1 block"
+                style={{
+                  color: 'var(--theme-accent, var(--theme-primary, #2563eb))',
+                }}
+                placeholder="Professional Title"
+              />
+            </header>
+          )}
+
+          {showSummary && (
             <section
               style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
             >
-              <SectionHeading title="Contact" accentBorder />
-              <ContactRow
-                variant="stacked-left"
-                className="!text-white/90 space-y-1.5 [&_a]:break-all"
+              <SectionHeading title="Summary" accentBorder />
+              <Description
+                value={summaryValue}
+                onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
+                readOnly={readOnly}
+                placeholder="Summarize your impact, expertise, and career focus..."
+                textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
               />
             </section>
           )}
 
           <SectionRenderer
-            filter={(_sec, kind) => SIDEBAR_KINDS.has(kind)}
+            filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
             tone="modern"
             accentHeadingBorder
-            narrow
           />
-        </div>
-      </aside>
-
-      <main
-        className="relative z-10 min-w-0 bg-white print:bg-transparent print:[&_[data-section-id]]:pt-2"
-        style={{ padding: 'var(--theme-page-margin, 1.25cm)' }}
-      >
-        {showHeader && (
-          <header
-            className="pb-4 border-b-2"
-            style={{
-              borderColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
-              marginBottom: 'var(--theme-section-spacing, 1.5rem)',
-            }}
-          >
-            <InlineEdit
-              value={basics.name || ''}
-              onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
-              readOnly={readOnly}
-              textClassName="text-3xl font-bold tracking-tight leading-tight"
-              style={{
-                fontFamily: 'var(--theme-heading-font)',
-                color: 'var(--theme-heading-color, #0f172a)',
-              }}
-              placeholder="Your Name"
-            />
-            <InlineEdit
-              value={basics.label || ''}
-              onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
-              readOnly={readOnly}
-              textClassName="text-base font-medium mt-1 block"
-              style={{
-                color: 'var(--theme-accent, var(--theme-primary, #2563eb))',
-              }}
-              placeholder="Professional Title"
-            />
-          </header>
-        )}
-
-        {showSummary && (
-          <section
-            style={{ marginBottom: 'var(--theme-section-spacing, 1.5rem)' }}
-          >
-            <SectionHeading title="Summary" accentBorder />
-            <Description
-              value={summaryValue}
-              onChange={readOnly ? undefined : (v) => updateBasics('summary', v)}
-              readOnly={readOnly}
-              placeholder="Summarize your impact, expertise, and career focus..."
-              textClassName="text-[0.96em] whitespace-pre-wrap break-words block"
-            />
-          </section>
-        )}
-
-        <SectionRenderer
-          filter={(_sec, kind) => !SIDEBAR_KINDS.has(kind)}
-          tone="modern"
-          accentHeadingBorder
-        />
+        </PrintMarginTable>
       </main>
     </div>
   );

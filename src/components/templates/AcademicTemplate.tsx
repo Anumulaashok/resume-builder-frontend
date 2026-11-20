@@ -16,6 +16,7 @@ import {
   DateRange,
   Description,
   ItemHeader,
+  PrintMarginTable,
   SectionHeading,
   SectionRenderer,
   TemplateProvider,
@@ -230,7 +231,7 @@ const AcademicReferencesSection: React.FC<{ section: ISection }> = ({
       {enabledItems.length > 0 && (
         <div
           data-testid="academic-references-grid"
-          className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4"
+          className="grid grid-cols-2 gap-x-8 gap-y-4"
         >
           {enabledItems.map((item: any, idx: number) => {
             const roleAndCompany = [item.position, item.company]
@@ -312,18 +313,7 @@ const AcademicTemplateContent: React.FC = () => {
         lineHeight: 'var(--theme-line-height, 1.55)',
       }}
     >
-      <table role="presentation" className="w-full border-collapse">
-        <thead aria-hidden="true" className="hidden print:table-header-group">
-          <tr>
-            <td
-              className="p-0"
-              style={{ height: 'var(--theme-page-margin, 1.75cm)' }}
-            />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="p-0 align-top">
+      <PrintMarginTable fallbackMargin="1.75cm">
               <header
                 className="text-center pb-4 border-b-[3px] border-double"
                 style={{
@@ -427,18 +417,7 @@ const AcademicTemplateContent: React.FC = () => {
                   </div>
                 );
               })}
-            </td>
-          </tr>
-        </tbody>
-        <tfoot aria-hidden="true" className="hidden print:table-footer-group">
-          <tr>
-            <td
-              className="p-0"
-              style={{ height: 'var(--theme-page-margin, 1.75cm)' }}
-            />
-          </tr>
-        </tfoot>
-      </table>
+      </PrintMarginTable>
     </div>
   );
 };
