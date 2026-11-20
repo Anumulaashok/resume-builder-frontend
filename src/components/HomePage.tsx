@@ -1,9 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ArrowUpTrayIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { defaultResume } from '../constants/editorConstants';
+import { portfolioService } from '../services/portfolio.service';
 import { Resume, resumeService } from '../services/resume.service';
 import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
+import UnsavedChangesDialog from './common/UnsavedChangesDialog';
 import CoverLettersWorkspace from './coverLetters/CoverLettersWorkspace';
 import ImportResumeModal from './ImportResumeModal';
 import JobMatch from './jobMatch/JobMatch';
@@ -24,6 +27,68 @@ interface HomePageProps {
   } | null;
 }
 
+export interface WorkspaceUrlState {
+  tab: AppTab;
+  view: 'list' | 'editor';
+  id: string | null;
+}
+
+type PendingDirtyNavigation =
+  | { kind: 'tab'; targetTab: AppTab }
+  | { kind: 'popstate'; targetUrlState: WorkspaceUrlState };
+
+export const parseWorkspaceUrl = (search: string): WorkspaceUrlState => {
+  const params = new URLSearchParams(search || '');
+  const tabParam = params.get('tab');
+  const tab: AppTab =
+    tabParam === 'cover-letters' ||
+    tabParam === 'portfolios' ||
+    tabParam === 'job-match' ||
+    tabParam === 'job-tracker'
+      ? tabParam
+      : 'resumes';
+
+  const supportsEditor = tab === 'resumes' || tab === 'portfolios';
+  const view: 'list' | 'editor' =
+    supportsEditor && params.get('view') === 'editor' ? 'editor' : 'list';
+  const rawId = view === 'editor' ? params.get('id')?.trim() || null : null;
+
+  return { tab, view, id: rawId };
+};
+
+export const buildWorkspaceUrl = (state: WorkspaceUrlState): string => {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname || '/' : '/';
+  const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+  const supportsEditor = state.tab === 'resumes' || state.tab === 'portfolios';
+  const resolvedView: 'list' | 'editor' = supportsEditor ? state.view : 'list';
+
+  const params = new URLSearchParams();
+  params.set('tab', state.tab);
+  params.set('view', resolvedView);
+  if (supportsEditor && resolvedView === 'editor' && state.id) {
+    params.set('id', state.id);
+  }
+
+  const query = params.toString();
+  return `${pathname}${query ? `?${query}` : ''}${hash}`;
+};
+
+const syncBrowserUrl = (state: WorkspaceUrlState, mode: 'push' | 'replace'): void => {
+  if (typeof window === 'undefined' || !window.history) return;
+  const nextUrl = buildWorkspaceUrl(state);
+  const currentUrl = `${window.location.pathname || '/'}${window.location.search || ''}${
+    window.location.hash || ''
+  }`;
+  if (nextUrl === currentUrl) {
+    return;
+  }
+  if (mode === 'push') {
+    window.history.pushState(state, '', nextUrl);
+  } else {
+    window.history.replaceState(state, '', nextUrl);
+  }
+};
+
 const formatResumeCountSubtitle = (count: number | null): string => {
   if (count === null) {
     return 'Loading your resumes…';
@@ -38,22 +103,43 @@ const formatResumeCountSubtitle = (count: number | null): string => {
 };
 
 export default function HomePage({ onLogout, user }: HomePageProps) {
-  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const tabParam = urlParams?.get('tab');
-  const initialTab: AppTab =
-    tabParam === 'cover-letters' || tabParam === 'portfolios' || tabParam === 'job-match' || tabParam === 'job-tracker'
-      ? tabParam
-      : 'resumes';
-  const initialView = urlParams?.get('view') === 'editor' ? 'editor' : 'list';
+  const initialUrlState = useMemo(
+    () => parseWorkspaceUrl(typeof window !== 'undefined' ? window.location.search : ''),
+    []
+  );
 
-  const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
-  const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
-  const [portfolioView, setPortfolioView] = useState<'list' | 'editor'>(initialView);
+  const [activeTab, setActiveTab] = useState<AppTab>(initialUrlState.tab);
+  const [activeView, setActiveView] = useState<'list' | 'editor'>(
+    initialUrlState.tab === 'resumes' ? initialUrlState.view : 'list'
+  );
+  const [portfolioView, setPortfolioView] = useState<'list' | 'editor'>(
+    initialUrlState.tab === 'portfolios' ? initialUrlState.view : 'list'
+  );
+  const [requestedDocId, setRequestedDocId] = useState<string | null>(
+    initialUrlState.view === 'editor' ? initialUrlState.id : null
+  );
+  const [hydratingEditor, setHydratingEditor] = useState<boolean>(
+    Boolean(initialUrlState.view === 'editor' && initialUrlState.id)
+  );
+
   const [jobMatchPrefill, setJobMatchPrefill] = useState<CheckMatchPrefill | null>(null);
   const [coverLetterResetKey, setCoverLetterResetKey] = useState(0);
 
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [selectedPortfolio, setSelectedPortfolio] = useState<IPortfolio | null>(null);
+
+  const [isResumeDirty, setIsResumeDirty] = useState(false);
+  const [isPortfolioDirty, setIsPortfolioDirty] = useState(false);
+  const [pendingNavigation, setPendingNavigation] =
+    useState<PendingDirtyNavigation | null>(null);
+  const discardResumeChangesRef = useRef<(() => void) | null>(null);
+
+  const registerResumeDiscardHandler = useCallback(
+    (handler: (() => void) | null) => {
+      discardResumeChangesRef.current = handler;
+    },
+    []
+  );
 
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -61,14 +147,301 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [resumeCount, setResumeCount] = useState<number | null>(null);
 
+  const prefilledNewResume = useMemo<Resume>(
+    () => ({
+      ...defaultResume,
+      content: {
+        ...defaultResume.content,
+        basics: {
+          ...defaultResume.content.basics,
+          name: user?.name?.trim() || '',
+          email: user?.email?.trim() || '',
+          location: {
+            ...defaultResume.content.basics.location,
+          },
+        },
+        sections: [...defaultResume.content.sections],
+        sectionOrder: [...defaultResume.content.sectionOrder],
+      },
+    }),
+    [user?.name, user?.email]
+  );
+
+  const currentWorkspaceState = useMemo<WorkspaceUrlState>(() => {
+    if (activeTab === 'resumes') {
+      const resumeId =
+        activeView === 'editor'
+          ? selectedResume?._id || selectedResume?.id || requestedDocId
+          : null;
+      return { tab: 'resumes', view: activeView, id: resumeId || null };
+    }
+    if (activeTab === 'portfolios') {
+      const portfolioId =
+        portfolioView === 'editor'
+          ? selectedPortfolio?._id || selectedPortfolio?.id || requestedDocId
+          : null;
+      return { tab: 'portfolios', view: portfolioView, id: portfolioId || null };
+    }
+    return { tab: activeTab, view: 'list', id: null };
+  }, [
+    activeTab,
+    activeView,
+    portfolioView,
+    selectedResume,
+    selectedPortfolio,
+    requestedDocId,
+  ]);
+
+  const isActiveEditorOpen =
+    (activeTab === 'resumes' && activeView === 'editor') ||
+    (activeTab === 'portfolios' && portfolioView === 'editor');
+
+  const isActiveEditorDirty =
+    (activeTab === 'resumes' && activeView === 'editor' && isResumeDirty) ||
+    (activeTab === 'portfolios' && portfolioView === 'editor' && isPortfolioDirty);
+
+  const currentStateRef = useRef<WorkspaceUrlState>(currentWorkspaceState);
+  currentStateRef.current = currentWorkspaceState;
+  const isEditorOpenRef = useRef<boolean>(isActiveEditorOpen);
+  isEditorOpenRef.current = isActiveEditorOpen;
+  const isEditorDirtyRef = useRef<boolean>(isActiveEditorDirty);
+  isEditorDirtyRef.current = isActiveEditorDirty;
+  const selectedResumeRef = useRef<Resume | null>(selectedResume);
+  selectedResumeRef.current = selectedResume;
+  const selectedPortfolioRef = useRef<IPortfolio | null>(selectedPortfolio);
+  selectedPortfolioRef.current = selectedPortfolio;
+
+  // Normalize initial history entry so browser Back has explicit query parameters
+  useEffect(() => {
+    syncBrowserUrl(initialUrlState, 'replace');
+  }, [initialUrlState]);
+
+  const applyWorkspaceUrlState = useCallback((next: WorkspaceUrlState) => {
+    setIsResumeDirty(false);
+    setIsPortfolioDirty(false);
+    setActiveTab(next.tab);
+
+    if (next.tab === 'resumes') {
+      setPortfolioView('list');
+      if (next.view === 'editor') {
+        if (!next.id) {
+          setSelectedResume(null);
+          setRequestedDocId(null);
+          setHydratingEditor(false);
+        } else {
+          const currentId =
+            selectedResumeRef.current?._id || selectedResumeRef.current?.id;
+          if (currentId !== next.id) {
+            setSelectedResume(null);
+            setHydratingEditor(true);
+          } else {
+            setHydratingEditor(false);
+          }
+          setRequestedDocId(next.id);
+        }
+        setActiveView('editor');
+      } else {
+        setRequestedDocId(null);
+        setHydratingEditor(false);
+        setActiveView('list');
+      }
+      return;
+    }
+
+    if (next.tab === 'portfolios') {
+      setActiveView('list');
+      if (next.view === 'editor') {
+        if (!next.id) {
+          setSelectedPortfolio(null);
+          setRequestedDocId(null);
+          setHydratingEditor(false);
+        } else {
+          const currentId =
+            selectedPortfolioRef.current?._id || selectedPortfolioRef.current?.id;
+          if (currentId !== next.id) {
+            setSelectedPortfolio(null);
+            setHydratingEditor(true);
+          } else {
+            setHydratingEditor(false);
+          }
+          setRequestedDocId(next.id);
+        }
+        setPortfolioView('editor');
+      } else {
+        setRequestedDocId(null);
+        setHydratingEditor(false);
+        setPortfolioView('list');
+      }
+      return;
+    }
+
+    setActiveView('list');
+    setPortfolioView('list');
+    setRequestedDocId(null);
+    setHydratingEditor(false);
+  }, []);
+
+  // Hydrate deep-linked or history-restored resume editor by ID
+  useEffect(() => {
+    if (activeTab !== 'resumes' || activeView !== 'editor' || !requestedDocId) {
+      return;
+    }
+    const loadedId = selectedResume?._id || selectedResume?.id;
+    if (loadedId === requestedDocId) {
+      setHydratingEditor(false);
+      return;
+    }
+
+    let cancelled = false;
+    setHydratingEditor(true);
+
+    resumeService
+      .getResumeById(requestedDocId)
+      .then((fetched) => {
+        if (cancelled) return;
+        setSelectedResume(fetched);
+        setHydratingEditor(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        const message =
+          err?.status === 404
+            ? 'Resume not found'
+            : err instanceof Error && err.message
+            ? err.message
+            : 'Failed to load resume';
+        toast.error(message);
+        setSelectedResume(null);
+        setRequestedDocId(null);
+        setHydratingEditor(false);
+        setActiveView('list');
+        syncBrowserUrl({ tab: 'resumes', view: 'list', id: null }, 'replace');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, activeView, requestedDocId, selectedResume]);
+
+  // Hydrate deep-linked or history-restored portfolio editor by ID
+  useEffect(() => {
+    if (activeTab !== 'portfolios' || portfolioView !== 'editor' || !requestedDocId) {
+      return;
+    }
+    const loadedId = selectedPortfolio?._id || selectedPortfolio?.id;
+    if (loadedId === requestedDocId) {
+      setHydratingEditor(false);
+      return;
+    }
+
+    let cancelled = false;
+    setHydratingEditor(true);
+
+    portfolioService
+      .getPortfolioById(requestedDocId)
+      .then((fetched) => {
+        if (cancelled) return;
+        setSelectedPortfolio(fetched);
+        setHydratingEditor(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        const message =
+          err?.status === 404
+            ? 'Portfolio not found'
+            : err instanceof Error && err.message
+            ? err.message
+            : 'Failed to load portfolio';
+        toast.error(message);
+        setSelectedPortfolio(null);
+        setRequestedDocId(null);
+        setHydratingEditor(false);
+        setPortfolioView('list');
+        syncBrowserUrl({ tab: 'portfolios', view: 'list', id: null }, 'replace');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, portfolioView, requestedDocId, selectedPortfolio]);
+
+  // Listen to browser Back/Forward (popstate) and guard dirty editors
+  useEffect(() => {
+    const handlePopState = () => {
+      const targetUrlState = parseWorkspaceUrl(window.location.search);
+      const current = currentStateRef.current;
+      const isLeavingEditor =
+        isEditorOpenRef.current &&
+        (targetUrlState.tab !== current.tab ||
+          targetUrlState.view !== 'editor' ||
+          targetUrlState.id !== current.id);
+
+      if (isLeavingEditor && isEditorDirtyRef.current) {
+        window.history.pushState(current, '', buildWorkspaceUrl(current));
+        setPendingNavigation({ kind: 'popstate', targetUrlState });
+        return;
+      }
+
+      applyWorkspaceUrlState(targetUrlState);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [applyWorkspaceUrlState]);
+
   const handleResumesLoad = useCallback((resumes: Resume[]) => {
     setResumeCount(resumes.length);
   }, []);
 
   const handleLogout = () => {
     removeToken();
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname || '/');
+    }
     onLogout?.();
   };
+
+  const executeTabNavigation = useCallback((tab: AppTab) => {
+    setIsResumeDirty(false);
+    setIsPortfolioDirty(false);
+    setRequestedDocId(null);
+    setHydratingEditor(false);
+    setActiveTab(tab);
+    if (tab === 'portfolios') setPortfolioView('list');
+    if (tab === 'resumes') setActiveView('list');
+    if (tab === 'cover-letters') setCoverLetterResetKey((k) => k + 1);
+    syncBrowserUrl({ tab, view: 'list', id: null }, 'push');
+  }, []);
+
+  const handleHeaderTabChange = useCallback(
+    (tab: AppTab) => {
+      if (isEditorOpenRef.current && isEditorDirtyRef.current) {
+        setPendingNavigation({ kind: 'tab', targetTab: tab });
+        return;
+      }
+      executeTabNavigation(tab);
+    },
+    [executeTabNavigation]
+  );
+
+  const handleConfirmPendingDiscard = useCallback(() => {
+    const pending = pendingNavigation;
+    discardResumeChangesRef.current?.();
+    setPendingNavigation(null);
+    setIsResumeDirty(false);
+    setIsPortfolioDirty(false);
+
+    if (!pending) return;
+
+    if (pending.kind === 'tab') {
+      executeTabNavigation(pending.targetTab);
+    } else {
+      applyWorkspaceUrlState(pending.targetUrlState);
+      syncBrowserUrl(pending.targetUrlState, 'replace');
+    }
+  }, [pendingNavigation, executeTabNavigation, applyWorkspaceUrlState]);
 
   const handleAIGeneration = async () => {
     if (!prompt.trim()) {
@@ -81,10 +454,14 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
         name: user?.name?.trim() || 'Your Name',
         email: user?.email?.trim() || 'you@example.com',
       });
+      const createdId = resume._id || resume.id || null;
       toast.success('Resume generated successfully!');
       setShowPromptModal(false);
       setSelectedResume(resume);
+      setRequestedDocId(createdId);
+      setHydratingEditor(false);
       setActiveView('editor');
+      syncBrowserUrl({ tab: 'resumes', view: 'editor', id: createdId }, 'push');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to generate resume');
     } finally {
@@ -93,24 +470,98 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   };
 
   const handleEditResume = (resume: Resume) => {
+    const resumeId = resume._id || resume.id || null;
+    setIsResumeDirty(false);
     setSelectedResume(resume);
+    setRequestedDocId(resumeId);
+    setHydratingEditor(false);
     setActiveView('editor');
+    syncBrowserUrl({ tab: 'resumes', view: 'editor', id: resumeId }, 'push');
   };
 
   const handleNewResume = () => {
+    setIsResumeDirty(false);
     setSelectedResume(null);
+    setRequestedDocId(null);
+    setHydratingEditor(false);
     setActiveView('editor');
+    syncBrowserUrl({ tab: 'resumes', view: 'editor', id: null }, 'push');
   };
 
+  const handleResumePersisted = useCallback(
+    (savedResume: Resume) => {
+      const savedId =
+        savedResume?._id ||
+        savedResume?.id ||
+        (savedResume as any)?.data?._id ||
+        (savedResume as any)?.data?.id ||
+        null;
+
+      if (savedResume && typeof savedResume === 'object') {
+        setSelectedResume((prev) => {
+          const base = prev || prefilledNewResume;
+          return savedResume.content
+            ? { ...base, ...savedResume }
+            : {
+                ...base,
+                ...(savedId ? { _id: savedId, id: savedId } : {}),
+              };
+        });
+      }
+
+      if (savedId) {
+        setRequestedDocId(savedId);
+        syncBrowserUrl({ tab: 'resumes', view: 'editor', id: savedId }, 'replace');
+      }
+    },
+    [prefilledNewResume]
+  );
+
+  const handleResumeBack = useCallback(() => {
+    setIsResumeDirty(false);
+    setRequestedDocId(null);
+    setHydratingEditor(false);
+    setActiveView('list');
+    syncBrowserUrl({ tab: 'resumes', view: 'list', id: null }, 'push');
+  }, []);
+
   const handleEditPortfolio = (portfolio: IPortfolio) => {
+    const portfolioId = portfolio._id || portfolio.id || null;
+    setIsPortfolioDirty(false);
     setSelectedPortfolio(portfolio);
+    setRequestedDocId(portfolioId);
+    setHydratingEditor(false);
     setPortfolioView('editor');
+    syncBrowserUrl({ tab: 'portfolios', view: 'editor', id: portfolioId }, 'push');
   };
 
   const handleNewPortfolio = () => {
+    setIsPortfolioDirty(false);
     setSelectedPortfolio(null);
+    setRequestedDocId(null);
+    setHydratingEditor(false);
     setPortfolioView('editor');
+    syncBrowserUrl({ tab: 'portfolios', view: 'editor', id: null }, 'push');
   };
+
+  const handlePortfolioSaved = useCallback((savedPortfolio: IPortfolio) => {
+    const savedId = savedPortfolio?._id || savedPortfolio?.id || null;
+    if (savedPortfolio && typeof savedPortfolio === 'object') {
+      setSelectedPortfolio(savedPortfolio);
+    }
+    if (savedId) {
+      setRequestedDocId(savedId);
+      syncBrowserUrl({ tab: 'portfolios', view: 'editor', id: savedId }, 'replace');
+    }
+  }, []);
+
+  const handlePortfolioBack = useCallback(() => {
+    setIsPortfolioDirty(false);
+    setRequestedDocId(null);
+    setHydratingEditor(false);
+    setPortfolioView('list');
+    syncBrowserUrl({ tab: 'portfolios', view: 'list', id: null }, 'push');
+  }, []);
 
   const hasResumes = (resumeCount ?? 0) > 0;
 
@@ -122,12 +573,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
           showLogout
           onLogout={handleLogout}
           activeTab={activeTab}
-          onTabChange={(tab) => {
-            setActiveTab(tab);
-            if (tab === 'portfolios') setPortfolioView('list');
-            if (tab === 'resumes') setActiveView('list');
-            if (tab === 'cover-letters') setCoverLetterResetKey((k) => k + 1);
-          }}
+          onTabChange={handleHeaderTabChange}
         />
       )}
 
@@ -190,16 +636,26 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
             </Container>
           )}
 
-          {activeView === 'editor' && (
-            <ResumeEditor
-              initialResume={selectedResume || undefined}
-              onSave={() => {
-                toast.success('Resume saved successfully!');
-                setActiveView('list');
-              }}
-              onBack={() => setActiveView('list')}
-            />
-          )}
+          {activeView === 'editor' &&
+            (hydratingEditor ? (
+              <div
+                role="status"
+                aria-live="polite"
+                data-testid="hydrating-resume-editor"
+                className="min-h-screen pt-24 flex items-center justify-center text-sm text-neutral-600"
+              >
+                Loading resume…
+              </div>
+            ) : (
+              <ResumeEditor
+                initialResume={selectedResume || prefilledNewResume}
+                onSave={handleResumePersisted}
+                onPersist={handleResumePersisted}
+                onDirtyChange={setIsResumeDirty}
+                registerDiscardHandler={registerResumeDiscardHandler}
+                onBack={handleResumeBack}
+              />
+            ))}
         </>
       )}
 
@@ -223,6 +679,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
             onCheckMatch={(prefill) => {
               setJobMatchPrefill(prefill);
               setActiveTab('job-match');
+              syncBrowserUrl({ tab: 'job-match', view: 'list', id: null }, 'push');
             }}
           />
         </Container>
@@ -240,15 +697,24 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
             </Container>
           )}
 
-          {portfolioView === 'editor' && (
-            <PortfolioEditor
-              initialPortfolio={selectedPortfolio || undefined}
-              onSave={() => {
-                setPortfolioView('list');
-              }}
-              onBack={() => setPortfolioView('list')}
-            />
-          )}
+          {portfolioView === 'editor' &&
+            (hydratingEditor ? (
+              <div
+                role="status"
+                aria-live="polite"
+                data-testid="hydrating-portfolio-editor"
+                className="min-h-screen pt-24 flex items-center justify-center text-sm text-neutral-600"
+              >
+                Loading portfolio…
+              </div>
+            ) : (
+              <PortfolioEditor
+                initialPortfolio={selectedPortfolio || undefined}
+                onSave={handlePortfolioSaved}
+                onDirtyChange={setIsPortfolioDirty}
+                onBack={handlePortfolioBack}
+              />
+            ))}
         </>
       )}
 
@@ -322,10 +788,21 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
         onClose={() => setShowImportModal(false)}
         user={user}
         onImported={(createdResume) => {
+          const createdId = createdResume._id || createdResume.id || null;
           setShowImportModal(false);
           setSelectedResume(createdResume);
+          setRequestedDocId(createdId);
+          setHydratingEditor(false);
           setActiveView('editor');
+          syncBrowserUrl({ tab: 'resumes', view: 'editor', id: createdId }, 'push');
         }}
+      />
+
+      {/* Dirty Exit Confirmation Dialog for Header Tabs & Browser Back */}
+      <UnsavedChangesDialog
+        isOpen={pendingNavigation !== null}
+        onCancel={() => setPendingNavigation(null)}
+        onConfirmDiscard={handleConfirmPendingDiscard}
       />
     </div>
   );

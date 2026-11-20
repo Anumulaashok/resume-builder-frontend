@@ -52,10 +52,107 @@ axiosInstance.interceptors.request.use(
 );
 export const AUTH_LOGOUT_EVENT = 'auth:logout';
 
+export interface ValidationFieldError {
+  field?: string;
+  path?: string;
+  param?: string;
+  msg?: string;
+  message?: string;
+  location?: string;
+  type?: string;
+}
+
+export type NormalizedApiError = Error & {
+  status?: number;
+  isUnauthorized?: boolean;
+  errors?: ValidationFieldError[];
+  fieldErrors?: Record<string, string>;
+};
+
+const FIELD_FALLBACK_MESSAGES: Record<string, string> = {
+  title: 'Resume title is required',
+  'content.basics.name': 'Full name is required',
+  'basics.name': 'Full name is required',
+  'content.basics.email': 'Please enter a valid email address',
+  'basics.email': 'Please enter a valid email address',
+};
+
+function resolveReadableFieldMessage(rawMsg: unknown, field?: string): string {
+  const trimmed = typeof rawMsg === 'string' ? rawMsg.trim() : '';
+  if (trimmed && trimmed.toLowerCase() !== 'invalid value') {
+    return trimmed;
+  }
+  if (field && FIELD_FALLBACK_MESSAGES[field]) {
+    return FIELD_FALLBACK_MESSAGES[field];
+  }
+  if (field) {
+    return `Invalid ${field}`;
+  }
+  return 'Invalid input';
+}
+
+function extractValidationDetails(rawErrors: unknown): {
+  errors?: ValidationFieldError[];
+  fieldErrors?: Record<string, string>;
+  summary?: string;
+} {
+  if (!Array.isArray(rawErrors) || rawErrors.length === 0) {
+    return {};
+  }
+
+  const normalizedList: ValidationFieldError[] = [];
+  const fieldErrors: Record<string, string> = {};
+  const summaryMessages: string[] = [];
+
+  for (const entry of rawErrors) {
+    if (!entry || typeof entry !== 'object') continue;
+    const item = entry as Record<string, unknown>;
+    const rawField =
+      (typeof item.field === 'string' && item.field.trim()) ||
+      (typeof item.path === 'string' && item.path.trim()) ||
+      (typeof item.param === 'string' && item.param.trim()) ||
+      undefined;
+    const readable = resolveReadableFieldMessage(
+      item.message ?? item.msg,
+      rawField
+    );
+
+    normalizedList.push({
+      ...(typeof item.type === 'string' ? { type: item.type } : {}),
+      ...(typeof item.location === 'string' ? { location: item.location } : {}),
+      ...(rawField ? { field: rawField, path: rawField } : {}),
+      msg: readable,
+      message: readable,
+    });
+
+    if (rawField) {
+      if (!fieldErrors[rawField]) {
+        fieldErrors[rawField] = readable;
+        if (!summaryMessages.includes(readable)) {
+          summaryMessages.push(readable);
+        }
+      }
+    } else if (!summaryMessages.includes(readable)) {
+      summaryMessages.push(readable);
+    }
+  }
+
+  if (normalizedList.length === 0) {
+    return {};
+  }
+
+  return {
+    errors: normalizedList,
+    fieldErrors,
+    summary: summaryMessages.join('; '),
+  };
+}
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     let blobMessage: string | undefined;
+    let blobErrors: unknown;
     if (
       isAxiosError(error) &&
       typeof Blob !== 'undefined' &&
@@ -68,14 +165,36 @@ axiosInstance.interceptors.response.use(
         if (parsed && typeof parsed.message === 'string') {
           blobMessage = parsed.message;
         }
+        if (parsed && Array.isArray(parsed.errors)) {
+          blobErrors = parsed.errors;
+        }
       } catch {
         // Ignore non-JSON blob error bodies
       }
     }
 
+    const rawErrors = isAxiosError(error)
+      ? blobErrors ?? error.response?.data?.errors
+      : error?.errors;
+    const validationDetails = extractValidationDetails(rawErrors);
+
+    const rawServerMessage = isAxiosError(error)
+      ? blobMessage || error.response?.data?.message
+      : undefined;
+    const usableServerMessage =
+      typeof rawServerMessage === 'string' &&
+      rawServerMessage.trim() &&
+      rawServerMessage.trim().toLowerCase() !== 'invalid value'
+        ? rawServerMessage.trim()
+        : undefined;
+
     const message = isAxiosError(error)
-      ? blobMessage || error.response?.data?.message || error.message || 'Request failed'
-      : error?.message || 'Request failed';
+      ? usableServerMessage ||
+        validationDetails.summary ||
+        rawServerMessage ||
+        error.message ||
+        'Request failed'
+      : validationDetails.summary || error?.message || 'Request failed';
 
     // A 401 from login/register means wrong credentials, not an expired session.
     const requestUrl = isAxiosError(error) ? error.config?.url || '' : '';
@@ -103,12 +222,15 @@ axiosInstance.interceptors.response.use(
       });
     }
 
-    const normalizedError = new Error(message) as Error & {
-      status?: number;
-      isUnauthorized?: boolean;
-    };
+    const normalizedError = new Error(message) as NormalizedApiError;
     if (isAxiosError(error) && error.response?.status !== undefined) {
       normalizedError.status = error.response.status;
+    }
+    if (validationDetails.errors) {
+      normalizedError.errors = validationDetails.errors;
+    }
+    if (validationDetails.fieldErrors) {
+      normalizedError.fieldErrors = validationDetails.fieldErrors;
     }
     if (isExpiredSession) {
       normalizedError.isUnauthorized = true;

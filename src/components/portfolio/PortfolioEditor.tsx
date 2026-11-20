@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeftIcon,
   CloudArrowUpIcon,
@@ -40,11 +40,25 @@ import {
 import { portfolioService } from '../../services/portfolio.service';
 import { InlineEdit } from '../ui/InlineEdit';
 import { ImportProjectsModal } from './ImportProjectsModal';
+import UnsavedChangesDialog from '../common/UnsavedChangesDialog';
 
 interface PortfolioEditorProps {
   initialPortfolio?: IPortfolio;
   onSave?: (portfolio: IPortfolio) => void;
+  onDirtyChange?: (isDirty: boolean) => void;
   onBack: () => void;
+}
+
+function serializePortfolioSnapshot(input: IPortfolio): string {
+  return JSON.stringify({
+    title: input.title ?? '',
+    slug: input.slug ?? '',
+    themeConfig: input.themeConfig ?? null,
+    isPublished: Boolean(input.isPublished),
+    basics: input.basics,
+    sections: input.sections,
+    sectionOrder: input.sectionOrder,
+  });
 }
 
 const INPUT_CLASS =
@@ -108,17 +122,84 @@ const SortableSectionItem: React.FC<SortableSectionProps> = ({ id, title, type, 
 export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
   initialPortfolio,
   onSave,
+  onDirtyChange,
   onBack
 }) => {
-  const [portfolio, setPortfolio] = useState<IPortfolio>(
+  const [portfolio, setPortfolio] = useState<IPortfolio>(() =>
     initialPortfolio || { ...defaultPortfolio, slug: `portfolio-${Date.now().toString().slice(-4)}` }
+  );
+  const [baselineSnapshot, setBaselineSnapshot] = useState<string>(() =>
+    serializePortfolioSnapshot(portfolio)
   );
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [scale, setScale] = useState(1);
   const [mobilePane, setMobilePane] = useState<'editor' | 'preview'>('editor');
+
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange;
+  const prevInitialPortfolioRef = useRef<IPortfolio | undefined>(initialPortfolio);
+
+  useEffect(() => {
+    if (initialPortfolio && initialPortfolio !== prevInitialPortfolioRef.current) {
+      const prevId = prevInitialPortfolioRef.current?._id || prevInitialPortfolioRef.current?.id;
+      const nextId = initialPortfolio._id || initialPortfolio.id;
+      prevInitialPortfolioRef.current = initialPortfolio;
+      const activeId = portfolio._id || portfolio.id;
+      if (nextId && activeId && nextId === activeId) {
+        return;
+      }
+      if (prevId !== nextId) {
+        setPortfolio(initialPortfolio);
+        setBaselineSnapshot(serializePortfolioSnapshot(initialPortfolio));
+      }
+    }
+  }, [initialPortfolio, portfolio._id, portfolio.id]);
+
+  const isDirty = useMemo(
+    () => serializePortfolioSnapshot(portfolio) !== baselineSnapshot,
+    [portfolio, baselineSnapshot]
+  );
+
+  useEffect(() => {
+    onDirtyChangeRef.current?.(isDirty);
+  }, [isDirty]);
+
+  useEffect(() => {
+    return () => {
+      onDirtyChangeRef.current?.(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isDirty) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isDirty]);
+
+  const handleBackClick = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardDialog(true);
+      return;
+    }
+    onBack();
+  }, [isDirty, onBack]);
+
+  const handleConfirmDiscardBack = useCallback(() => {
+    setShowDiscardDialog(false);
+    onDirtyChangeRef.current?.(false);
+    onBack();
+  }, [onBack]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -301,6 +382,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
       }
       const nextPortfolio = saved || portfolio;
       setPortfolio(nextPortfolio);
+      setBaselineSnapshot(serializePortfolioSnapshot(nextPortfolio));
       toast.success('Portfolio saved successfully!');
       onSave?.(nextPortfolio);
     } catch (err: any) {
@@ -319,7 +401,12 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
           ...portfolio,
           isPublished: nextPublished
         });
-        setPortfolio(updated || { ...portfolio, isPublished: nextPublished });
+        const resolvedUpdated = updated || { ...portfolio, isPublished: nextPublished };
+        const wasCleanBeforeToggle = serializePortfolioSnapshot(portfolio) === baselineSnapshot;
+        setPortfolio(resolvedUpdated);
+        if (wasCleanBeforeToggle) {
+          setBaselineSnapshot(serializePortfolioSnapshot(resolvedUpdated));
+        }
         toast.success(
           nextPublished
             ? 'Portfolio published to vanity URL!'
@@ -366,7 +453,7 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
           <button
             type="button"
-            onClick={onBack}
+            onClick={handleBackClick}
             className="inline-flex items-center gap-1.5 h-9 px-2.5 text-sm font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 rounded-control transition-colors focus-ring shrink-0"
             title="Back to portfolios list"
             aria-label="Back to portfolios list"
@@ -1490,6 +1577,12 @@ export const PortfolioEditor: React.FC<PortfolioEditorProps> = ({
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onImport={handleImportResumeProjects}
+      />
+
+      <UnsavedChangesDialog
+        isOpen={showDiscardDialog}
+        onCancel={() => setShowDiscardDialog(false)}
+        onConfirmDiscard={handleConfirmDiscardBack}
       />
     </div>
   );
