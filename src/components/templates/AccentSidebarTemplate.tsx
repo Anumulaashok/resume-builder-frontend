@@ -98,11 +98,11 @@ const AccentSidebarContent: React.FC = () => {
         printColorAdjust: 'exact',
       }}
     >
-      {/* Repeats full-height solid accent sidebar background across every printed A4 page */}
+      {/* Repeats full-height sidebar divider and subtle neutral tint across every printed A4 page */}
       <div
         aria-hidden="true"
         data-testid="accent-sidebar-print-bg"
-        className="hidden print:block print:fixed print:inset-y-0 print:left-0 print:z-0 pointer-events-none"
+        className="hidden print:block print:fixed print:inset-y-0 print:left-0 print:z-0 pointer-events-none print:!bg-slate-50 print:border-r print:border-slate-200"
         style={{
           width: 'var(--theme-sidebar-width, 33%)',
           backgroundColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
@@ -113,16 +113,19 @@ const AccentSidebarContent: React.FC = () => {
 
       <aside
         data-testid="accent-sidebar-aside"
-        className="relative z-10 min-w-0 max-w-full [overflow-wrap:anywhere] text-white [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-white/15 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
+        className="relative z-10 min-w-0 max-w-full [overflow-wrap:anywhere] text-white print:!bg-transparent print:!text-slate-800 print:border-r print:border-slate-200 [&_[class*='text-slate-']]:!text-white/85 [&_[class*='decoration-slate-']]:!decoration-white/50 [&_[class*='bg-slate-100']]:!bg-white/15 [&_[class*='print:bg-slate-50']]:print:!bg-slate-100 [&_[class*='bg-slate-200']]:!bg-white/25 [&_[class*='border-slate-']]:!border-white/25 [&_[class*='hover:bg-neutral-100']:hover]:!bg-white/15 [&_input]:!text-slate-900 [&_textarea]:!text-slate-900 [&_[data-section-kind='languages']]:!grid-cols-1 [&_[data-skill-variant]]:!grid-cols-1 [&_[data-skill-variant='chips']>div]:!flex-col [&_[data-skill-variant='chips']>div>div:first-child]:!w-auto [&_[data-skill-variant='comma']>div]:!flex-col"
         style={{
           backgroundColor: 'var(--theme-accent, var(--theme-primary, #2563eb))',
           padding: 'var(--theme-page-margin, 1.25cm)',
           overflowWrap: 'anywhere',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
+          boxDecorationBreak: 'clone',
+          WebkitBoxDecorationBreak: 'clone',
         }}
       >
         <div
+          className="print:[--theme-primary:#0f172a] print:[--theme-heading-color:#0f172a] print:[--theme-text-color:#334155] print:[--theme-accent:#1e293b]"
           style={
             {
               '--theme-primary': '#ffffff',
@@ -135,7 +138,7 @@ const AccentSidebarContent: React.FC = () => {
           <div
             aria-hidden="true"
             data-testid="accent-sidebar-monogram"
-            className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs select-none"
+            className="w-14 h-14 rounded-2xl border-2 border-white/40 bg-white/15 print:!border-slate-700 print:!bg-slate-100 print:!text-slate-900 flex items-center justify-center text-xl font-bold tracking-wider text-white shadow-xs print:shadow-none select-none"
             style={{
               fontFamily: 'var(--theme-heading-font)',
               marginBottom: 'var(--theme-section-spacing, 1.5rem)',
@@ -151,7 +154,7 @@ const AccentSidebarContent: React.FC = () => {
               <SectionHeading title="Contact" accentBorder />
               <ContactRow
                 variant="stacked-left"
-                className="!text-white/90 space-y-1.5 [&_a]:break-all"
+                className="!text-white/90 print:!text-slate-700 space-y-1.5 [&_a]:break-all"
               />
             </section>
           )}
@@ -167,7 +170,11 @@ const AccentSidebarContent: React.FC = () => {
 
       <main
         className="relative z-10 min-w-0 bg-white print:bg-transparent print:[&_[data-section-id]]:pt-2"
-        style={{ padding: 'var(--theme-page-margin, 1.25cm)' }}
+        style={{
+          padding: 'var(--theme-page-margin, 1.25cm)',
+          boxDecorationBreak: 'clone',
+          WebkitBoxDecorationBreak: 'clone',
+        }}
       >
         {showHeader && (
           <header

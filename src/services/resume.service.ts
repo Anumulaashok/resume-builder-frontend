@@ -10,6 +10,7 @@ import {
 import axiosInstance from "../services/axios";
 import { JobMatchResult } from "../types/jobMatch";
 import {
+  ExportFileFormat,
   buildFallbackExportFilename,
   parseContentDispositionFilename,
 } from "../utils/download";
@@ -21,6 +22,18 @@ import {
 export interface ExportedDocument {
   blob: Blob;
   filename: string;
+}
+
+const EXPORT_MIME_TYPES: Record<ExportFileFormat, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  txt: "text/plain;charset=utf-8",
+};
+
+export interface SharedExportParams {
+  shareToken?: string;
+  slug?: string;
+  fallbackTitle?: string;
 }
 
 export type Resume = BaseResume;
@@ -293,17 +306,15 @@ class ResumeService {
     };
   }
 
-  async exportResumeTxt(
-    resumeId: string,
+  private async fetchExportDocument(
+    endpointUrl: string,
+    format: ExportFileFormat,
     fallbackTitle?: string
   ): Promise<ExportedDocument> {
-    const response = await axiosInstance.get<Blob>(
-      `/api/resumes/${resumeId}/export.txt`,
-      {
-        responseType: "blob",
-      }
-    );
-    const fallback = buildFallbackExportFilename(fallbackTitle, "txt");
+    const response = await axiosInstance.get<Blob>(endpointUrl, {
+      responseType: "blob",
+    });
+    const fallback = buildFallbackExportFilename(fallbackTitle, format);
     const filename = parseContentDispositionFilename(
       response.headers?.["content-disposition"],
       fallback
@@ -311,8 +322,86 @@ class ResumeService {
     const blob =
       response.data instanceof Blob
         ? response.data
-        : new Blob([response.data], { type: "text/plain;charset=utf-8" });
+        : new Blob([response.data], { type: EXPORT_MIME_TYPES[format] });
     return { blob, filename };
+  }
+
+  private buildSharedExportUrl(
+    params: SharedExportParams,
+    format: ExportFileFormat
+  ): string {
+    const cleanSlug = params.slug?.trim().toLowerCase();
+    if (cleanSlug) {
+      return `/api/public/r/${encodeURIComponent(cleanSlug)}/export.${format}`;
+    }
+    const cleanToken = params.shareToken?.trim();
+    if (cleanToken) {
+      return `/api/resumes/share/${encodeURIComponent(cleanToken)}/export.${format}`;
+    }
+    throw new Error("Missing share link identifier for resume export");
+  }
+
+  async exportResumePdf(
+    resumeId: string,
+    fallbackTitle?: string
+  ): Promise<ExportedDocument> {
+    return this.fetchExportDocument(
+      `/api/resumes/${resumeId}/export.pdf`,
+      "pdf",
+      fallbackTitle
+    );
+  }
+
+  async exportResumeDocx(
+    resumeId: string,
+    fallbackTitle?: string
+  ): Promise<ExportedDocument> {
+    return this.fetchExportDocument(
+      `/api/resumes/${resumeId}/export.docx`,
+      "docx",
+      fallbackTitle
+    );
+  }
+
+  async exportResumeTxt(
+    resumeId: string,
+    fallbackTitle?: string
+  ): Promise<ExportedDocument> {
+    return this.fetchExportDocument(
+      `/api/resumes/${resumeId}/export.txt`,
+      "txt",
+      fallbackTitle
+    );
+  }
+
+  async exportSharedResumePdf(
+    params: SharedExportParams
+  ): Promise<ExportedDocument> {
+    return this.fetchExportDocument(
+      this.buildSharedExportUrl(params, "pdf"),
+      "pdf",
+      params.fallbackTitle
+    );
+  }
+
+  async exportSharedResumeDocx(
+    params: SharedExportParams
+  ): Promise<ExportedDocument> {
+    return this.fetchExportDocument(
+      this.buildSharedExportUrl(params, "docx"),
+      "docx",
+      params.fallbackTitle
+    );
+  }
+
+  async exportSharedResumeTxt(
+    params: SharedExportParams
+  ): Promise<ExportedDocument> {
+    return this.fetchExportDocument(
+      this.buildSharedExportUrl(params, "txt"),
+      "txt",
+      params.fallbackTitle
+    );
   }
 }
 

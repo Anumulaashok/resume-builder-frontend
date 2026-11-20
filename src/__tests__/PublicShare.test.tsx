@@ -12,6 +12,10 @@ jest.mock('../services/resume.service', () => ({
     getShareSettings: jest.fn(),
     updateShareSettings: jest.fn(),
     getPublicResume: jest.fn(),
+    getPublicResumeBySlug: jest.fn(),
+    exportSharedResumePdf: jest.fn(),
+    exportSharedResumeDocx: jest.fn(),
+    exportSharedResumeTxt: jest.fn(),
   },
 }));
 
@@ -344,12 +348,21 @@ describe('Public Share & Privacy Controls', () => {
       });
       expect(brandLink).toHaveAttribute('href', '/');
 
-      // Print / Download button triggers window.print
-      const printBtn = screen.getByRole('button', {
-        name: /print \/ download/i,
-      });
+      // Download PDF, Download DOCX, and secondary Print controls are rendered
+      expect(screen.getByTestId('public-export-pdf-btn')).toHaveTextContent(
+        /download pdf/i
+      );
+      expect(screen.getByTestId('public-export-docx-btn')).toHaveTextContent(
+        /download docx/i
+      );
+
+      const printBtn = screen.getByTestId('public-resume-print-btn');
+      expect(printBtn).toHaveTextContent(/^print$/i);
       fireEvent.click(printBtn);
       expect(printSpy).toHaveBeenCalledTimes(1);
+
+      // Document title synchronizes with shared resume title
+      expect(document.title).toContain('Senior Developer Resume');
 
       // Editor-only toolbar controls must not appear on the public viewer
       expect(screen.queryByText('Templates')).not.toBeInTheDocument();
@@ -446,6 +459,77 @@ describe('Public Share & Privacy Controls', () => {
       expect(scaler.className).toContain('print:!w-full');
       expect(page.className).toContain('print:!transform-none');
       expect(page.className).toContain('print:!shadow-none');
+    });
+
+    it('downloads shared PDF and DOCX files and restores document.title on unmount', async () => {
+      const originalTitle = document.title;
+      document.title = 'Smart CV & Portfolio';
+      const originalCreateObjectURL = URL.createObjectURL;
+      const originalRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:http://localhost/shared-file');
+      URL.revokeObjectURL = jest.fn();
+      const clickSpy = jest
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => undefined);
+
+      (resumeService.getPublicResume as jest.Mock).mockResolvedValueOnce({
+        _id: 'res-shared-export',
+        title: 'Shared Principal Resume',
+        templateId: 'modern',
+        content: {
+          basics: { name: 'Elena Rostova', label: 'Principal Architect' },
+          sections: [],
+          sectionOrder: [],
+        },
+      });
+      (resumeService.exportSharedResumePdf as jest.Mock).mockResolvedValueOnce({
+        blob: new Blob(['%PDF-1.7'], { type: 'application/pdf' }),
+        filename: 'shared-principal-resume.pdf',
+      });
+      (resumeService.exportSharedResumeDocx as jest.Mock).mockResolvedValueOnce({
+        blob: new Blob(['PK\x03\x04'], {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }),
+        filename: 'shared-principal-resume.docx',
+      });
+
+      const { unmount } = render(
+        <PublicResumeView shareToken="tok_shared_exports" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Elena Rostova')).toBeInTheDocument();
+      });
+
+      expect(document.title).toBe('Shared Principal Resume');
+
+      fireEvent.click(screen.getByTestId('public-export-pdf-btn'));
+      await waitFor(() => {
+        expect(resumeService.exportSharedResumePdf).toHaveBeenCalledWith({
+          shareToken: 'tok_shared_exports',
+          slug: '',
+          fallbackTitle: 'Shared Principal Resume',
+        });
+      });
+
+      fireEvent.click(screen.getByTestId('public-export-docx-btn'));
+      await waitFor(() => {
+        expect(resumeService.exportSharedResumeDocx).toHaveBeenCalledWith({
+          shareToken: 'tok_shared_exports',
+          slug: '',
+          fallbackTitle: 'Shared Principal Resume',
+        });
+      });
+
+      expect(clickSpy).toHaveBeenCalledTimes(2);
+
+      unmount();
+      expect(document.title).toBe('Smart CV & Portfolio');
+
+      clickSpy.mockRestore();
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+      document.title = originalTitle;
     });
   });
 });

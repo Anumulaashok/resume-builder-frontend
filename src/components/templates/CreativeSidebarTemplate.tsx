@@ -38,7 +38,8 @@ const CreativeSidebarContent: React.FC = () => {
 
   return (
     <div
-      className="bg-white flex flex-col sm:flex-row min-h-[1123px] print:min-h-[29.7cm]"
+      data-template-id="creative-sidebar"
+      className="bg-white flex flex-col sm:flex-row print:flex-row min-h-[1123px] print:min-h-0"
       style={{
         fontFamily: 'var(--theme-body-font, inherit)',
         color: 'var(--theme-text-color, #374151)',
@@ -49,11 +50,13 @@ const CreativeSidebarContent: React.FC = () => {
       }}
     >
       <aside
-        className="shrink-0 min-w-0 max-w-full bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 [overflow-wrap:anywhere]"
+        className="shrink-0 min-w-0 max-w-full bg-slate-50 border-b sm:border-b-0 print:border-b-0 sm:border-r print:border-r border-slate-200 [overflow-wrap:anywhere]"
         style={{
           width: 'var(--theme-sidebar-width, 32%)',
           padding: 'var(--theme-page-margin, 1.75cm)',
           overflowWrap: 'anywhere',
+          boxDecorationBreak: 'clone',
+          WebkitBoxDecorationBreak: 'clone',
         }}
       >
         <div
@@ -93,7 +96,11 @@ const CreativeSidebarContent: React.FC = () => {
 
       <main
         className="flex-1 min-w-0"
-        style={{ padding: 'var(--theme-page-margin, 1.75cm)' }}
+        style={{
+          padding: 'var(--theme-page-margin, 1.75cm)',
+          boxDecorationBreak: 'clone',
+          WebkitBoxDecorationBreak: 'clone',
+        }}
       >
         {showSummary && (
           <section

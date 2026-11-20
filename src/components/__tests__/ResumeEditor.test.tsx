@@ -27,6 +27,8 @@ jest.mock("../../services/resume.service", () => ({
     createResume: jest.fn(),
     getShareSettings: jest.fn(),
     updateShareSettings: jest.fn(),
+    exportResumePdf: jest.fn(),
+    exportResumeDocx: jest.fn(),
     exportResumeTxt: jest.fn(),
   },
 }));
@@ -185,7 +187,10 @@ describe("ResumeEditor light theme, layout, and bindings", () => {
     expect(screen.queryByRole("menuitem", { name: /clone/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
     expect(screen.getByRole("menuitem", { name: /clone/i })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /^export pdf$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^download pdf$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^download docx$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^download ats text$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^print$/i })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /^export json$/i })).toBeInTheDocument();
   });
 
@@ -742,7 +747,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     });
   });
 
-  it("calls window.print when clicking the desktop toolbar Export button and closes the overflow menu", () => {
+  it("calls window.print when clicking the desktop toolbar Print button and closes the overflow menu", () => {
     mockViewport(true);
 
     render(
@@ -752,17 +757,17 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const exportBtn = screen.getByRole("menuitem", { name: /^export pdf$/i });
-    fireEvent.click(exportBtn);
+    const printMenuBtn = screen.getByRole("menuitem", { name: /^print$/i });
+    fireEvent.click(printMenuBtn);
 
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(
-      screen.queryByRole("menuitem", { name: /^export pdf$/i })
+      screen.queryByRole("menuitem", { name: /^print$/i })
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
   });
 
-  it("switches activeView to preview mode before calling window.print when clicking Export on mobile from the Editor tab", () => {
+  it("switches activeView to preview mode before calling window.print when clicking Print on mobile from the Editor tab", () => {
     mockViewport(false);
 
     let previewMountedDuringPrint = false;
@@ -783,7 +788,7 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByLabelText("Full Name")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /^export pdf$/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^print$/i }));
 
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(previewMountedDuringPrint).toBe(true);
@@ -802,13 +807,13 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    fireEvent.click(screen.getByRole("menuitem", { name: /^export pdf$/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^print$/i }));
 
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
   });
 
-  it("disables and debounces repeated Export clicks to prevent overlapping print dialogs, then re-enables after cooldown", () => {
+  it("disables and debounces repeated Print clicks to prevent overlapping print dialogs, then re-enables after cooldown", () => {
     mockViewport(true);
 
     render(
@@ -816,27 +821,27 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     );
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const firstExportBtn = screen.getByRole("menuitem", { name: /^export pdf$/i });
+    const firstPrintBtn = screen.getByRole("menuitem", { name: /^print$/i });
 
     // Rapid double-click on the same button instance
-    fireEvent.click(firstExportBtn);
-    fireEvent.click(firstExportBtn);
+    fireEvent.click(firstPrintBtn);
+    fireEvent.click(firstPrintBtn);
     expect(printSpy).toHaveBeenCalledTimes(1);
 
-    // Re-opening overflow menu during cooldown shows Export disabled and blocks click
+    // Re-opening overflow menu during cooldown shows Print disabled and blocks click
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
-    const cooldownExportBtn = screen.getByRole("menuitem", { name: /^export pdf$/i });
-    expect(cooldownExportBtn).toBeDisabled();
-    fireEvent.click(cooldownExportBtn);
+    const cooldownPrintBtn = screen.getByRole("menuitem", { name: /^print$/i });
+    expect(cooldownPrintBtn).toBeDisabled();
+    fireEvent.click(cooldownPrintBtn);
     expect(printSpy).toHaveBeenCalledTimes(1);
 
-    // After cooldown window elapses, Export re-enables and allows printing again
+    // After cooldown window elapses, Print re-enables and allows printing again
     act(() => {
       jest.advanceTimersByTime(500);
     });
 
-    expect(cooldownExportBtn).not.toBeDisabled();
-    fireEvent.click(cooldownExportBtn);
+    expect(cooldownPrintBtn).not.toBeDisabled();
+    fireEvent.click(cooldownPrintBtn);
     expect(printSpy).toHaveBeenCalledTimes(2);
   });
 });

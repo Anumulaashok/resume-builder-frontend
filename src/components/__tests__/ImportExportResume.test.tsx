@@ -31,6 +31,8 @@ jest.mock('../../services/resume.service', () => ({
     updateResume: jest.fn(),
     deleteResume: jest.fn(),
     generateFromPrompt: jest.fn(),
+    exportResumePdf: jest.fn(),
+    exportResumeDocx: jest.fn(),
     exportResumeTxt: jest.fn(),
   },
 }));

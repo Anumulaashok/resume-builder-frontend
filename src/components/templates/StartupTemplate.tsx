@@ -392,8 +392,9 @@ const StartupTemplateContent: React.FC = () => {
       )}
 
       {/* Two-Tone Header */}
-      <header data-testid="startup-two-tone-header" className="relative z-10">
+      <header data-testid="startup-two-tone-header" className="relative z-10 break-inside-avoid">
         <div
+          className="print:!bg-white print:border-b-2 print:border-slate-200"
           style={{
             backgroundColor: 'var(--theme-primary, #0f172a)',
             padding:
@@ -404,7 +405,7 @@ const StartupTemplateContent: React.FC = () => {
             value={basics.name || ''}
             onChange={readOnly ? undefined : (v) => updateBasics('name', v)}
             readOnly={readOnly}
-            textClassName="text-3xl font-extrabold tracking-tight leading-tight text-white focus:text-slate-900"
+            textClassName="text-3xl font-extrabold tracking-tight leading-tight text-white print:!text-slate-900 focus:text-slate-900"
             style={{
               fontFamily: 'var(--theme-heading-font)',
             }}
@@ -424,7 +425,7 @@ const StartupTemplateContent: React.FC = () => {
                 value={basics.label || ''}
                 onChange={readOnly ? undefined : (v) => updateBasics('label', v)}
                 readOnly={readOnly}
-                textClassName="text-sm font-semibold tracking-wide uppercase block text-slate-200 focus:text-slate-900"
+                textClassName="text-sm font-semibold tracking-wide uppercase block text-slate-200 print:!text-slate-700 focus:text-slate-900"
                 placeholder="Founding Engineer / Product Leader"
               />
             </div>
@@ -433,7 +434,7 @@ const StartupTemplateContent: React.FC = () => {
 
         {hasContactDetails && (
           <div
-            className="bg-slate-100 border-b-[3px]"
+            className="bg-slate-100 print:bg-slate-50 border-b-[3px]"
             style={{
               borderColor: 'var(--theme-accent, var(--theme-primary, #ea580c))',
               padding:

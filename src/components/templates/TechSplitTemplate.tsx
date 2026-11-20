@@ -38,6 +38,7 @@ const TechSplitContent: React.FC = () => {
 
   return (
     <div
+      data-template-id="tech-split"
       className="bg-white"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
@@ -45,6 +46,8 @@ const TechSplitContent: React.FC = () => {
         color: 'var(--theme-text-color, #374151)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
         lineHeight: 'var(--theme-line-height, 1.5)',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
       <header
@@ -54,7 +57,7 @@ const TechSplitContent: React.FC = () => {
           marginBottom: 'var(--theme-section-spacing, 1.5rem)',
         }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
+        <div className="flex flex-col sm:flex-row print:flex-row sm:items-baseline print:items-baseline sm:justify-between print:justify-between gap-2">
           <div>
             <InlineEdit
               value={basics.name || ''}

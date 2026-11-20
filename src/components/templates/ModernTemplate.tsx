@@ -34,6 +34,7 @@ const ModernTemplateContent: React.FC = () => {
 
   return (
     <div
+      data-template-id="modern"
       className="bg-white"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
@@ -41,6 +42,8 @@ const ModernTemplateContent: React.FC = () => {
         color: 'var(--theme-text-color, #374151)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
         lineHeight: 'var(--theme-line-height, 1.5)',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
       <header

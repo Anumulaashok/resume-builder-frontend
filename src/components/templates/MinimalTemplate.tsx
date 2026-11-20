@@ -34,6 +34,7 @@ const MinimalTemplateContent: React.FC = () => {
 
   return (
     <div
+      data-template-id="minimal"
       className="bg-white"
       style={{
         padding: 'var(--theme-page-margin, 1.75cm)',
@@ -41,6 +42,8 @@ const MinimalTemplateContent: React.FC = () => {
         color: 'var(--theme-text-color, #374151)',
         fontSize: 'var(--theme-base-font-size, 13.5px)',
         lineHeight: 'var(--theme-line-height, 1.5)',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
       <header

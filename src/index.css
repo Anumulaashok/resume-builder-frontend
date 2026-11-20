@@ -27,47 +27,100 @@
   .resume-preview {
     transition: transform 200ms ease;
   }
+}
 
-  /* Print styles for the resume and cover letter previews */
-  @media print {
-    @page {
-      size: A4;
-      margin: 0;
-    }
+/* Unified A4 paged media rule (top-level so browser print dialogs suppress URL/date stamps and use template margins) */
+@page {
+  size: A4;
+  margin: 0;
+}
 
-    html,
-    body {
-      margin: 0 !important;
-      padding: 0 !important;
-      background: white !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+/* Print styles for the resume and cover letter previews */
+@media print {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    orphans: 3;
+    widows: 3;
+  }
 
-    .resume-preview {
-      width: 21cm !important;
-      min-height: 29.7cm !important;
-      padding: 2cm !important;
-      margin: 0 !important;
-      border: none !important;
-      border-radius: 0 !important;
-      background: white !important;
-      box-shadow: none !important;
-      page-break-after: always;
-      transform: scale(1) !important;
-    }
+  [data-testid="resume-preview-page"],
+  .resume-preview {
+    width: 21cm !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+    page-break-after: auto;
+    break-after: auto;
+    transform: none !important;
+  }
 
-    .cover-letter-print-sheet {
-      width: 21cm !important;
-      min-height: 29.7cm !important;
-      margin: 0 !important;
-      border: none !important;
-      border-radius: 0 !important;
-      background: white !important;
-      box-shadow: none !important;
-      transform: none !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+  [data-testid="resume-preview-page"] h1,
+  [data-testid="resume-preview-page"] h2,
+  [data-testid="resume-preview-page"] h3,
+  .resume-preview h1,
+  .resume-preview h2,
+  .resume-preview h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Backgroundless high-contrast print fallbacks for dark/accent header & sidebar templates */
+  [data-testid="bold-header-band"] {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  [data-testid="accent-sidebar-aside"],
+  [data-testid="accent-sidebar-aside"] > div {
+    --theme-primary: #0f172a !important;
+    --theme-heading-color: #0f172a !important;
+    --theme-text-color: #334155 !important;
+    --theme-accent: #1e293b !important;
+    background-color: transparent !important;
+    color: #1e293b !important;
+  }
+
+  [data-testid="accent-sidebar-aside"] [class*="text-slate-"],
+  [data-testid="accent-sidebar-aside"] span,
+  [data-testid="accent-sidebar-aside"] a,
+  [data-testid="accent-sidebar-aside"] p,
+  [data-testid="accent-sidebar-aside"] li {
+    color: #1e293b !important;
+    text-decoration-color: #64748b !important;
+  }
+
+  [data-testid="accent-sidebar-aside"] [class*="border-slate-"],
+  [data-testid="accent-sidebar-aside"] [data-heading-variant] {
+    border-color: #cbd5e1 !important;
+  }
+
+  [data-testid="accent-sidebar-aside"] [class*="bg-slate-100"] {
+    background-color: #f1f5f9 !important;
+  }
+
+  [data-testid="accent-sidebar-aside"] [class*="bg-slate-200"] {
+    background-color: #e2e8f0 !important;
+  }
+
+  .cover-letter-print-sheet {
+    width: 21cm !important;
+    min-height: 29.7cm !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+    transform: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

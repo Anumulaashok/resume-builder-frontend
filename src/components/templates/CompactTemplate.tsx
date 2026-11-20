@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { IResume } from '../../types/resume';
 import { InlineEdit } from '../ui/InlineEdit';
 import {
@@ -18,15 +18,6 @@ interface TemplateProps {
 
 const CompactTemplateContent: React.FC = () => {
   const { resume, readOnly, updateBasics } = useTemplateContext();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [enablePrintPageRule, setEnablePrintPageRule] = useState(false);
-
-  useEffect(() => {
-    const el = rootRef.current;
-    if (el && !el.closest('[data-testid^="template-thumbnail-"]')) {
-      setEnablePrintPageRule(true);
-    }
-  }, []);
 
   if (!resume) return null;
 
@@ -46,7 +37,6 @@ const CompactTemplateContent: React.FC = () => {
 
   return (
     <div
-      ref={rootRef}
       data-template-id="compact"
       className="bg-white [&_h2]:mb-1.5 [&_h2]:pb-1 [&_ul]:mt-0.5 [&_ul]:space-y-0 [&_.tabular-nums]:ml-auto [&_.tabular-nums]:text-right"
       style={{
@@ -55,19 +45,10 @@ const CompactTemplateContent: React.FC = () => {
         color: 'var(--theme-text-color, #334155)',
         fontSize: 'var(--theme-base-font-size, 11.48px)',
         lineHeight: 'var(--theme-line-height, 1.3)',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
       }}
     >
-      {enablePrintPageRule && (
-        <style>{`
-          @page { size: A4; margin: 1.05cm 0; }
-          @media print {
-            [data-template-id="compact"] {
-              padding-top: 0.2cm !important;
-              padding-bottom: 0.2cm !important;
-            }
-          }
-        `}</style>
-      )}
       <header
         className="pb-2 border-b break-inside-avoid"
         style={{
