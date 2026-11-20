@@ -116,6 +116,9 @@ describe('Header mobile layout and navigation', () => {
       />
     );
 
+    // Header stays visible on screen while carrying print:hidden for print export
+    expect(screen.getByRole('banner')).toHaveClass('print:hidden');
+
     // Short wordmark shown below sm instead of wrapping full title
     expect(screen.getByText('Smart CV')).toBeInTheDocument();
     expect(screen.queryByText('Smart CV & Portfolio')).not.toBeInTheDocument();

@@ -742,14 +742,23 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     });
   });
 
-  it("calls window.print when clicking the desktop toolbar Export button and closes the overflow menu", () => {
+  it("calls window.print when clicking the desktop toolbar Export button, closes the overflow menu, and hides desktop split panes for print", () => {
     mockViewport(true);
 
     render(
       <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
     );
 
-    expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
+    const previewPage = screen.getByTestId("resume-preview-page");
+    expect(previewPage).toBeInTheDocument();
+    expect(previewPage).toHaveClass("resume-preview");
+
+    const resizeHandle = screen.getByTestId("panel-resize-handle");
+    const panelGroup = resizeHandle.parentElement!;
+    const [editorPane, , previewPane] = Array.from(panelGroup.children);
+    expect(editorPane).toHaveClass("print:hidden");
+    expect(resizeHandle).toHaveClass("print:hidden");
+    expect(previewPane).toHaveClass("print:!w-full");
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
     const exportBtn = screen.getByRole("menuitem", { name: /^export pdf$/i });
@@ -762,33 +771,57 @@ describe("ResumeEditor toolbar export handler (desktop & mobile)", () => {
     expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
   });
 
-  it("switches activeView to preview mode before calling window.print when clicking Export on mobile from the Editor tab", () => {
+  it("keeps ResumePreview mounted with hidden print:block on mobile Editor tab and switches activeView to preview before calling window.print on Export", () => {
     mockViewport(false);
 
-    let previewMountedDuringPrint = false;
+    let previewVisibleOnScreenDuringPrint = false;
     printSpy.mockImplementation(() => {
-      previewMountedDuringPrint = Boolean(
-        document.querySelector('[data-testid="resume-preview-page"]')
-      );
+      const pageEl = document.querySelector('[data-testid="resume-preview-page"]');
+      const hiddenAncestor = pageEl?.closest(".hidden");
+      previewVisibleOnScreenDuringPrint = Boolean(pageEl) && !hiddenAncestor;
     });
 
     render(
       <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
     );
 
-    // Initially on mobile Editor tab: preview page is not mounted
-    expect(
-      screen.queryByTestId("resume-preview-page")
-    ).not.toBeInTheDocument();
+    // Initially on mobile Editor tab: ResumePreview stays mounted inside a hidden print:block wrapper
+    const previewPage = screen.getByTestId("resume-preview-page");
+    expect(previewPage).toBeInTheDocument();
+    const mobilePreviewWrapper = previewPage.closest(".hidden");
+    expect(mobilePreviewWrapper).not.toBeNull();
+    expect(mobilePreviewWrapper).toHaveClass("hidden", "print:block");
     expect(screen.getByLabelText("Full Name")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
     fireEvent.click(screen.getByRole("menuitem", { name: /^export pdf$/i }));
 
     expect(printSpy).toHaveBeenCalledTimes(1);
-    expect(previewMountedDuringPrint).toBe(true);
-    expect(screen.getByTestId("resume-preview-page")).toBeInTheDocument();
+    expect(previewVisibleOnScreenDuringPrint).toBe(true);
+    expect(screen.getByTestId("resume-preview-page").closest(".hidden")).toBeNull();
     expect(screen.queryByLabelText("Full Name")).not.toBeInTheDocument();
+  });
+
+  it("closes the toolbar overflow menu on native window beforeprint while keeping mobile preview printable", () => {
+    mockViewport(false);
+
+    render(
+      <ResumeEditor initialResume={buildSampleResume()} onBack={jest.fn()} />
+    );
+
+    fireEvent.click(screen.getByTestId("toolbar-overflow-btn"));
+    expect(
+      screen.getByRole("menuitem", { name: /^export pdf$/i })
+    ).toBeInTheDocument();
+
+    fireEvent(window, new Event("beforeprint"));
+
+    expect(
+      screen.queryByRole("menuitem", { name: /^export pdf$/i })
+    ).not.toBeInTheDocument();
+
+    const previewPage = screen.getByTestId("resume-preview-page");
+    expect(previewPage.closest(".hidden")).toHaveClass("hidden", "print:block");
   });
 
   it("calls window.print directly on mobile when Preview tab is already active", () => {
