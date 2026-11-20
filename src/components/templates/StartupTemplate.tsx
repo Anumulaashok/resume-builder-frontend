@@ -66,6 +66,31 @@ export function extractImpactMetrics(texts: Array<string | undefined>): string[]
   return results;
 }
 
+const StartupImpactMetrics: React.FC<{ metrics: string[] }> = ({ metrics }) => {
+  if (metrics.length === 0) return null;
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="startup-impact-metrics"
+      className="flex flex-wrap gap-1.5 mt-1.5"
+    >
+      {metrics.map((metric, mIdx) => (
+        <span
+          key={`${metric}-${mIdx}`}
+          data-metric={`↗ ${metric}`}
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums border bg-orange-50/70 print:bg-slate-50 select-none before:content-[attr(data-metric)]"
+          style={{
+            borderColor:
+              'var(--theme-accent, var(--theme-primary, #ea580c))',
+            color:
+              'var(--theme-accent, var(--theme-primary, #ea580c))',
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 const StartupMetricSection: React.FC<{
   section: ISection;
   kind: CanonicalSectionKind;
@@ -143,29 +168,7 @@ const StartupMetricSection: React.FC<{
                     readOnly={readOnly}
                     tone="modern"
                   />
-                  {metrics.length > 0 && (
-                    <div
-                      aria-hidden="true"
-                      data-testid="startup-impact-metrics"
-                      className="flex flex-wrap gap-1.5 mt-1.5"
-                    >
-                      {metrics.map((metric, mIdx) => (
-                        <span
-                          key={`${metric}-${mIdx}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums border bg-orange-50/70 print:bg-slate-50"
-                          style={{
-                            borderColor:
-                              'var(--theme-accent, var(--theme-primary, #ea580c))',
-                            color:
-                              'var(--theme-accent, var(--theme-primary, #ea580c))',
-                          }}
-                        >
-                          <span>↗</span>
-                          <span>{metric}</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <StartupImpactMetrics metrics={metrics} />
                   <Description
                     value={descVal}
                     sectionId={section.id}
@@ -223,29 +226,7 @@ const StartupMetricSection: React.FC<{
                     readOnly={readOnly}
                     tone="modern"
                   />
-                  {metrics.length > 0 && (
-                    <div
-                      aria-hidden="true"
-                      data-testid="startup-impact-metrics"
-                      className="flex flex-wrap gap-1.5 mt-1.5"
-                    >
-                      {metrics.map((metric, mIdx) => (
-                        <span
-                          key={`${metric}-${mIdx}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums border bg-orange-50/70 print:bg-slate-50"
-                          style={{
-                            borderColor:
-                              'var(--theme-accent, var(--theme-primary, #ea580c))',
-                            color:
-                              'var(--theme-accent, var(--theme-primary, #ea580c))',
-                          }}
-                        >
-                          <span>↗</span>
-                          <span>{metric}</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <StartupImpactMetrics metrics={metrics} />
                   <Description
                     value={descVal}
                     sectionId={section.id}
@@ -286,29 +267,7 @@ const StartupMetricSection: React.FC<{
                   readOnly={readOnly}
                   tone="modern"
                 />
-                {metrics.length > 0 && (
-                  <div
-                    aria-hidden="true"
-                    data-testid="startup-impact-metrics"
-                    className="flex flex-wrap gap-1.5 mt-1.5"
-                  >
-                    {metrics.map((metric, mIdx) => (
-                      <span
-                        key={`${metric}-${mIdx}`}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums border bg-orange-50/70 print:bg-slate-50"
-                        style={{
-                          borderColor:
-                            'var(--theme-accent, var(--theme-primary, #ea580c))',
-                          color:
-                            'var(--theme-accent, var(--theme-primary, #ea580c))',
-                        }}
-                      >
-                        <span>↗</span>
-                        <span>{metric}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <StartupImpactMetrics metrics={metrics} />
                 <Description
                   value={descVal}
                   sectionId={section.id}

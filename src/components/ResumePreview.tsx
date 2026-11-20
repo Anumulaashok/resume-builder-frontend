@@ -4,6 +4,7 @@ import { IResume, ThemeConfig } from "../types/resume";
 import {
   ArrowPathIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SwatchIcon,
@@ -213,6 +214,15 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     activeTemplate.defaultTheme
   );
 
+  const effectiveSkillStyle =
+    resume.themeConfig?.skillStyle ??
+    activeTemplate.defaultTheme.skillStyle ??
+    "chips";
+  const hasNonAtsSkillMeters =
+    effectiveSkillStyle === "bars" || effectiveSkillStyle === "dots";
+  const isNonAtsTemplate = !activeTemplate.atsFriendly;
+  const showAtsWarningBanner = isNonAtsTemplate || hasNonAtsSkillMeters;
+
   const handleTemplateSelect = (nextTemplate: TemplateDefinition) => {
     const prevTemplate = getTemplate(activeTemplateId);
     const nextThemeConfig = mergeTemplateTheme(
@@ -234,6 +244,49 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
     }
   };
 
+  const handleSwitchToAtsTemplate = () => {
+    if (readOnly) return;
+    const atsTemplate = getTemplate("modern");
+    const prevTemplate = getTemplate(activeTemplateId);
+    const nextThemeConfig = mergeTemplateTheme(
+      resume.themeConfig,
+      prevTemplate.defaultTheme,
+      atsTemplate.defaultTheme,
+      customisedKeysRef.current
+    );
+    if (
+      nextThemeConfig.skillStyle === "bars" ||
+      nextThemeConfig.skillStyle === "dots"
+    ) {
+      nextThemeConfig.skillStyle = "chips";
+    }
+
+    setActiveTemplateId(atsTemplate.id);
+    setShowTemplateGallery(false);
+
+    if (onChange) {
+      onChange({
+        ...resume,
+        templateId: atsTemplate.id,
+        themeConfig: nextThemeConfig,
+      });
+    }
+  };
+
+  const handleSwitchToSkillChips = () => {
+    if (readOnly) return;
+    customisedKeysRef.current.add("skillStyle");
+    if (onChange) {
+      onChange({
+        ...resume,
+        themeConfig: {
+          ...(resume.themeConfig || {}),
+          skillStyle: "chips",
+        },
+      });
+    }
+  };
+
   const scaledWidth = Math.round(A4_WIDTH_PX * effectiveScale);
   const scaledHeight = Math.round(pageHeight * effectiveScale);
 
@@ -246,39 +299,43 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
       >
         {/* Left: Template & Theme Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            data-testid="open-template-gallery-btn"
-            onClick={() => {
-              setShowTemplateGallery((prev) => !prev);
-              setShowThemePanel(false);
-            }}
-            className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
-              showTemplateGallery
-                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
-            }`}
-          >
-            <SwatchIcon className="h-4 w-4" />
-            <span>Templates</span>
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                data-testid="open-template-gallery-btn"
+                onClick={() => {
+                  setShowTemplateGallery((prev) => !prev);
+                  setShowThemePanel(false);
+                }}
+                className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
+                  showTemplateGallery
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
+                }`}
+              >
+                <SwatchIcon className="h-4 w-4" />
+                <span>Templates</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowThemePanel((prev) => !prev);
-              setShowTemplateGallery(false);
-            }}
-            data-testid="theme-customization-btn"
-            className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
-              showThemePanel
-                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
-            }`}
-          >
-            <PaintBrushIcon className="h-4 w-4" />
-            <span>Customize Theme</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowThemePanel((prev) => !prev);
+                  setShowTemplateGallery(false);
+                }}
+                data-testid="theme-customization-btn"
+                className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
+                  showThemePanel
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
+                }`}
+              >
+                <PaintBrushIcon className="h-4 w-4" />
+                <span>Customize Theme</span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Right: Zoom & Print Controls */}
@@ -368,9 +425,68 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
         </div>
       </div>
 
+      {/* Print-hidden ATS Warning Banner */}
+      {showAtsWarningBanner && (
+        <div
+          role="status"
+          data-testid="ats-warning-banner"
+          className="shrink-0 bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 z-10 print:hidden"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <ExclamationTriangleIcon
+              className="h-4 w-4 text-amber-600 shrink-0"
+              aria-hidden="true"
+            />
+            <span className="leading-snug">
+              {isNonAtsTemplate && hasNonAtsSkillMeters
+                ? `${activeTemplate.name} uses a multi-column or structured layout and visual skill meters (${effectiveSkillStyle}) that may reduce ATS parsing accuracy.`
+                : isNonAtsTemplate
+                ? `${activeTemplate.name} uses a multi-column, table, or timeline layout that may scramble linear ATS parsing.`
+                : `Visual skill ${
+                    effectiveSkillStyle === "bars" ? "bars" : "dot meters"
+                  } may be skipped by ATS parsers.`}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {!readOnly && isNonAtsTemplate && (
+              <button
+                type="button"
+                data-testid="ats-banner-switch-template-btn"
+                onClick={handleSwitchToAtsTemplate}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+              >
+                Switch to ATS template
+              </button>
+            )}
+            {!readOnly && !isNonAtsTemplate && hasNonAtsSkillMeters && (
+              <button
+                type="button"
+                data-testid="ats-banner-switch-skills-btn"
+                onClick={handleSwitchToSkillChips}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+              >
+                Switch to skill chips
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="ats-banner-export-txt-btn"
+              onClick={() => {
+                void handleDownloadTxt();
+              }}
+              disabled={isTxtBusy}
+              className="px-2.5 py-1 rounded-md text-xs font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              Download ATS text (.txt)
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Template Gallery Modal */}
       <TemplateGalleryModal
-        isOpen={showTemplateGallery}
+        isOpen={!readOnly && showTemplateGallery}
         activeTemplateId={activeTemplate.id}
         resume={resume}
         customisedKeys={customisedKeysRef.current}
@@ -380,7 +496,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({
 
       {/* Relative Canvas Area (anchors ThemeCustomizationPanel below toolbar) */}
       <div className="relative flex-1 min-h-0 flex flex-col print:!block print:!min-h-0">
-        {showThemePanel && (
+        {!readOnly && showThemePanel && (
           <ThemeCustomizationPanel
             themeConfig={resume.themeConfig}
             templateDefaultTheme={activeTemplate.defaultTheme}

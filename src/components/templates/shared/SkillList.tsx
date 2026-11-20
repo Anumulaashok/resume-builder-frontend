@@ -197,14 +197,19 @@ export const SkillList: React.FC<SkillListProps> = ({
       return;
     }
     if (effectiveSectionId) {
-      ctx.updateSectionItemPatch(effectiveSectionId, item.id, { level: parsed });
+      const patch: Record<string, any> = { level: parsed };
+      if (item && Object.prototype.hasOwnProperty.call(item, 'proficiency')) {
+        patch.proficiency = typeof parsed === 'number' ? parsed : undefined;
+      }
+      ctx.updateSectionItemPatch(effectiveSectionId, item.id, patch);
     }
   };
 
   const canEdit = Boolean(!isReadOnly && (onUpdateItem || effectiveSectionId));
 
   const renderEditableLevel = (item: any, textClassName = 'text-xs text-slate-500') => {
-    const levelLabel = formatSkillLevel(item?.level);
+    const levelLabel =
+      formatSkillLevel(item?.level) || formatSkillLevel(item?.proficiency);
     if (!levelLabel) return null;
     if (!canEdit) {
       return <span className={textClassName}>{levelLabel}</span>;
@@ -345,27 +350,30 @@ export const SkillList: React.FC<SkillListProps> = ({
                 {renderEditableLabel(item, 'Skill', 'text-[0.95em] font-medium', {
                   color: 'var(--theme-heading-color, #1e293b)',
                 })}
-                <span className="inline-flex items-center gap-1 shrink-0" aria-hidden="true">
-                  {[1, 2, 3, 4, 5].map((dot) => (
-                    <span
-                      key={dot}
-                      className="w-2 h-2 rounded-full border"
-                      style={
-                        dot <= filledDots
-                          ? {
-                              backgroundColor:
-                                'var(--theme-accent, var(--theme-primary, #2563eb))',
-                              borderColor:
-                                'var(--theme-accent, var(--theme-primary, #2563eb))',
-                            }
-                          : {
-                              backgroundColor: 'transparent',
-                              borderColor: '#cbd5e1',
-                            }
-                      }
-                    />
-                  ))}
-                </span>
+                <div className="inline-flex items-center gap-2 shrink-0">
+                  {renderEditableLevel(item, 'text-[11px] text-slate-500 shrink-0')}
+                  <span className="inline-flex items-center gap-1 shrink-0" aria-hidden="true">
+                    {[1, 2, 3, 4, 5].map((dot) => (
+                      <span
+                        key={dot}
+                        className="w-2 h-2 rounded-full border"
+                        style={
+                          dot <= filledDots
+                            ? {
+                                backgroundColor:
+                                  'var(--theme-accent, var(--theme-primary, #2563eb))',
+                                borderColor:
+                                  'var(--theme-accent, var(--theme-primary, #2563eb))',
+                              }
+                            : {
+                                backgroundColor: 'transparent',
+                                borderColor: '#cbd5e1',
+                              }
+                        }
+                      />
+                    ))}
+                  </span>
+                </div>
               </div>
               {keywords.length > 0 && (
                 <div
@@ -578,7 +586,8 @@ export const SkillList: React.FC<SkillListProps> = ({
       >
         {enabledItems.map((item: any, idx: number) => {
           const label = item.name || item.title || '';
-          const levelLabel = formatSkillLevel(item.level);
+          const levelLabel =
+            formatSkillLevel(item.level) || formatSkillLevel(item.proficiency);
           if (!canEdit) {
             if (!label) return null;
             return (

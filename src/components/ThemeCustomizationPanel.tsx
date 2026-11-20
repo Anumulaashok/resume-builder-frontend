@@ -16,7 +16,11 @@ import {
   DateFormatOptionId,
 } from '../constants/themeConstants';
 import { TemplateLayout } from './templates/registry';
-import { XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import {
+  XMarkIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 
 interface ThemeCustomizationPanelProps {
   themeConfig?: ThemeConfig;
@@ -575,6 +579,36 @@ export const ThemeCustomizationPanel: React.FC<ThemeCustomizationPanelProps> = (
                 );
               })}
             </div>
+            {(currentTheme.skillStyle === 'bars' ||
+              currentTheme.skillStyle === 'dots') && (
+              <div
+                role="status"
+                data-testid="skill-style-ats-warning"
+                className="mt-2 rounded-lg border border-amber-500/40 bg-amber-950/60 p-2.5 text-[11px] text-amber-200 flex items-start justify-between gap-2"
+              >
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <ExclamationTriangleIcon
+                    className="h-4 w-4 text-amber-400 shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  />
+                  <span className="leading-snug">
+                    Visual{' '}
+                    {currentTheme.skillStyle === 'bars'
+                      ? 'progress bars'
+                      : 'dot meters'}{' '}
+                    can hinder ATS parsing.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  data-testid="switch-skill-style-chips-btn"
+                  onClick={() => handleSkillStyleSelect('chips')}
+                  className="shrink-0 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-100 font-semibold text-[11px] transition-colors whitespace-nowrap"
+                >
+                  Switch to Chips
+                </button>
+              </div>
+            )}
           </div>
 
           <div>

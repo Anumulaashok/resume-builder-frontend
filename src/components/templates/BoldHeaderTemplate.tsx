@@ -35,8 +35,7 @@ const BoldHeaderTemplateContent: React.FC = () => {
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
-  const realInitials = extractInitials(basics.name);
-  const initials = realInitials || (readOnly ? '' : 'YN');
+  const initials = extractInitials(basics.name);
   const summaryValue = basics.summary ?? resume.summary ?? '';
   const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
@@ -79,12 +78,11 @@ const BoldHeaderTemplateContent: React.FC = () => {
           {initials && (
             <div
               data-testid="bold-header-initials"
+              data-monogram={initials}
               aria-hidden="true"
-              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none ${!realInitials ? 'print:hidden' : ''}`}
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/85 bg-white/15 flex items-center justify-center shrink-0 text-white text-lg sm:text-xl font-bold tracking-wider select-none before:content-[attr(data-monogram)]"
               style={{ fontFamily: 'var(--theme-heading-font)' }}
-            >
-              {initials}
-            </div>
+            />
           )}
 
           <div className="min-w-0 flex-1">

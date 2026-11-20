@@ -327,22 +327,60 @@ describe('Creative Templates: Timeline, Bold Header, and Elegant', () => {
       expect(screen.getAllByText('Sep 2016 - May 2018')).toHaveLength(1);
     });
 
-    it('Bold Header renders the full-width accent band, circular initials badge, and card-like sections', () => {
-      render(<BoldHeaderTemplate resume={sampleResume} readOnly />);
+    it('Bold Header renders the full-width accent band, circular initials badge via CSS ::before, and card-like sections', () => {
+      const { rerender } = render(
+        <BoldHeaderTemplate resume={sampleResume} readOnly />
+      );
 
       expect(screen.getByTestId('bold-header-band')).toBeInTheDocument();
       const badge = screen.getByTestId('bold-header-initials');
-      expect(badge).toHaveTextContent('ML');
+      expect(badge).toHaveAttribute('data-monogram', 'ML');
+      expect(badge.className).toContain('before:content-[attr(data-monogram)]');
+      expect(badge).toHaveTextContent('');
       expect(screen.getByTestId('bold-header-summary-card')).toBeInTheDocument();
       expect(screen.getByTestId('bold-header-cards')).toBeInTheDocument();
+
+      // Omits monogram badge when name is empty
+      rerender(
+        <BoldHeaderTemplate
+          resume={{
+            ...sampleResume,
+            content: {
+              ...sampleResume.content,
+              basics: { ...sampleResume.content.basics, name: '' },
+            },
+          }}
+          readOnly={false}
+        />
+      );
+      expect(screen.queryByTestId('bold-header-initials')).not.toBeInTheDocument();
     });
 
-    it('Elegant renders the initials monogram, thin accent rules, and centered section headings', () => {
-      render(<ElegantTemplate resume={sampleResume} readOnly />);
+    it('Elegant renders the initials monogram via CSS ::before, thin accent rules, and centered section headings', () => {
+      const { rerender } = render(
+        <ElegantTemplate resume={sampleResume} readOnly />
+      );
 
       const monogram = screen.getByTestId('elegant-monogram');
-      expect(monogram).toHaveTextContent('ML');
+      expect(monogram).toHaveAttribute('data-monogram', 'ML');
+      expect(monogram.className).toContain('before:content-[attr(data-monogram)]');
+      expect(monogram).toHaveTextContent('');
       expect(screen.getByTestId('elegant-sections')).toBeInTheDocument();
+
+      // Omits monogram when name is empty
+      rerender(
+        <ElegantTemplate
+          resume={{
+            ...sampleResume,
+            content: {
+              ...sampleResume.content,
+              basics: { ...sampleResume.content.basics, name: '' },
+            },
+          }}
+          readOnly={false}
+        />
+      );
+      expect(screen.queryByTestId('elegant-monogram')).not.toBeInTheDocument();
     });
   });
 
@@ -382,7 +420,7 @@ describe('Creative Templates: Timeline, Bold Header, and Elegant', () => {
         within(dialog).queryByTestId('template-card-professional')
       ).not.toBeInTheDocument();
 
-      // None of the new creative templates displays an ATS-friendly badge
+      // None of the new creative templates displays an ATS-friendly badge; all show caution badges
       expect(
         within(dialog).queryByTestId('ats-badge-timeline')
       ).not.toBeInTheDocument();
@@ -392,6 +430,15 @@ describe('Creative Templates: Timeline, Bold Header, and Elegant', () => {
       expect(
         within(dialog).queryByTestId('ats-badge-elegant')
       ).not.toBeInTheDocument();
+      expect(
+        within(dialog).getByTestId('ats-caution-badge-timeline')
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByTestId('ats-caution-badge-bold-header')
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByTestId('ats-caution-badge-elegant')
+      ).toBeInTheDocument();
 
       // Selecting Bold Header applies its templateId and defaultTheme
       fireEvent.click(within(dialog).getByTestId('template-card-bold-header'));

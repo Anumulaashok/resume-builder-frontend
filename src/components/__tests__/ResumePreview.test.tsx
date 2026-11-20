@@ -1,10 +1,14 @@
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import toast from 'react-hot-toast';
 import ResumePreview from '../ResumePreview';
 import ResumeEditor from '../ResumeEditor';
 import { ModernTemplate } from '../templates/ModernTemplate';
 import { ProfessionalTemplate } from '../templates/ProfessionalTemplate';
+import { AccentSidebarTemplate } from '../templates/AccentSidebarTemplate';
+import { SkillList, TemplateProvider } from '../templates/shared';
+import { resumeService } from '../../services/resume.service';
 import { IResume, SectionType } from '../../types/resume';
 
 jest.mock('react-resizable-panels', () => ({
@@ -27,6 +31,7 @@ jest.mock('../../services/resume.service', () => ({
     createResume: jest.fn(),
     getShareSettings: jest.fn(),
     updateShareSettings: jest.fn(),
+    exportResumeTxt: jest.fn(),
   },
 }));
 
@@ -266,6 +271,189 @@ describe('ResumePreview and Template Item Filtering', () => {
     expect(within(page).getByText('Principal Architect')).toBeInTheDocument();
     expect(within(page).getByText('Senior Engineer')).toBeInTheDocument();
     expect(within(page).queryByText('Hidden Intern Role')).not.toBeInTheDocument();
+  });
+
+  it('places candidate name and main experience before sidebar contact and skills in AccentSidebarTemplate DOM reading order', () => {
+    const resume = buildVisibilityResume('modern');
+    const { container } = render(
+      <AccentSidebarTemplate resume={resume} readOnly />
+    );
+
+    const fullText = container.textContent || '';
+    const nameIdx = fullText.indexOf('Taylor Rivera');
+    const workIdx = fullText.indexOf('Principal Architect');
+    const contactIdx = fullText.indexOf('taylor@example.com');
+    const skillIdx = fullText.indexOf('TypeScript');
+
+    expect(nameIdx).toBeGreaterThanOrEqual(0);
+    expect(workIdx).toBeGreaterThan(nameIdx);
+    expect(contactIdx).toBeGreaterThan(workIdx);
+    expect(skillIdx).toBeGreaterThan(workIdx);
+  });
+
+  it('renders selectable proficiency text in dots and bars modes for level and numeric proficiency while omitting empty labels', () => {
+    const skillsResume: IResume = {
+      title: 'Skill Proficiency Resume',
+      content: {
+        basics: { name: 'Alex Chen' },
+        sections: [
+          {
+            id: 'sec-skills',
+            type: SectionType.SKILLS,
+            title: 'Skills',
+            content: [
+              { id: 'sk-1', name: 'TypeScript', level: 'Expert' as any },
+              { id: 'sk-2', name: 'Go', proficiency: 85 } as any,
+              { id: 'sk-3', name: 'GraphQL', level: 4 },
+              { id: 'sk-4', name: 'Docker' },
+            ],
+          },
+        ],
+        sectionOrder: ['sec-skills'],
+      },
+    };
+
+    const { rerender, container } = render(
+      <TemplateProvider resume={skillsResume} readOnly>
+        <SkillList
+          section={skillsResume.content.sections[0]}
+          variant="dots"
+          readOnly
+        />
+      </TemplateProvider>
+    );
+
+    expect(container.querySelector('[data-skill-variant="dots"]')).toBeInTheDocument();
+    expect(screen.getByText('TypeScript')).toBeInTheDocument();
+    expect(screen.getByText('Expert')).toBeInTheDocument();
+    expect(screen.getByText('Go')).toBeInTheDocument();
+    expect(screen.getByText('85%')).toBeInTheDocument();
+    expect(screen.getByText('GraphQL')).toBeInTheDocument();
+    expect(screen.getByText('Level 4/5')).toBeInTheDocument();
+    expect(screen.getByText('Docker')).toBeInTheDocument();
+    // Default 80% visual meter fallback does not fabricate a DOM text label for Docker
+    expect(screen.queryByText('80%')).not.toBeInTheDocument();
+
+    rerender(
+      <TemplateProvider resume={skillsResume} readOnly>
+        <SkillList
+          section={skillsResume.content.sections[0]}
+          variant="bars"
+          readOnly
+        />
+      </TemplateProvider>
+    );
+    expect(container.querySelector('[data-skill-variant="bars"]')).toBeInTheDocument();
+    expect(screen.getByText('85%')).toBeInTheDocument();
+    expect(screen.getByText('Expert')).toBeInTheDocument();
+    expect(screen.queryByText('80%')).not.toBeInTheDocument();
+  });
+
+  it('displays a print-hidden ATS warning banner for non-ATS templates or visual skill meters, supports one-click fallbacks and save-first .txt checks, and suppresses authoring buttons when readOnly', async () => {
+    const toastErrorSpy = jest
+      .spyOn(toast, 'error')
+      .mockImplementation(() => 'err-toast');
+    const onChange = jest.fn();
+
+    try {
+      // 1. ATS-friendly template ('modern') with default 'chips' shows no warning banner
+      const cleanAtsResume = buildVisibilityResume('modern');
+      const { rerender } = render(
+        <ResumePreview resume={cleanAtsResume} onChange={onChange} />
+      );
+      expect(screen.queryByTestId('ats-warning-banner')).not.toBeInTheDocument();
+
+      // 2. Non-ATS template ('tech-split') shows print-hidden banner with template switch + .txt export
+      const nonAtsTemplateResume: IResume = {
+        ...cleanAtsResume,
+        _id: undefined,
+        templateId: 'tech-split',
+      };
+      rerender(<ResumePreview resume={nonAtsTemplateResume} onChange={onChange} />);
+
+      const banner = screen.getByTestId('ats-warning-banner');
+      expect(banner).toBeInTheDocument();
+      expect(banner.className).toContain('print:hidden');
+
+      // Clicking plain-text export on unsaved resume enforces save-first check
+      fireEvent.click(screen.getByTestId('ats-banner-export-txt-btn'));
+      expect(toastErrorSpy).toHaveBeenCalledWith(
+        'Please save your resume before exporting'
+      );
+      expect(resumeService.exportResumeTxt).not.toHaveBeenCalled();
+
+      // One-click switch to ATS template updates templateId to 'modern'
+      fireEvent.click(screen.getByTestId('ats-banner-switch-template-btn'));
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateId: 'modern',
+        })
+      );
+
+      // 3. ATS template ('modern') with 'bars' skill style offers one-click switch to skill chips
+      const barsOnModernResume: IResume = {
+        ...cleanAtsResume,
+        templateId: 'modern',
+        themeConfig: { skillStyle: 'bars' },
+      };
+      rerender(<ResumePreview resume={barsOnModernResume} onChange={onChange} />);
+      expect(screen.getByTestId('ats-warning-banner')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('ats-banner-switch-skills-btn'));
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          themeConfig: expect.objectContaining({ skillStyle: 'chips' }),
+        })
+      );
+
+      // 4. Read-only mode suppresses authoring switch buttons while keeping .txt export available
+      const savedReadOnlyNonAts: IResume = {
+        ...cleanAtsResume,
+        _id: 'saved-readonly-1',
+        templateId: 'two-column',
+      };
+      (resumeService.exportResumeTxt as jest.Mock).mockResolvedValueOnce({
+        blob: new Blob(['Taylor Rivera'], { type: 'text/plain;charset=utf-8' }),
+        filename: 'taylor-rivera.txt',
+      });
+      const origCreateObjectURL = URL.createObjectURL;
+      const origRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:http://localhost/txt');
+      URL.revokeObjectURL = jest.fn();
+      const anchorSpy = jest
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => undefined);
+
+      try {
+        rerender(<ResumePreview resume={savedReadOnlyNonAts} readOnly />);
+        expect(screen.getByTestId('ats-warning-banner')).toBeInTheDocument();
+        expect(
+          screen.queryByTestId('ats-banner-switch-template-btn')
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('ats-banner-switch-skills-btn')
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('open-template-gallery-btn')
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('theme-customization-btn')
+        ).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByTestId('ats-banner-export-txt-btn'));
+        await waitFor(() => {
+          expect(resumeService.exportResumeTxt).toHaveBeenCalledWith(
+            'saved-readonly-1',
+            'Template Item Filtering Resume'
+          );
+        });
+      } finally {
+        URL.createObjectURL = origCreateObjectURL;
+        URL.revokeObjectURL = origRevokeObjectURL;
+        anchorSpy.mockRestore();
+      }
+    } finally {
+      toastErrorSpy.mockRestore();
+    }
   });
 
   it('hides an item when toggled off (enabled: false) and re-renders it when toggled back on (enabled: true) in ResumeEditor', () => {

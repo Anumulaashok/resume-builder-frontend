@@ -126,7 +126,7 @@ export const templateRegistry: TemplateDefinition[] = [
       'Engineering-focused layout with monospace headings and a right-hand skills sidebar.',
     category: 'tech',
     layout: 'sidebar-right',
-    atsFriendly: true,
+    atsFriendly: false,
     defaultTheme: {
       fontPairingId: 'technical-mono',
       primaryColor: '#0f766e',
@@ -174,7 +174,7 @@ export const templateRegistry: TemplateDefinition[] = [
       'Refined two-column grid pairing serif display titles with side-rule headings and dot ratings.',
     category: 'modern',
     layout: 'two-column',
-    atsFriendly: true,
+    atsFriendly: false,
     defaultTheme: {
       fontPairingId: 'elegant-hybrid',
       primaryColor: '#2563eb',
@@ -359,7 +359,7 @@ export const templateRegistry: TemplateDefinition[] = [
       'Structured horizontal section bands with a narrow side-rule label rail and subtle alternating row tints.',
     category: 'professional',
     layout: 'single',
-    atsFriendly: true,
+    atsFriendly: false,
     defaultTheme: {
       fontPairingId: 'modern-sans',
       primaryColor: '#1e293b',
@@ -382,7 +382,7 @@ export const templateRegistry: TemplateDefinition[] = [
       'Clean sans-serif engineering layout with monospace date and stack accents, grouped skill chips, emphasised projects, and prominent GitHub and portfolio links.',
     category: 'tech',
     layout: 'single',
-    atsFriendly: true,
+    atsFriendly: false,
     defaultTheme: {
       fontPairingId: 'modern-sans',
       primaryColor: '#0f172a',

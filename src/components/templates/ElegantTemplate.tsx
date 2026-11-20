@@ -35,8 +35,7 @@ const ElegantTemplateContent: React.FC = () => {
   if (!resume) return null;
 
   const basics = resume.content?.basics || {};
-  const realMonogram = extractMonogram(basics.name);
-  const monogram = realMonogram || (readOnly ? '' : 'YN');
+  const monogram = extractMonogram(basics.name);
   const summaryValue = basics.summary ?? resume.summary ?? '';
   const hasSummaryText = Boolean(summaryValue && summaryValue.trim());
   const showSummary = readOnly
@@ -72,7 +71,7 @@ const ElegantTemplateContent: React.FC = () => {
       >
         {monogram && (
           <div
-            className={`flex items-center justify-center gap-3 mb-3 ${!realMonogram ? 'print:hidden' : ''}`}
+            className="flex items-center justify-center gap-3 mb-3"
             aria-hidden="true"
           >
             <span
@@ -85,16 +84,15 @@ const ElegantTemplateContent: React.FC = () => {
             />
             <span
               data-testid="elegant-monogram"
-              className="w-11 h-11 rounded-full border flex items-center justify-center text-sm font-semibold tracking-[0.14em] select-none"
+              data-monogram={monogram}
+              className="w-11 h-11 rounded-full border flex items-center justify-center text-sm font-semibold tracking-[0.14em] select-none before:content-[attr(data-monogram)]"
               style={{
                 fontFamily: 'var(--theme-heading-font)',
                 borderColor:
                   'var(--theme-accent, var(--theme-primary, #b45309))',
                 color: 'var(--theme-primary, #1e293b)',
               }}
-            >
-              {monogram}
-            </span>
+            />
             <span
               className="h-px w-12 sm:w-16"
               style={{
