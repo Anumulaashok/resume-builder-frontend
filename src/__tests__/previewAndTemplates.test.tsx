@@ -120,7 +120,17 @@ describe('ResumePreview fit-to-width scaling, zoom, and non-overlapping toolbar'
     // Toolbar must not be nested inside the scaled A4 page
     expect(page.contains(toolbar)).toBe(false);
     expect(toolbar.className).toContain('print:hidden');
+    expect(page).toHaveClass('resume-preview');
     expect(page.className).toContain('print:!transform-none');
+
+    // Zero-width ResizeObserver measurements (e.g. hidden mobile wrapper) preserve scale until visible
+    const viewport = screen.getByTestId('resume-preview-viewport');
+    const zoomPctBtn = screen.getByTestId('zoom-percentage-btn');
+    triggerViewportResize(viewport, 0);
+    expect(zoomPctBtn).toHaveTextContent('100%');
+    triggerViewportResize(viewport, 375);
+    const expectedMobileScale = Number(((375 - 2) / A4_WIDTH_PX).toFixed(4));
+    expect(zoomPctBtn).toHaveTextContent(`${Math.round(expectedMobileScale * 100)}%`);
 
     // Template switcher toggles between Modern and Professional
     fireEvent.click(screen.getByText('Templates'));

@@ -409,7 +409,7 @@ export const PublicResumeView: React.FC<PublicResumeViewProps> = ({
           <div
             ref={pageRef}
             data-testid="resume-preview-page"
-            className="bg-white shadow-card ring-1 ring-neutral-900/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
+            className="resume-preview bg-white shadow-card ring-1 ring-neutral-900/5 rounded-[2px] origin-top-left print:!w-full print:!min-h-0 print:!transform-none print:!shadow-none print:!ring-0 print:!rounded-none"
             style={{
               width: `${A4_WIDTH_PX}px`,
               minHeight: `${A4_HEIGHT_PX}px`,

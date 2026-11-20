@@ -464,7 +464,7 @@ function useIsDesktop(): boolean {
     ) {
       return true;
     }
-    return window.matchMedia("(min-width: 1024px), print").matches;
+    return window.matchMedia("(min-width: 1024px)").matches;
   });
 
   useEffect(() => {
@@ -474,7 +474,7 @@ function useIsDesktop(): boolean {
     ) {
       return;
     }
-    const mql = window.matchMedia("(min-width: 1024px), print");
+    const mql = window.matchMedia("(min-width: 1024px)");
     const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
 
     if (typeof mql.addEventListener === "function") {
@@ -1342,6 +1342,19 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
     setShowShareModal(true);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleBeforePrint = () => {
+      setShowOverflowMenu(false);
+    };
+    window.addEventListener("beforeprint", handleBeforePrint);
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint);
+    };
+  }, []);
 
   const handleExport = useCallback(() => {
     if (isExportingRef.current || loading) {
@@ -2324,7 +2337,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       <div className="flex-1 min-h-0 print:!block print:!h-auto print:!min-h-0">
         {isDesktop ? (
           <PanelGroup direction="horizontal" className="h-full print:!block print:!h-auto print:!overflow-visible">
-            <Panel defaultSize={55} minSize={38} className="h-full print:!hidden">
+            <Panel defaultSize={55} minSize={38} className="h-full print:hidden">
               {editorPanelContent}
             </Panel>
 
@@ -2332,7 +2345,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               aria-label="Resize editor and preview panels"
               title="Drag to resize panels"
               data-testid="panel-resize-handle"
-              className="w-2 bg-gray-200 hover:bg-blue-500 active:bg-blue-600 focus:outline-none focus-visible:bg-blue-500 transition-colors duration-150 flex items-center justify-center relative group cursor-col-resize print:!hidden"
+              className="w-2 bg-gray-200 hover:bg-blue-500 active:bg-blue-600 focus:outline-none focus-visible:bg-blue-500 transition-colors duration-150 flex items-center justify-center relative group cursor-col-resize print:hidden"
             >
               <div className="h-8 w-1 rounded-full bg-gray-400/70 group-hover:opacity-0 transition-opacity" />
               <div className="absolute h-10 w-4 rounded-full bg-blue-600 shadow-md border border-blue-400 opacity-0 group-hover:opacity-100 group-active:opacity-100 group-focus-visible:opacity-100 transition-opacity flex items-center justify-center gap-0.5 pointer-events-none">
@@ -2354,19 +2367,24 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               </div>
             </Panel>
           </PanelGroup>
-        ) : activeView === "editor" ? (
-          editorPanelContent
         ) : (
-          <div className="h-full bg-neutral-100 print:!h-auto print:!bg-white">
-            <ResumePreview
-              resume={resume}
-              onChange={handlePreviewChange}
-              onDownloadPdf={handleExport}
-              isPrinting={isExporting}
-              onExportTxt={handleExportTxt}
-              isExportingTxt={isExportingTxt}
-            />
-          </div>
+          <>
+            {activeView === "editor" && editorPanelContent}
+            <div
+              className={`${
+                activeView === "editor" ? "hidden print:block" : "h-full"
+              } bg-neutral-100 print:!h-auto print:!bg-white`}
+            >
+              <ResumePreview
+                resume={resume}
+                onChange={handlePreviewChange}
+                onDownloadPdf={handleExport}
+                isPrinting={isExporting}
+                onExportTxt={handleExportTxt}
+                isExportingTxt={isExportingTxt}
+              />
+            </div>
+          </>
         )}
       </div>
 

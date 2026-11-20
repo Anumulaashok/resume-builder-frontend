@@ -444,6 +444,7 @@ describe('Public Share & Privacy Controls', () => {
       expect(viewport.className).toContain('print:!p-0');
       expect(viewport.className).toContain('print:!bg-white');
       expect(scaler.className).toContain('print:!w-full');
+      expect(page).toHaveClass('resume-preview');
       expect(page.className).toContain('print:!transform-none');
       expect(page.className).toContain('print:!shadow-none');
     });
