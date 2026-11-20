@@ -67,7 +67,9 @@ export interface IResume {
   templateId?: string;
   themeConfig?: ThemeConfig;
   sharing?: ISharing;
+  source_fact_ids?: string[];
   content: {
+    source_fact_ids?: string[];
     basics: {
       name?: string;
       label?: string;
@@ -77,6 +79,7 @@ export interface IResume {
       website?: string;
       image?: string;
       summary?: string;
+      source_fact_ids?: string[];
       location?: {
         address?: string;
         city?: string;
@@ -115,6 +118,7 @@ export interface IResumeHistorySnapshot {
 export interface BaseSection {
   id: string;
   enabled?: boolean;
+  source_fact_ids?: string[];
 }
 
 export interface dateFields {
@@ -312,4 +316,5 @@ export interface ISection {
   >;
   enabled?: boolean;
   isCustom?: boolean;
+  source_fact_ids?: string[];
 }

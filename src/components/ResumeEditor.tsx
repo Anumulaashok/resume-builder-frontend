@@ -69,6 +69,7 @@ import {
 } from "../types/resume";
 import ResumePreview from "./ResumePreview";
 import SectionEditors, { DialogBox } from "./sections";
+import InlineBulletCoach from "./common/InlineBulletCoach";
 import ShareModal from "./ShareModal";
 import ReauthModal from "./ReauthModal";
 import VersionHistoryDrawer from "./VersionHistoryDrawer";
@@ -1696,6 +1697,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   const handleAddContent = (type: SectionType, item: any) => {
     const targetSectionId = addContent?.sectionId;
+    const safeItemId =
+      typeof item?.id === "string" && item.id.trim()
+        ? item.id.trim()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const safeItem =
+      item && item.id === safeItemId ? item : { ...(item || {}), id: safeItemId };
 
     setResume((prev) => {
       const updatedSections = prev.content.sections.map((section) => {
@@ -1708,12 +1715,17 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
         const existingContent = section.content || [];
         const existingItemIndex = existingContent.findIndex(
-          (contentItem) => contentItem.id === item.id
+          (contentItem) =>
+            Boolean(
+              contentItem &&
+                typeof contentItem.id === "string" &&
+                contentItem.id.trim() === safeItemId
+            )
         );
 
         if (existingItemIndex !== -1) {
           const updatedContent = [...existingContent];
-          updatedContent[existingItemIndex] = item;
+          updatedContent[existingItemIndex] = safeItem;
           return {
             ...section,
             content: updatedContent,
@@ -1722,7 +1734,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
         return {
           ...section,
-          content: [...existingContent, item],
+          content: [...existingContent, safeItem],
         };
       });
 
@@ -1755,16 +1767,20 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   };
 
   const handleToggleItemVisibility = (sectionId: string, itemId: string) => {
+    const safeSectionId = typeof sectionId === "string" ? sectionId.trim() : "";
+    const safeItemId = typeof itemId === "string" ? itemId.trim() : "";
+    if (!safeSectionId || !safeItemId) return;
+
     setResume((prev) => ({
       ...prev,
       content: {
         ...prev.content,
         sections: prev.content.sections.map((section) => {
-          if (section.id !== sectionId) return section;
+          if (section.id !== safeSectionId) return section;
           return {
             ...section,
             content: section.content.map((item) =>
-              item.id === itemId
+              item && typeof item.id === "string" && item.id.trim() === safeItemId
                 ? {
                     ...item,
                     enabled: item.enabled === false ? true : false,
@@ -1778,15 +1794,26 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   };
 
   const handleRemoveItem = (sectionId: string, itemId: string) => {
+    const safeSectionId = typeof sectionId === "string" ? sectionId.trim() : "";
+    const safeItemId = typeof itemId === "string" ? itemId.trim() : "";
+    if (!safeSectionId || !safeItemId) return;
+
     setResume((prev) => ({
       ...prev,
       content: {
         ...prev.content,
         sections: prev.content.sections.map((section) => {
-          if (section.id !== sectionId) return section;
+          if (section.id !== safeSectionId) return section;
           return {
             ...section,
-            content: section.content.filter((item) => item.id !== itemId),
+            content: section.content.filter(
+              (item) =>
+                !(
+                  item &&
+                  typeof item.id === "string" &&
+                  item.id.trim() === safeItemId
+                )
+            ),
           };
         }),
       },
@@ -1822,6 +1849,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     });
   }, [resume, searchTerm]);
 
+  const [isSummaryFocused, setIsSummaryFocused] = useState<boolean>(false);
   const summaryValue =
     resume.content?.basics?.summary ?? resume.summary ?? "";
 
@@ -2200,6 +2228,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 id="basics-summary"
                 rows={4}
                 value={summaryValue}
+                onFocus={() => setIsSummaryFocused(true)}
+                onBlur={() => setIsSummaryFocused(false)}
                 onChange={(e) =>
                   handleChange("basics", {
                     ...resume.content.basics,
@@ -2208,6 +2238,23 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 }
                 placeholder="Write a concise overview of your experience, core strengths, and impact..."
                 className="w-full px-3 py-2 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              />
+              <InlineBulletCoach
+                idPrefix="basics-summary-coach"
+                value={summaryValue}
+                isFocused={isSummaryFocused}
+                resumeId={effectiveResumeId}
+                resumeContext={resume}
+                sectionType="basics"
+                fieldKey="summary"
+                existingSourceFactIds={resume.content.basics.source_fact_ids}
+                onChange={(nextSummary, sourceFactIds) =>
+                  handleChange("basics", {
+                    ...resume.content.basics,
+                    summary: nextSummary,
+                    ...(sourceFactIds ? { source_fact_ids: sourceFactIds } : {}),
+                  })
+                }
               />
             </div>
           </div>
@@ -2541,6 +2588,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         {addContent !== null && (
           <SectionEditors
             content={addContent}
+            resumeId={effectiveResumeId}
+            resumeContext={resume}
             onClose={() => setAddContent(null)}
             onSave={handleAddContent}
           />

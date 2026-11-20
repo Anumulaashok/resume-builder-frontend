@@ -17,6 +17,24 @@ import {
   markResumeOmittedSummary,
   normalizeResume,
 } from "../utils/resumeNormalizer";
+import {
+  BulletCoachAction,
+  BulletCoachResult,
+} from "../utils/bulletCoach";
+
+export interface BulletCoachRequest {
+  resumeId?: string;
+  text: string;
+  action: BulletCoachAction;
+  sectionType?: string;
+  fieldKey?: string;
+  itemContext?: Record<string, any>;
+  resumeContext?: Partial<BaseResume>;
+  userMetric?: {
+    category?: string;
+    value?: string;
+  };
+}
 
 export interface ExportedDocument {
   blob: Blob;
@@ -154,6 +172,18 @@ class ResumeService {
       `/api/resumes/${id}/job-match`,
       { jobDescription, jobTitle: jobTitle || undefined }
     );
+    return response.data.data;
+  }
+
+  async coachBullet(params: BulletCoachRequest): Promise<BulletCoachResult> {
+    const { resumeId, ...body } = params;
+    const endpoint = resumeId
+      ? `/api/resumes/${encodeURIComponent(resumeId)}/bullets/coach`
+      : "/api/resumes/bullets/coach";
+    const response = await axiosInstance.post<{
+      success: boolean;
+      data: BulletCoachResult;
+    }>(endpoint, body);
     return response.data.data;
   }
 
