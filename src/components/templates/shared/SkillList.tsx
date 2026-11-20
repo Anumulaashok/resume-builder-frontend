@@ -469,6 +469,32 @@ export const SkillList: React.FC<SkillListProps> = ({
     (item: any) => extractKeywords(item).length > 0
   );
 
+  type MixedSkillSegment =
+    | { kind: 'group'; item: any; idx: number; keywords: string[] }
+    | { kind: 'ungrouped'; entries: Array<{ item: any; idx: number }> };
+
+  const buildMixedSkillSegments = (): MixedSkillSegment[] => {
+    const segments: MixedSkillSegment[] = [];
+    enabledItems.forEach((item: any, idx: number) => {
+      const keywords = extractKeywords(item);
+      if (keywords.length > 0) {
+        segments.push({ kind: 'group', item, idx, keywords });
+        return;
+      }
+      const label = item.name || item.category || item.title || '';
+      if (!canEdit && !label) {
+        return;
+      }
+      const last = segments[segments.length - 1];
+      if (last && last.kind === 'ungrouped') {
+        last.entries.push({ item, idx });
+      } else {
+        segments.push({ kind: 'ungrouped', entries: [{ item, idx }] });
+      }
+    });
+    return segments;
+  };
+
   if (effectiveVariant === 'comma') {
     if (!hasGroupedKeywords) {
       return (
@@ -501,6 +527,8 @@ export const SkillList: React.FC<SkillListProps> = ({
       );
     }
 
+    const segments = buildMixedSkillSegments();
+
     return (
       <div
         ref={containerRef}
@@ -508,9 +536,38 @@ export const SkillList: React.FC<SkillListProps> = ({
         data-skill-layout={isNarrow ? 'stacked' : 'inline'}
         className="space-y-2 min-w-0 max-w-full"
       >
-        {enabledItems.map((item: any, idx: number) => {
+        {segments.map((seg, segIdx) => {
+          if (seg.kind === 'ungrouped') {
+            return (
+              <div
+                key={`ungrouped-${segIdx}`}
+                data-skill-ungrouped="true"
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 max-w-full text-[0.96em] text-slate-700 [overflow-wrap:anywhere]"
+                style={{ overflowWrap: 'anywhere' }}
+              >
+                {seg.entries.map(({ item, idx }, entryIdx) => {
+                  const label = item.name || item.category || item.title || '';
+                  const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
+                  return (
+                    <React.Fragment key={item.id || `${label}-${idx}`}>
+                      {entryIdx > 0 && (
+                        <span className="text-slate-400" aria-hidden="true">
+                          •
+                        </span>
+                      )}
+                      <span className="inline-flex items-baseline gap-1">
+                        {renderEditableLabel(item, 'Skill', 'text-[0.96em]')}
+                        {levelNode}
+                      </span>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            );
+          }
+
+          const { item, idx, keywords } = seg;
           const groupName = item.name || item.category || item.title || '';
-          const keywords = extractKeywords(item);
           const levelNode = renderEditableLevel(item, 'text-xs italic text-slate-500');
 
           const groupRowClass = isNarrow
@@ -541,25 +598,23 @@ export const SkillList: React.FC<SkillListProps> = ({
                   <span className="font-bold text-slate-700 mr-0.5">:</span>
                 )}
               </div>
-              {keywords.length > 0 && (
-                <div
-                  className={commaListClass}
-                  style={{ overflowWrap: 'anywhere' }}
-                >
-                  {keywords.map((kw, kwIdx) => (
-                    <span
-                      key={`${kw}-${kwIdx}`}
-                      className="max-w-full min-w-0 [overflow-wrap:anywhere]"
-                      style={{ overflowWrap: 'anywhere' }}
-                    >
-                      {kw}
-                      {kwIdx < keywords.length - 1 && (
-                        <span className="text-slate-400">{', '}</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div
+                className={commaListClass}
+                style={{ overflowWrap: 'anywhere' }}
+              >
+                {keywords.map((kw, kwIdx) => (
+                  <span
+                    key={`${kw}-${kwIdx}`}
+                    className="max-w-full min-w-0 [overflow-wrap:anywhere]"
+                    style={{ overflowWrap: 'anywhere' }}
+                  >
+                    {kw}
+                    {kwIdx < keywords.length - 1 && (
+                      <span className="text-slate-400">{', '}</span>
+                    )}
+                  </span>
+                ))}
+              </div>
             </div>
           );
         })}
@@ -615,6 +670,8 @@ export const SkillList: React.FC<SkillListProps> = ({
     );
   }
 
+  const chipSegments = buildMixedSkillSegments();
+
   return (
     <div
       ref={containerRef}
@@ -622,9 +679,54 @@ export const SkillList: React.FC<SkillListProps> = ({
       data-skill-layout={isNarrow ? 'stacked' : 'inline'}
       className="space-y-2.5 min-w-0 max-w-full"
     >
-      {enabledItems.map((item: any, idx: number) => {
+      {chipSegments.map((seg, segIdx) => {
+        if (seg.kind === 'ungrouped') {
+          return (
+            <div
+              key={`ungrouped-${segIdx}`}
+              data-skill-ungrouped="true"
+              className="flex flex-wrap gap-1.5 min-w-0 max-w-full"
+            >
+              {seg.entries.map(({ item, idx }) => {
+                const label = item.name || item.category || item.title || '';
+                const levelLabel = formatSkillLevel(item.level);
+                if (!canEdit) {
+                  return (
+                    <span
+                      key={item.id || `${label}-${idx}`}
+                      className="inline-flex items-center gap-1.5 max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
+                      style={{ overflowWrap: 'anywhere' }}
+                    >
+                      {levelLabel ? (
+                        <>
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
+                          <span className="text-[11px] text-slate-500 font-normal shrink-0">
+                            {levelLabel}
+                          </span>
+                        </>
+                      ) : (
+                        label
+                      )}
+                    </span>
+                  );
+                }
+                return (
+                  <div
+                    key={item.id || idx}
+                    className="inline-flex items-center gap-1.5 max-w-full min-w-0 [overflow-wrap:anywhere] px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90"
+                    style={{ overflowWrap: 'anywhere' }}
+                  >
+                    {renderEditableLabel(item, 'Skill', 'text-xs font-medium')}
+                    {renderEditableLevel(item, 'text-[11px] text-slate-500 font-normal')}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+
+        const { item, idx, keywords } = seg;
         const groupName = item.name || item.category || item.title || '';
-        const keywords = extractKeywords(item);
         const levelNode = renderEditableLevel(item, 'text-xs text-slate-500');
 
         const groupRowClass = isNarrow
@@ -652,19 +754,17 @@ export const SkillList: React.FC<SkillListProps> = ({
               })}
               {levelNode}
             </div>
-            {keywords.length > 0 && (
-              <div className={chipListClass}>
-                {keywords.map((kw, kwIdx) => (
-                  <span
-                    key={`${kw}-${kwIdx}`}
-                    className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
-                    style={{ overflowWrap: 'anywhere' }}
-                  >
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div className={chipListClass}>
+              {keywords.map((kw, kwIdx) => (
+                <span
+                  key={`${kw}-${kwIdx}`}
+                  className="inline-flex items-center max-w-full min-w-0 [overflow-wrap:anywhere] px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/90 print:bg-slate-50 print:border-slate-300"
+                  style={{ overflowWrap: 'anywhere' }}
+                >
+                  {kw}
+                </span>
+              ))}
+            </div>
           </div>
         );
       })}

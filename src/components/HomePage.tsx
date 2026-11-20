@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { ArrowUpTrayIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { Resume, resumeService } from '../services/resume.service';
@@ -6,15 +6,53 @@ import { IPortfolio } from '../types/portfolio';
 import Header, { AppTab } from './common/Header';
 import CoverLettersWorkspace from './coverLetters/CoverLettersWorkspace';
 import ImportResumeModal from './ImportResumeModal';
-import JobMatch from './jobMatch/JobMatch';
+import JobMatch, { JobMatchSessionState } from './jobMatch/JobMatch';
 import JobTracker from './jobTracker/JobTracker';
-import { CheckMatchPrefill } from './jobTracker/ApplicationDrawer';
 import ResumeEditor from './ResumeEditor';
 import ResumeList from './ResumeList';
 import { PortfolioList } from './portfolio/PortfolioList';
 import { PortfolioEditor } from './portfolio/PortfolioEditor';
 import { removeToken } from '../utils/token';
 import { Container } from './ui/container';
+
+export const JOB_MATCH_SESSION_STORAGE_KEY = 'resume_builder_job_match_state';
+
+const EMPTY_JOB_MATCH_STATE: JobMatchSessionState = {
+  selectedId: '',
+  jobTitle: '',
+  jobDescription: '',
+  result: null,
+  checkedSuggestions: {},
+};
+
+const loadJobMatchSessionState = (): JobMatchSessionState => {
+  if (typeof window === 'undefined' || !window.sessionStorage) {
+    return EMPTY_JOB_MATCH_STATE;
+  }
+  try {
+    const raw = window.sessionStorage.getItem(JOB_MATCH_SESSION_STORAGE_KEY);
+    if (!raw) return EMPTY_JOB_MATCH_STATE;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return EMPTY_JOB_MATCH_STATE;
+    return {
+      selectedId: typeof parsed.selectedId === 'string' ? parsed.selectedId : '',
+      jobTitle: typeof parsed.jobTitle === 'string' ? parsed.jobTitle : '',
+      jobDescription: typeof parsed.jobDescription === 'string' ? parsed.jobDescription : '',
+      result:
+        parsed.result &&
+        typeof parsed.result === 'object' &&
+        typeof parsed.result.score === 'number'
+          ? parsed.result
+          : null,
+      checkedSuggestions:
+        parsed.checkedSuggestions && typeof parsed.checkedSuggestions === 'object'
+          ? parsed.checkedSuggestions
+          : {},
+    };
+  } catch {
+    return EMPTY_JOB_MATCH_STATE;
+  }
+};
 
 interface HomePageProps {
   onLogout?: () => void;
@@ -49,7 +87,10 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [portfolioView, setPortfolioView] = useState<'list' | 'editor'>(initialView);
-  const [jobMatchPrefill, setJobMatchPrefill] = useState<CheckMatchPrefill | null>(null);
+  const [jobMatchState, setJobMatchState] = useState<JobMatchSessionState>(() =>
+    loadJobMatchSessionState()
+  );
+  const [openedEditorFromJobMatch, setOpenedEditorFromJobMatch] = useState(false);
   const [coverLetterResetKey, setCoverLetterResetKey] = useState(0);
 
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
@@ -61,11 +102,31 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [resumeCount, setResumeCount] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    try {
+      window.sessionStorage.setItem(
+        JOB_MATCH_SESSION_STORAGE_KEY,
+        JSON.stringify(jobMatchState)
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [jobMatchState]);
+
   const handleResumesLoad = useCallback((resumes: Resume[]) => {
     setResumeCount(resumes.length);
   }, []);
 
   const handleLogout = () => {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      try {
+        window.sessionStorage.removeItem(JOB_MATCH_SESSION_STORAGE_KEY);
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    setJobMatchState(EMPTY_JOB_MATCH_STATE);
     removeToken();
     onLogout?.();
   };
@@ -123,6 +184,7 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
           onLogout={handleLogout}
           activeTab={activeTab}
           onTabChange={(tab) => {
+            setOpenedEditorFromJobMatch(false);
             setActiveTab(tab);
             if (tab === 'portfolios') setPortfolioView('list');
             if (tab === 'resumes') setActiveView('list');
@@ -195,9 +257,23 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
               initialResume={selectedResume || undefined}
               onSave={() => {
                 toast.success('Resume saved successfully!');
-                setActiveView('list');
+                if (openedEditorFromJobMatch) {
+                  setOpenedEditorFromJobMatch(false);
+                  setActiveView('list');
+                  setActiveTab('job-match');
+                } else {
+                  setActiveView('list');
+                }
               }}
-              onBack={() => setActiveView('list')}
+              onBack={() => {
+                if (openedEditorFromJobMatch) {
+                  setOpenedEditorFromJobMatch(false);
+                  setActiveView('list');
+                  setActiveTab('job-match');
+                } else {
+                  setActiveView('list');
+                }
+              }}
             />
           )}
         </>
@@ -210,9 +286,14 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
       {activeTab === 'job-match' && (
         <Container as="main" className="pt-24 sm:pt-28 pb-12">
           <JobMatch
-            initialResumeId={jobMatchPrefill?.resumeId}
-            initialJobDescription={jobMatchPrefill?.jobDescription}
-            initialJobTitle={jobMatchPrefill?.jobTitle}
+            persistedState={jobMatchState}
+            onStateChange={setJobMatchState}
+            onEditResume={(resume) => {
+              setSelectedResume(resume);
+              setOpenedEditorFromJobMatch(true);
+              setActiveTab('resumes');
+              setActiveView('editor');
+            }}
           />
         </Container>
       )}
@@ -221,7 +302,13 @@ export default function HomePage({ onLogout, user }: HomePageProps) {
         <Container as="main" className="pt-24 sm:pt-28 pb-12">
           <JobTracker
             onCheckMatch={(prefill) => {
-              setJobMatchPrefill(prefill);
+              setJobMatchState((prev) => ({
+                selectedId: prefill.resumeId || prev.selectedId,
+                jobDescription: prefill.jobDescription,
+                jobTitle: prefill.jobTitle ?? '',
+                result: null,
+                checkedSuggestions: {},
+              }));
               setActiveTab('job-match');
             }}
           />

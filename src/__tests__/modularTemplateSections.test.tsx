@@ -751,4 +751,60 @@ describe('Shared Template Primitives: 16-Section Polish & Safeguards', () => {
     const emptyDescPlaceholder = screen.getByText('Project summary and outcomes...');
     expect(emptyDescPlaceholder.className).toContain('print:hidden');
   });
+
+  it('renders ungrouped skill items as inline skill entries rather than empty group headings when mixed with grouped skills', () => {
+    const mixedSkillsResume: IResume = {
+      title: 'Mixed Skills Resume',
+      content: {
+        basics: { name: 'Casey Jordan' },
+        sections: [
+          {
+            id: 'sec-mixed-skills',
+            type: SectionType.SKILLS,
+            title: 'Skills',
+            content: [
+              {
+                id: 'grp-1',
+                name: 'Frontend Architecture',
+                subSkills: ['React', 'TypeScript'],
+              },
+              {
+                id: 'flat-1',
+                name: 'Go',
+              },
+              {
+                id: 'flat-2',
+                name: 'Express',
+              },
+            ],
+          },
+        ],
+        sectionOrder: ['sec-mixed-skills'],
+      },
+    };
+
+    const { container: modernContainer, unmount } = render(
+      <ModernTemplate resume={mixedSkillsResume} readOnly />
+    );
+    // Only the grouped item has [data-skill-group]; flat items render inside [data-skill-ungrouped="true"]
+    const modernGroups = modernContainer.querySelectorAll('[data-skill-group]');
+    expect(modernGroups).toHaveLength(1);
+    expect(modernGroups[0]).toHaveAttribute('data-skill-group', 'Frontend Architecture');
+    const modernUngrouped = modernContainer.querySelector('[data-skill-ungrouped="true"]');
+    expect(modernUngrouped).toBeInTheDocument();
+    expect(within(modernUngrouped as HTMLElement).getByText('Go')).toBeInTheDocument();
+    expect(within(modernUngrouped as HTMLElement).getByText('Express')).toBeInTheDocument();
+    unmount();
+
+    const { container: profContainer } = render(
+      <ProfessionalTemplate resume={mixedSkillsResume} readOnly />
+    );
+    const profGroups = profContainer.querySelectorAll('[data-skill-group]');
+    expect(profGroups).toHaveLength(1);
+    expect(profGroups[0]).toHaveAttribute('data-skill-group', 'Frontend Architecture');
+    const profUngrouped = profContainer.querySelector('[data-skill-ungrouped="true"]');
+    expect(profUngrouped).toBeInTheDocument();
+    expect(within(profUngrouped as HTMLElement).getByText('Go')).toBeInTheDocument();
+    expect(within(profUngrouped as HTMLElement).getByText('Express')).toBeInTheDocument();
+  });
 });
