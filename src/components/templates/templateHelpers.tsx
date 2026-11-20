@@ -301,14 +301,18 @@ export function formatItemDateRange(
   const start = formatDateWithPattern(item.startDate, dateFormat);
   const end = formatDateWithPattern(item.endDate, dateFormat);
   const singleDate = formatDateWithPattern(item.date, dateFormat);
+  const rawEnd = formatResumeDate(item.endDate);
+  const isOngoing =
+    Boolean(item.current || item.isCurrent) || /^present$/i.test(rawEnd.trim());
 
   if (start) {
-    const rawEnd = formatResumeDate(item.endDate);
-    const displayEnd = item.current || item.isCurrent || !rawEnd ? 'Present' : end;
-    return `${start} - ${displayEnd}`;
+    if (isOngoing) {
+      return `${start} - Present`;
+    }
+    return end ? `${start} - ${end}` : start;
   }
 
-  if (item.current || item.isCurrent) {
+  if (isOngoing) {
     return 'Present';
   }
 
@@ -328,6 +332,31 @@ export function formatItemDateRange(
     return item.period.trim();
   }
 
+  return '';
+}
+
+function toScalarString(val: unknown): string | undefined {
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  return undefined;
+}
+
+export function readCanonicalField(
+  item: Record<string, any> | undefined | null,
+  canonicalKey: string,
+  ...aliases: string[]
+): string {
+  if (!item) return '';
+  const canonicalVal = toScalarString(item[canonicalKey]);
+  if (canonicalVal !== undefined) {
+    return canonicalVal;
+  }
+  for (let i = 0; i < aliases.length; i += 1) {
+    const aliasVal = toScalarString(item[aliases[i]]);
+    if (aliasVal !== undefined && aliasVal !== '') {
+      return aliasVal;
+    }
+  }
   return '';
 }
 

@@ -8,6 +8,7 @@ import {
   formatLinkLabel,
   getOrderedSections,
   normalizeHref,
+  readCanonicalField,
   resolveSectionKind,
 } from './templateHelpers';
 import {
@@ -77,13 +78,17 @@ const AcademicPublicationsSection: React.FC<{ section: ISection }> = ({
           className="list-none pl-0 m-0"
         >
           {enabledItems.map((item: any, idx: number) => {
-            const titleKey = item.title !== undefined ? 'title' : 'name';
-            const titleVal = item.title || item.name || '';
-            const publisherVal = item.publisher || '';
+            const titleVal = readCanonicalField(item, 'title', 'name');
+            const publisherVal = readCanonicalField(item, 'publisher');
             const authorsVal =
               typeof item.authors === 'string' ? item.authors.trim() : '';
-            const itemUrl =
-              item.url || item.website || item.link || item.liveUrl || '';
+            const itemUrl = readCanonicalField(
+              item,
+              'url',
+              'website',
+              'link',
+              'liveUrl'
+            );
             const highlights = extractHighlights(item);
             const hasDate = Boolean(formatItemDateRange(item, dateFormat));
             const isLast = idx === enabledItems.length - 1;
@@ -125,7 +130,7 @@ const AcademicPublicationsSection: React.FC<{ section: ISection }> = ({
                                   updateSectionItem(
                                     section.id,
                                     item.id,
-                                    titleKey,
+                                    'title',
                                     v
                                   )
                           }
@@ -197,7 +202,7 @@ const AcademicPublicationsSection: React.FC<{ section: ISection }> = ({
                   </div>
 
                   <Description
-                    value={item.description || item.summary || ''}
+                    value={readCanonicalField(item, 'description', 'summary')}
                     sectionId={section.id}
                     itemId={item.id}
                     field="description"
@@ -233,11 +238,22 @@ const AcademicReferencesSection: React.FC<{ section: ISection }> = ({
           className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4"
         >
           {enabledItems.map((item: any, idx: number) => {
-            const roleAndCompany = [item.position, item.company]
+            const positionVal = readCanonicalField(item, 'position', 'role');
+            const roleAndCompany = [positionVal, item.company]
               .filter(Boolean)
               .join(', ');
-            const contactVal = item.contact || item.email || item.phone || '';
-            const descVal = item.description || item.reference || '';
+            const contactVal = readCanonicalField(
+              item,
+              'contact',
+              'email',
+              'phone'
+            );
+            const descVal = readCanonicalField(
+              item,
+              'description',
+              'reference',
+              'summary'
+            );
 
             return (
               <div

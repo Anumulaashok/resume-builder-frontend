@@ -123,12 +123,12 @@ export interface dateFields {
 }
 
 export interface WorkItem extends BaseSection {
-  name: string;
+  name?: string;
   company?: string;
   position: string;
   url?: string;
-  startDate: string;
-  endDate?: string;
+  startDate: string | dateFields;
+  endDate?: string | dateFields;
   current?: boolean;
   location?: string;
   description?: string;
@@ -139,9 +139,10 @@ export interface EducationItem extends BaseSection {
   institution?: string;
   degree: string;
   field: string;
+  gpa?: string;
   url?: string;
-  startDate?: dateFields;
-  endDate?: dateFields;
+  startDate?: dateFields | string;
+  endDate?: dateFields | string;
   current?: boolean;
   location?: string;
   score?: string;
@@ -159,7 +160,7 @@ export interface SkillItem extends BaseSection {
 export interface LanguageItem extends BaseSection {
   name: string;
   language?: string;
-  level?: string;
+  level?: number | string;
   fluency?: string;
   proficiency?: number;
 }
@@ -167,7 +168,7 @@ export interface LanguageItem extends BaseSection {
 export interface CertificateItem extends BaseSection {
   name: string;
   issuer?: string;
-  date?: string;
+  date?: string | dateFields;
   url?: string;
   description?: string;
 }
@@ -182,13 +183,14 @@ export interface ProjectItem extends BaseSection {
   name: string;
   description?: string;
   highlights?: string[];
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | dateFields;
+  endDate?: string | dateFields;
   current?: boolean;
   url?: string;
   technologies?: string[];
   position?: string;
   company?: string;
+  location?: string;
   type?: string;
 }
 
@@ -196,7 +198,8 @@ export interface CourseItem extends BaseSection {
   name: string;
   course?: string;
   institution?: string;
-  date?: string;
+  date?: string | dateFields;
+  url?: string;
   description?: string;
 }
 
@@ -205,7 +208,8 @@ export interface AwardItem extends BaseSection {
   title?: string;
   issuer?: string;
   awarder?: string;
-  date?: string;
+  date?: string | dateFields;
+  url?: string;
   description?: string;
 }
 
@@ -214,8 +218,8 @@ export interface OrganizationItem extends BaseSection {
   organization?: string;
   position?: string;
   url?: string;
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | dateFields;
+  endDate?: string | dateFields;
   current?: boolean;
   location?: string;
   description?: string;
@@ -225,7 +229,7 @@ export interface OrganizationItem extends BaseSection {
 export interface PublicationItem extends BaseSection {
   title: string;
   publisher?: string;
-  date?: string;
+  date?: string | dateFields;
   url?: string;
   description?: string;
 }
@@ -235,24 +239,27 @@ export interface ReferenceItem extends BaseSection {
   company?: string;
   position?: string;
   contact?: string;
+  url?: string;
   reference?: string;
   description?: string;
 }
 
 export interface SoftSkillItem extends BaseSection {
   name: string;
-  level?: number;
+  level?: number | string;
 }
 
 export interface AchievementItem extends BaseSection {
   name: string;
-  date?: string;
+  issuer?: string;
+  date?: string | dateFields;
+  url?: string;
   description?: string;
 }
 
 export interface TechnicalSkillItem extends BaseSection {
   name: string;
-  level?: number;
+  level?: number | string;
   technologies?: string[];
 }
 

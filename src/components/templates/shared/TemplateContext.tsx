@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { IResume } from '../../../types/resume';
+import { normalizeSectionItem } from '../../../utils/resumeNormalizer';
 import { DateFormatPattern } from '../templateHelpers';
 
 export type HeadingStyleVariant = 'underline' | 'bar' | 'caps' | 'pill' | 'side-label';
@@ -81,6 +82,7 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
     patch: Record<string, any>
   ) => {
     if (effectiveReadOnly || !onChange) return;
+    const explicitKeys = Object.keys(patch);
     onChange({
       ...resume,
       content: {
@@ -91,7 +93,13 @@ export const TemplateProvider: React.FC<TemplateProviderProps> = ({
                 ...sec,
                 content: Array.isArray(sec.content)
                   ? sec.content.map((item) =>
-                      item && item.id === itemId ? { ...item, ...patch } : item
+                      item && item.id === itemId
+                        ? normalizeSectionItem(
+                            sec,
+                            { ...item, ...patch },
+                            { explicitKeys }
+                          )
+                        : item
                     )
                   : sec.content,
               }

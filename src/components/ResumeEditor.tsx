@@ -59,6 +59,7 @@ import { resumeService } from "../services/resume.service";
 import {
   hasResumeOmittedSummary,
   normalizeResume,
+  normalizeSectionItem,
 } from "../utils/resumeNormalizer";
 import {
   dateFields,
@@ -270,15 +271,44 @@ function formatItemDateRange(item: any): string {
   const start = formatResumeDate(item?.startDate);
   const end = formatResumeDate(item?.endDate);
   const single = formatResumeDate(item?.date);
+  const isOngoing =
+    Boolean(item?.current || item?.isCurrent) || /^present$/i.test(end.trim());
 
   if (start) {
-    const endLabel = item?.current || !end ? "Present" : end;
-    return `${start} – ${endLabel}`;
+    if (isOngoing) return `${start} – Present`;
+    return end ? `${start} – ${end}` : start;
   }
-  if (item?.current) {
+  if (isOngoing) {
     return "Present";
   }
   return end || single || "";
+}
+
+function readCanonicalString(
+  item: Record<string, any>,
+  canonicalKey: string,
+  ...aliases: string[]
+): string {
+  if (item[canonicalKey] !== undefined && item[canonicalKey] !== null) {
+    return String(item[canonicalKey]).trim();
+  }
+  for (let i = 0; i < aliases.length; i += 1) {
+    const val = item[aliases[i]];
+    if (val !== undefined && val !== null && String(val).trim()) {
+      return String(val).trim();
+    }
+  }
+  return "";
+}
+
+function formatProficiencyLabel(rawLevel: unknown): string {
+  if (typeof rawLevel === "number" && !Number.isNaN(rawLevel)) {
+    return rawLevel <= 5 ? `Level ${rawLevel}/5` : `${rawLevel}%`;
+  }
+  if (typeof rawLevel === "string") {
+    return rawLevel.trim();
+  }
+  return "";
 }
 
 export function getItemDisplayLines(
@@ -293,8 +323,20 @@ export function getItemDisplayLines(
 
   switch (sectionType) {
     case SectionType.WORK: {
-      const company = (item.company || item.name || "").trim();
-      const position = (item.position || "").trim();
+      const company = readCanonicalString(
+        item,
+        "company",
+        "name",
+        "organization",
+        "employer"
+      );
+      const position = readCanonicalString(
+        item,
+        "position",
+        "role",
+        "jobTitle",
+        "title"
+      );
       const primary = company || position || "Untitled Role";
       const secondary = [
         company && position ? position : "",
@@ -307,22 +349,34 @@ export function getItemDisplayLines(
     }
 
     case SectionType.EDUCATION: {
-      const institution = (item.institution || "").trim();
-      const degree = (item.degree || "").trim();
-      const field = (item.field || "").trim();
+      const institution = readCanonicalString(
+        item,
+        "institution",
+        "school",
+        "name"
+      );
+      const degree = readCanonicalString(item, "degree", "studyType");
+      const field = readCanonicalString(item, "field", "area");
+      const gpa = readCanonicalString(item, "gpa", "score");
+      const gpaLabel = gpa ? `GPA: ${gpa}` : "";
 
       if (institution) {
         const degreeField = [degree, field].filter(Boolean).join(" in ");
         return {
           primary: institution,
-          secondary: [degreeField, dateRange, item.location]
+          secondary: [degreeField, gpaLabel, dateRange, item.location]
             .filter(Boolean)
             .join(" · "),
         };
       }
 
       const primary = degree || field || "Untitled Education";
-      const secondary = [degree && field ? field : "", dateRange, item.location]
+      const secondary = [
+        degree && field ? field : "",
+        gpaLabel,
+        dateRange,
+        item.location,
+      ]
         .filter(Boolean)
         .join(" · ");
       return { primary, secondary };
@@ -331,15 +385,10 @@ export function getItemDisplayLines(
     case SectionType.SKILLS:
     case SectionType.TECK_SKILLS:
     case SectionType.SOFTSKILSS: {
-      const primary = (item.name || item.title || "").trim() || "Untitled Skill";
-      const levelStr =
-        typeof item.level === "number"
-          ? item.level <= 5
-            ? `Level ${item.level}/5`
-            : `${item.level}%`
-          : typeof item.level === "string"
-          ? item.level.trim()
-          : "";
+      const primary =
+        readCanonicalString(item, "name", "category", "title") ||
+        "Untitled Skill";
+      const levelStr = formatProficiencyLabel(item.level);
       const tags = Array.isArray(item.technologies)
         ? item.technologies.join(", ")
         : Array.isArray(item.subSkills)
@@ -353,20 +402,29 @@ export function getItemDisplayLines(
 
     case SectionType.PROJECTS: {
       const primary =
-        (item.name || item.title || "").trim() || "Untitled Project";
+        readCanonicalString(item, "name", "title") || "Untitled Project";
       const techs = Array.isArray(item.technologies)
         ? item.technologies.join(", ")
         : "";
+      const url = readCanonicalString(
+        item,
+        "url",
+        "website",
+        "link",
+        "liveUrl"
+      );
+      const desc = readCanonicalString(item, "description", "summary");
       const secondary =
-        [dateRange, techs, item.url].filter(Boolean).join(" · ") ||
-        (item.description || "").trim();
+        [dateRange, techs, url].filter(Boolean).join(" · ") || desc;
       return { primary, secondary };
     }
 
     case SectionType.LANGUAGES: {
       const primary =
-        (item.name || item.language || "").trim() || "Untitled Language";
-      const fluency = (item.fluency || item.level || "").trim();
+        readCanonicalString(item, "name", "language") || "Untitled Language";
+      const rawLevel =
+        item.level !== undefined ? item.level : item.fluency;
+      const fluency = formatProficiencyLabel(rawLevel);
       const prof =
         typeof item.proficiency === "number" ? `${item.proficiency}%` : "";
       return {
@@ -377,7 +435,7 @@ export function getItemDisplayLines(
 
     case SectionType.CERTIFICATES: {
       const primary =
-        (item.name || item.title || "").trim() || "Untitled Certificate";
+        readCanonicalString(item, "name", "title") || "Untitled Certificate";
       return {
         primary,
         secondary: [item.issuer, dateRange].filter(Boolean).join(" · "),
@@ -386,7 +444,8 @@ export function getItemDisplayLines(
 
     case SectionType.COURSES: {
       const primary =
-        (item.course || item.name || "").trim() || "Untitled Course";
+        readCanonicalString(item, "name", "course", "title") ||
+        "Untitled Course";
       return {
         primary,
         secondary: [item.institution, dateRange].filter(Boolean).join(" · "),
@@ -396,28 +455,33 @@ export function getItemDisplayLines(
     case SectionType.AWARDS:
     case SectionType.ACHIVEMENTS: {
       const primary =
-        (item.title || item.name || "").trim() || "Untitled Award";
+        readCanonicalString(item, "name", "title") || "Untitled Award";
+      const issuer = readCanonicalString(
+        item,
+        "issuer",
+        "organization",
+        "awarder"
+      );
       return {
         primary,
-        secondary: [item.awarder || item.issuer, dateRange]
-          .filter(Boolean)
-          .join(" · "),
+        secondary: [issuer, dateRange].filter(Boolean).join(" · "),
       };
     }
 
     case SectionType.ORGANIZATIONS: {
       const primary =
-        (item.organization || item.name || "").trim() ||
+        readCanonicalString(item, "name", "organization") ||
         "Untitled Organization";
+      const position = readCanonicalString(item, "position", "role");
       return {
         primary,
-        secondary: [item.position, dateRange].filter(Boolean).join(" · "),
+        secondary: [position, dateRange].filter(Boolean).join(" · "),
       };
     }
 
     case SectionType.PUBLICATIONS: {
       const primary =
-        (item.title || item.name || "").trim() || "Untitled Publication";
+        readCanonicalString(item, "title", "name") || "Untitled Publication";
       return {
         primary,
         secondary: [item.publisher, dateRange].filter(Boolean).join(" · "),
@@ -425,32 +489,36 @@ export function getItemDisplayLines(
     }
 
     case SectionType.REFERENCES: {
-      const primary = (item.name || "").trim() || "Untitled Reference";
-      const roleAtCo = [item.position, item.company]
-        .filter(Boolean)
-        .join(" at ");
+      const primary = readCanonicalString(item, "name") || "Untitled Reference";
+      const position = readCanonicalString(item, "position", "role");
+      const roleAtCo = [position, item.company].filter(Boolean).join(" at ");
+      const contact = readCanonicalString(
+        item,
+        "contact",
+        "email",
+        "phone"
+      );
       return {
         primary,
-        secondary: [roleAtCo, item.contact || item.email || item.phone]
-          .filter(Boolean)
-          .join(" · "),
+        secondary: [roleAtCo, contact].filter(Boolean).join(" · "),
       };
     }
 
     default: {
       const primary =
-        (
-          item.title ||
-          item.name ||
-          item.institution ||
-          item.company ||
-          item.degree ||
-          ""
-        ).trim() || "Untitled Item";
+        readCanonicalString(
+          item,
+          "title",
+          "name",
+          "institution",
+          "company",
+          "degree"
+        ) || "Untitled Item";
+      const desc = readCanonicalString(item, "description", "summary");
       const secondary =
         [item.subtitle || item.position, dateRange, item.location]
           .filter(Boolean)
-          .join(" · ") || (item.description || "").trim();
+          .join(" · ") || desc;
       return { primary, secondary };
     }
   }
@@ -1546,8 +1614,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.EDUCATION:
         newItem = {
           ...newItem,
+          institution: "",
           degree: "",
           field: "",
+          gpa: "",
+          url: "",
           startDate: {} as dateFields,
           endDate: {} as dateFields,
           current: false,
@@ -1559,7 +1630,6 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       case SectionType.WORK:
         newItem = {
           ...newItem,
-          name: "",
           company: "",
           position: "",
           startDate: "",
@@ -1584,8 +1654,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         newItem = {
           ...newItem,
           name: "",
-          language: "",
-          fluency: "",
+          level: "",
         };
         break;
 
@@ -1594,7 +1663,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           ...newItem,
           name: "",
           issuer: "",
-          date: {} as dateFields,
+          date: "",
           url: "",
         };
         break;
@@ -1603,6 +1672,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         newItem = {
           ...newItem,
           name: "",
+          description: "",
         };
         break;
 
@@ -1612,8 +1682,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           name: "",
           description: "",
           url: "",
-          startDate: {} as dateFields,
-          endDate: {} as dateFields,
+          startDate: "",
+          endDate: "",
           current: false,
           technologies: [],
         };
@@ -1623,9 +1693,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         newItem = {
           ...newItem,
           name: "",
-          course: "",
           institution: "",
-          date: {} as dateFields,
+          date: "",
           description: "",
         };
         break;
@@ -1635,9 +1704,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         newItem = {
           ...newItem,
           name: "",
-          title: "",
-          awarder: "",
-          date: {} as dateFields,
+          issuer: "",
+          date: "",
           description: "",
         };
         break;
@@ -1646,10 +1714,9 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         newItem = {
           ...newItem,
           name: "",
-          organization: "",
           position: "",
-          startDate: {} as dateFields,
-          endDate: {} as dateFields,
+          startDate: "",
+          endDate: "",
           current: false,
           description: "",
         };
@@ -1660,7 +1727,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           ...newItem,
           title: "",
           publisher: "",
-          date: {} as dateFields,
+          date: "",
           url: "",
           description: "",
         };
@@ -1672,9 +1739,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           name: "",
           position: "",
           company: "",
-          phone: "",
-          email: "",
-          reference: "",
+          contact: "",
+          description: "",
         };
         break;
 
@@ -1684,14 +1750,19 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           ...newItem,
           title: "",
           subtitle: "",
-          startDate: {} as dateFields,
-          endDate: {} as dateFields,
+          startDate: "",
+          endDate: "",
+          current: false,
           location: "",
           description: "",
         };
     }
 
-    setAddContent({ type: section.type, item: newItem, sectionId: section.id });
+    setAddContent({
+      type: section.type,
+      item: normalizeSectionItem(section, newItem),
+      sectionId: section.id,
+    });
   };
 
   const handleAddContent = (type: SectionType, item: any) => {
@@ -1706,14 +1777,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           return section;
         }
 
+        const normalizedItem = normalizeSectionItem(section, item);
         const existingContent = section.content || [];
         const existingItemIndex = existingContent.findIndex(
-          (contentItem) => contentItem.id === item.id
+          (contentItem) => contentItem.id === normalizedItem.id
         );
 
         if (existingItemIndex !== -1) {
           const updatedContent = [...existingContent];
-          updatedContent[existingItemIndex] = item;
+          updatedContent[existingItemIndex] = normalizedItem;
           return {
             ...section,
             content: updatedContent,
@@ -1722,7 +1794,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
         return {
           ...section,
-          content: [...existingContent, item],
+          content: [...existingContent, normalizedItem],
         };
       });
 

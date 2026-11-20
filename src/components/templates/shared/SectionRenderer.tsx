@@ -2,7 +2,6 @@ import React from 'react';
 import { IResume, ISection } from '../../../types/resume';
 import { InlineEdit } from '../../ui/InlineEdit';
 import {
-  buildSyncedFieldPatch,
   CanonicalSectionKind,
   extractCustomExtraFields,
   extractHighlights,
@@ -10,6 +9,7 @@ import {
   formatSkillLevel,
   getOrderedSections,
   parseSkillLevelInput,
+  readCanonicalField,
   resolveSectionKind,
 } from '../templateHelpers';
 import { Bullets } from './Bullets';
@@ -108,9 +108,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
           }`}
         >
           {enabledItems.map((item: any, idx: number) => {
-            const langKey = item.name !== undefined ? 'name' : 'language';
-            const langVal = item.name || item.language || '';
-            const levelKey = item.level !== undefined ? 'level' : 'fluency';
+            const langVal = readCanonicalField(item, 'name', 'language');
             const rawLevel = item.level !== undefined ? item.level : item.fluency;
             const levelVal = formatSkillLevel(rawLevel);
             const showExtraProficiencyPct =
@@ -130,7 +128,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                   onChange={
                     isReadOnly
                       ? undefined
-                      : (v) => ctx.updateSectionItem(section.id, item.id, langKey, v)
+                      : (v) => ctx.updateSectionItem(section.id, item.id, 'name', v)
                   }
                   readOnly={isReadOnly}
                   placeholder="Language"
@@ -149,12 +147,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                                 ctx.updateSectionItemPatch(
                                   section.id,
                                   item.id,
-                                  buildSyncedFieldPatch(
-                                    item,
-                                    levelKey,
-                                    parseSkillLevelInput(v),
-                                    ['level', 'fluency']
-                                  )
+                                  { level: parseSkillLevelInput(v) }
                                 )
                         }
                         readOnly={isReadOnly}
@@ -187,7 +180,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
         return (
           <div data-section-kind="interests" className="flex flex-wrap gap-1.5 min-w-0 max-w-full">
             {enabledItems.map((item: any, idx: number) => {
-              const nameVal = item.name || item.title || '';
+              const nameVal = readCanonicalField(item, 'name', 'title');
               if (isReadOnly) {
                 if (!nameVal) return null;
                 return (
@@ -227,7 +220,13 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
     return enabledItems.map((item: any, idx: number) => {
       const highlights = extractHighlights(item);
       const keywords = extractKeywords(item);
-      const itemUrl = item.url || item.website || item.link || item.liveUrl || '';
+      const itemUrl = readCanonicalField(
+        item,
+        'url',
+        'website',
+        'link',
+        'liveUrl'
+      );
       const isLast = idx === enabledItems.length - 1;
       const itemClassName = isLast
         ? 'break-inside-avoid'
@@ -237,24 +236,21 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
         : { marginBottom: 'var(--theme-item-spacing, 0.875rem)' };
 
       if (kind === 'work') {
-        const positionKey =
-          item.position !== undefined
-            ? 'position'
-            : item.role !== undefined
-            ? 'role'
-            : 'position';
-        const positionVal =
-          item.position || item.role || item.jobTitle || item.title || '';
-        const companyKey = item.company !== undefined ? 'company' : 'name';
-        const companyVal =
-          item.company || item.name || item.organization || item.employer || '';
-        const descKey =
-          item.description !== undefined
-            ? 'description'
-            : item.summary !== undefined
-            ? 'summary'
-            : 'description';
-        const descVal = item.description ?? item.summary ?? '';
+        const positionVal = readCanonicalField(
+          item,
+          'position',
+          'role',
+          'jobTitle',
+          'title'
+        );
+        const companyVal = readCanonicalField(
+          item,
+          'company',
+          'name',
+          'organization',
+          'employer'
+        );
+        const descVal = readCanonicalField(item, 'description', 'summary');
 
         return (
           <div
@@ -268,10 +264,10 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Position"
               sectionId={section.id}
               itemId={item.id}
-              titleField={positionKey}
+              titleField="position"
               subtitle={companyVal}
               subtitlePlaceholder="Company"
-              subtitleField={companyKey}
+              subtitleField="company"
               showSubtitleWhenEmptyInEdit
               url={itemUrl}
               urlPlacement="subtitle"
@@ -284,7 +280,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               value={descVal}
               sectionId={section.id}
               itemId={item.id}
-              field={descKey}
+              field="description"
               readOnly={isReadOnly}
               placeholder="Describe key responsibilities and achievements..."
               showWhenEmptyInEdit
@@ -297,31 +293,34 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
 
       if (kind === 'education') {
         const degreeVal =
-          item.degree ||
-          [item.studyType, item.area].filter(Boolean).join(' in ') ||
-          '';
-        const institutionKey =
-          item.institution !== undefined
-            ? 'institution'
-            : item.school !== undefined
-            ? 'school'
-            : item.name !== undefined
-            ? 'name'
-            : null;
-        const institutionVal = item.institution || item.school || item.name || '';
+          item.degree !== undefined
+            ? String(item.degree)
+            : [item.studyType, item.area].filter(Boolean).join(' in ') || '';
+        const institutionVal = readCanonicalField(
+          item,
+          'institution',
+          'school',
+          'name'
+        );
         const fieldVal =
-          item.field || (item.degree && item.area ? item.area : '') || '';
-        const gpaVal = item.gpa || item.score || '';
-        const descVal = item.description ?? item.summary ?? '';
+          item.field !== undefined
+            ? String(item.field)
+            : item.degree && item.area
+            ? String(item.area)
+            : '';
+        const gpaVal = readCanonicalField(item, 'gpa', 'score');
+        const descVal = readCanonicalField(item, 'description', 'summary');
+        const showInstitutionSlot = Boolean(institutionVal || !isReadOnly);
+        const showFieldSlot = Boolean(fieldVal || !isReadOnly);
 
         const extraEducationMeta = (
           <>
-            {institutionVal && fieldVal && (
+            {showInstitutionSlot && showFieldSlot && (
               <span className="text-slate-400" aria-hidden="true">
                 ·
               </span>
             )}
-            {(fieldVal || (!institutionVal && !isReadOnly)) && (
+            {showFieldSlot && (
               <InlineEdit
                 value={fieldVal}
                 onChange={
@@ -330,7 +329,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
                     : (v) => ctx.updateSectionItem(section.id, item.id, 'field', v)
                 }
                 readOnly={isReadOnly}
-                placeholder="Institution / Field of Study"
+                placeholder="Field of Study"
                 textClassName={
                   tone === 'classic'
                     ? 'text-[0.96em] text-slate-700 italic'
@@ -358,9 +357,11 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               itemId={item.id}
               titleField="degree"
               subtitle={institutionVal}
-              subtitleField={institutionKey}
+              subtitlePlaceholder="Institution"
+              subtitleField="institution"
+              showSubtitleWhenEmptyInEdit
               extraSubtitle={
-                institutionVal && !fieldVal && !gpaVal && isReadOnly
+                !fieldVal && !gpaVal && isReadOnly
                   ? undefined
                   : extraEducationMeta
               }
@@ -386,11 +387,15 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'projects') {
-        const titleKey = item.name !== undefined ? 'name' : 'title';
-        const titleVal = item.name || item.title || '';
-        const roleVal = item.position || item.role || '';
-        const companyVal = item.company || item.organization || item.entity || '';
-        const descVal = item.description ?? item.summary ?? '';
+        const titleVal = readCanonicalField(item, 'name', 'title');
+        const roleVal = readCanonicalField(item, 'position', 'role');
+        const companyVal = readCanonicalField(
+          item,
+          'company',
+          'organization',
+          'entity'
+        );
+        const descVal = readCanonicalField(item, 'description', 'summary');
 
         const projectExtraMeta = companyVal ? (
           <>
@@ -423,7 +428,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Project Name"
               sectionId={section.id}
               itemId={item.id}
-              titleField={titleKey}
+              titleField="name"
               subtitle={roleVal}
               extraSubtitle={projectExtraMeta}
               url={itemUrl}
@@ -450,8 +455,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'certificates') {
-        const nameKey = item.name !== undefined ? 'name' : 'title';
-        const nameVal = item.name || item.title || '';
+        const nameVal = readCanonicalField(item, 'name', 'title');
         return (
           <div
             key={item.id || idx}
@@ -464,8 +468,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Certificate Name"
               sectionId={section.id}
               itemId={item.id}
-              titleField={nameKey}
-              subtitle={item.issuer || ''}
+              titleField="name"
+              subtitle={readCanonicalField(item, 'issuer')}
               subtitlePlaceholder="Issuing Organization"
               subtitleField="issuer"
               url={itemUrl}
@@ -475,7 +479,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               tone={tone}
             />
             <Description
-              value={item.description || ''}
+              value={readCanonicalField(item, 'description', 'summary')}
               sectionId={section.id}
               itemId={item.id}
               field="description"
@@ -488,10 +492,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'awards') {
-        const nameKey = item.name !== undefined ? 'name' : 'title';
-        const nameVal = item.name || item.title || '';
-        const issuerKey = item.issuer !== undefined ? 'issuer' : 'awarder';
-        const issuerVal = item.issuer || item.awarder || '';
+        const nameVal = readCanonicalField(item, 'name', 'title');
+        const issuerVal = readCanonicalField(item, 'issuer', 'awarder');
         return (
           <div
             key={item.id || idx}
@@ -504,10 +506,10 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Award Title"
               sectionId={section.id}
               itemId={item.id}
-              titleField={nameKey}
+              titleField="name"
               subtitle={issuerVal}
               subtitlePlaceholder="Awarded By"
-              subtitleField={issuerKey}
+              subtitleField="issuer"
               url={itemUrl}
               urlPlacement="title"
               item={item}
@@ -515,7 +517,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               tone={tone}
             />
             <Description
-              value={item.description || ''}
+              value={readCanonicalField(item, 'description', 'summary')}
               sectionId={section.id}
               itemId={item.id}
               field="description"
@@ -528,9 +530,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'courses') {
-        const nameKey =
-          item.name !== undefined ? 'name' : item.course !== undefined ? 'course' : 'name';
-        const nameVal = item.name || item.course || item.title || '';
+        const nameVal = readCanonicalField(item, 'name', 'course', 'title');
         return (
           <div
             key={item.id || idx}
@@ -543,8 +543,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Course Name"
               sectionId={section.id}
               itemId={item.id}
-              titleField={nameKey}
-              subtitle={item.institution || ''}
+              titleField="name"
+              subtitle={readCanonicalField(item, 'institution')}
               subtitlePlaceholder="Institution"
               subtitleField="institution"
               url={itemUrl}
@@ -554,7 +554,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               tone={tone}
             />
             <Description
-              value={item.description || ''}
+              value={readCanonicalField(item, 'description', 'summary')}
               sectionId={section.id}
               itemId={item.id}
               field="description"
@@ -567,8 +567,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'organizations') {
-        const nameKey = item.name !== undefined ? 'name' : 'organization';
-        const nameVal = item.name || item.organization || '';
+        const nameVal = readCanonicalField(item, 'name', 'organization');
         return (
           <div
             key={item.id || idx}
@@ -581,8 +580,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Organization"
               sectionId={section.id}
               itemId={item.id}
-              titleField={nameKey}
-              subtitle={item.position || item.role || ''}
+              titleField="name"
+              subtitle={readCanonicalField(item, 'position', 'role')}
               subtitlePlaceholder="Role"
               subtitleField="position"
               url={itemUrl}
@@ -593,7 +592,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               tone={tone}
             />
             <Description
-              value={item.description || ''}
+              value={readCanonicalField(item, 'description', 'summary')}
               sectionId={section.id}
               itemId={item.id}
               field="description"
@@ -606,8 +605,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'publications') {
-        const titleKey = item.title !== undefined ? 'title' : 'name';
-        const titleVal = item.title || item.name || '';
+        const titleVal = readCanonicalField(item, 'title', 'name');
         return (
           <div
             key={item.id || idx}
@@ -620,8 +618,8 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Publication Title"
               sectionId={section.id}
               itemId={item.id}
-              titleField={titleKey}
-              subtitle={item.publisher || ''}
+              titleField="title"
+              subtitle={readCanonicalField(item, 'publisher')}
               subtitlePlaceholder="Publisher"
               subtitleField="publisher"
               url={itemUrl}
@@ -631,7 +629,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               tone={tone}
             />
             <Description
-              value={item.description || item.summary || ''}
+              value={readCanonicalField(item, 'description', 'summary')}
               sectionId={section.id}
               itemId={item.id}
               field="description"
@@ -644,13 +642,15 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'references') {
-        const roleAndCompany = [item.position, item.company].filter(Boolean).join(', ');
-        const contactVal = item.contact || item.email || item.phone || '';
-        const descKey =
-          item.reference !== undefined && item.description === undefined
-            ? 'reference'
-            : 'description';
-        const descVal = item.description || item.reference || '';
+        const positionVal = readCanonicalField(item, 'position', 'role');
+        const roleAndCompany = [positionVal, item.company].filter(Boolean).join(', ');
+        const contactVal = readCanonicalField(item, 'contact', 'email', 'phone');
+        const descVal = readCanonicalField(
+          item,
+          'description',
+          'reference',
+          'summary'
+        );
         return (
           <div
             key={item.id || idx}
@@ -659,7 +659,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
             style={itemStyle}
           >
             <ItemHeader
-              title={item.name || ''}
+              title={readCanonicalField(item, 'name')}
               titlePlaceholder="Reference Name"
               sectionId={section.id}
               itemId={item.id}
@@ -687,7 +687,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               value={descVal}
               sectionId={section.id}
               itemId={item.id}
-              field={descKey}
+              field="description"
               readOnly={isReadOnly}
               showWhenEmptyInEdit={false}
             />
@@ -696,13 +696,13 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'achievements') {
-        const nameKey = item.name !== undefined ? 'name' : 'title';
-        const nameVal = item.name || item.title || '';
-        const issuerKey =
-          item.organization !== undefined && item.issuer === undefined
-            ? 'organization'
-            : 'issuer';
-        const issuerVal = item.issuer || item.organization || '';
+        const nameVal = readCanonicalField(item, 'name', 'title');
+        const issuerVal = readCanonicalField(
+          item,
+          'issuer',
+          'organization',
+          'awarder'
+        );
         return (
           <div
             key={item.id || idx}
@@ -715,9 +715,9 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Achievement"
               sectionId={section.id}
               itemId={item.id}
-              titleField={nameKey}
+              titleField="name"
               subtitle={issuerVal}
-              subtitleField={issuerKey}
+              subtitleField="issuer"
               url={itemUrl}
               urlPlacement="title"
               item={item}
@@ -725,7 +725,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               tone={tone}
             />
             <Description
-              value={item.description || ''}
+              value={readCanonicalField(item, 'description', 'summary')}
               sectionId={section.id}
               itemId={item.id}
               field="description"
@@ -738,8 +738,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       if (kind === 'interests') {
-        const nameKey = item.name !== undefined ? 'name' : 'title';
-        const nameVal = item.name || item.title || '';
+        const nameVal = readCanonicalField(item, 'name', 'title');
         return (
           <div
             key={item.id || idx}
@@ -752,12 +751,12 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
               titlePlaceholder="Interest"
               sectionId={section.id}
               itemId={item.id}
-              titleField={nameKey}
+              titleField="name"
               readOnly={isReadOnly}
               tone={tone}
             />
             <Description
-              value={item.description || ''}
+              value={readCanonicalField(item, 'description', 'summary')}
               sectionId={section.id}
               itemId={item.id}
               field="description"
@@ -770,26 +769,22 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
       }
 
       // 'custom' section items
-      const primaryKey =
-        item.title !== undefined
-          ? 'title'
-          : item.name !== undefined
-          ? 'name'
-          : 'title';
-      const primaryVal =
-        item.title ||
-        item.name ||
-        item.organization ||
-        item.institution ||
-        item.company ||
-        (isReadOnly ? '' : 'Untitled Item');
-      const secondaryVal =
-        item.subtitle ||
-        item.position ||
-        item.issuer ||
-        item.publisher ||
-        '';
-      const descVal = item.description || item.summary || '';
+      const primaryVal = readCanonicalField(
+        item,
+        'title',
+        'name',
+        'organization',
+        'institution',
+        'company'
+      );
+      const secondaryVal = readCanonicalField(
+        item,
+        'subtitle',
+        'position',
+        'issuer',
+        'publisher'
+      );
+      const descVal = readCanonicalField(item, 'description', 'summary');
 
       const extraCustomFields = extractCustomExtraFields(item);
 
@@ -805,7 +800,7 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({
             titlePlaceholder="Item Title"
             sectionId={section.id}
             itemId={item.id}
-            titleField={primaryKey}
+            titleField="title"
             subtitle={secondaryVal}
             subtitleField="subtitle"
             url={itemUrl}

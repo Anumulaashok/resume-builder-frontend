@@ -46,11 +46,16 @@ export const DateRange: React.FC<DateRangeProps> = ({
       ? formatDateWithPattern(date, effectiveFormat)
       : formatResumeDate(date);
 
+    const rawEnd = formatResumeDate(endDate);
+    const isOngoing = Boolean(current) || /^present$/i.test(rawEnd.trim());
+
     if (start) {
-      const rawEnd = formatResumeDate(endDate);
-      const displayEnd = current || !rawEnd ? 'Present' : end;
-      formatted = `${start} - ${displayEnd}`;
-    } else if (current) {
+      if (isOngoing) {
+        formatted = `${start} - Present`;
+      } else {
+        formatted = end ? `${start} - ${end}` : start;
+      }
+    } else if (isOngoing) {
       formatted = 'Present';
     } else if (end) {
       formatted = end;

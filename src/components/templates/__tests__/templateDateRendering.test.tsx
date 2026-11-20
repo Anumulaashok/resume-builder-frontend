@@ -163,7 +163,7 @@ describe.each([
     expect(screen.getByText('Sep 2014 - May 2018')).toBeInTheDocument();
   });
 
-  it('renders Present fallback when endDate is omitted, empty, whitespace, empty object, or current is true', () => {
+  it('renders Present only when current is true or endDate equals Present, omitting Present for empty endDate when current is false', () => {
     const resume = buildResumeWithSections([
       {
         id: 'work-sec',
@@ -185,6 +185,14 @@ describe.each([
             current: false,
           },
           {
+            id: 'work-explicit-present',
+            name: 'Explicit Present Co',
+            position: 'Principal Engineer',
+            startDate: 'Jan 2024',
+            endDate: 'Present',
+            current: false,
+          },
+          {
             id: 'work-current-only',
             name: 'Current Only Co',
             position: 'Advisor',
@@ -198,8 +206,11 @@ describe.each([
 
     render(<TemplateComponent resume={resume} readOnly />);
 
-    expect(screen.getByText('Mar 2023 - Present')).toBeInTheDocument();
-    expect(screen.getByText('Jun 2022 - Present')).toBeInTheDocument();
+    expect(screen.getByText('Mar 2023')).toBeInTheDocument();
+    expect(screen.queryByText('Mar 2023 - Present')).not.toBeInTheDocument();
+    expect(screen.getByText('Jun 2022')).toBeInTheDocument();
+    expect(screen.queryByText('Jun 2022 - Present')).not.toBeInTheDocument();
+    expect(screen.getByText('Jan 2024 - Present')).toBeInTheDocument();
     expect(screen.getByText('Present')).toBeInTheDocument();
   });
 });
